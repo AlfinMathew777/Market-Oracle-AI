@@ -76,6 +76,16 @@ def map_event_to_ticker(event_data: dict, macro_context: Optional[dict] = None) 
     
     logger.info(f"Mapping event: country={country}, type={event_type}, fatalities={fatalities}")
     
+    # Rule 0: Australian RBA monetary policy → Banks (CBA)
+    if _is_australia(country, location):
+        if 'monetary' in event_type or 'rate' in event_type or 'rba' in notes or 'cash rate' in notes or 'interest rate' in notes:
+            logger.info("Australian RBA monetary policy detected → CBA.AX (major bank)")
+            return 'CBA.AX'
+        # Australian property/banking crisis → CBA
+        if 'property' in notes or 'banking' in notes or 'developer' in notes:
+            logger.info("Australian property/banking crisis detected → CBA.AX")
+            return 'CBA.AX'
+    
     # Rule 1: Middle East conflict → Resources stocks (commodity risk premium)
     if _is_middle_east(country, location):
         if fatalities >= 5 or 'battle' in event_type or 'violence' in event_type or 'conflict' in event_type or 'armed' in event_type:
@@ -87,33 +97,55 @@ def map_event_to_ticker(event_data: dict, macro_context: Optional[dict] = None) 
         if 'protest' in event_type or 'riot' in event_type:
             logger.info("China unrest detected → FMG.AX (pure iron ore play)")
             return 'FMG.AX'
+        # China trade restrictions/tariffs → Iron ore stocks
+        if 'trade' in event_type or 'tariff' in notes or 'import ban' in notes or 'quota' in notes:
+            logger.info("China trade policy detected → FMG.AX (iron ore)")
+            return 'FMG.AX'
     
-    # Rule 3: Rare earth supply disruption keywords → LYC
+    # Rule 3: US trade policy → Diversified miners
+    if country == 'united states':
+        if 'tariff' in notes or 'trade policy' in event_type or 'liberation day' in notes:
+            logger.info("US trade policy detected → BHP.AX (diversified exports)")
+            return 'BHP.AX'
+    
+    # Rule 4: Rare earth supply disruption keywords → LYC
     if _has_rare_earth_keywords(notes, event_type, location):
         logger.info("Rare earth supply risk detected → LYC.AX")
         return 'LYC.AX'
     
-    # Rule 4: Port Hedland / Australian shipping disruption → Resources
+    # Rule 5: Port Hedland / Australian shipping disruption → Resources
     if macro_context and 'port_hedland_disruption' in macro_context:
         logger.info("Port Hedland disruption detected → RIO.AX")
         return 'RIO.AX'
     
-    # Rule 5: Interest rate shock (from FRED) → CBA
+    # Rule 6: Interest rate shock (from FRED) → CBA
     if macro_context and 'interest_rate_shock' in macro_context:
         logger.info("Interest rate shock detected → CBA.AX (banking)")
         return 'CBA.AX'
     
-    # Rule 6: Africa mining regions → Diversified miners
+    # Rule 7: Africa mining regions → Diversified miners
     if _is_africa_mining_region(country, location):
         if fatalities >= 3:
             logger.info("Africa mining region conflict → RIO.AX")
             return 'RIO.AX'
     
-    # Rule 7: Southeast Asia disruption → Supply chain impact on resources
+    # Rule 8: Southeast Asia disruption → Supply chain impact on resources
     if _is_southeast_asia(country, location):
         if 'shipping' in notes or 'port' in notes or 'strait' in notes:
             logger.info("Southeast Asia shipping disruption → BHP.AX")
             return 'BHP.AX'
+    
+    # Rule 9: Singapore/ASEAN trade agreements → Rare earths
+    if 'singapore' in country or 'asean' in notes:
+        if 'trade' in event_type or 'partnership' in notes:
+            logger.info("ASEAN trade agreement → LYC.AX (critical minerals competition)")
+            return 'LYC.AX'
+    
+    # Rule 10: Taiwan semiconductor/tech → Rare earths
+    if 'taiwan' in country or 'taiwan' in location:
+        if 'semiconductor' in notes or 'chip' in notes or 'export control' in notes:
+            logger.info("Taiwan tech supply chain → LYC.AX (rare earth beneficiary)")
+            return 'LYC.AX'
     
     # Default: High fatality events in key regions → BHP (safest default)
     if fatalities >= 10:
@@ -124,10 +156,22 @@ def map_event_to_ticker(event_data: dict, macro_context: Optional[dict] = None) 
     return None
 
 
+def _is_australia(country: str, location: str) -> bool:
+    """Check if event is in Australia."""
+    aus_locations = ['australia', 'sydney', 'melbourne', 'perth', 'brisbane', 'adelaide', 'canberra', 'darwin']
+    return any(loc in country or loc in location for loc in aus_locations)
+
+
 def _is_middle_east(country: str, location: str) -> bool:
     """Check if event is in Middle East."""
     middle_east_countries = REGION_MAPPING['Middle East']
     return any(c in country or c in location for c in middle_east_countries)
+
+
+def _is_australia(country: str, location: str) -> bool:
+    """Check if event is in Australia."""
+    aus_locations = ['australia', 'sydney', 'melbourne', 'perth', 'brisbane', 'adelaide', 'canberra', 'darwin']
+    return any(loc in country or loc in location for loc in aus_locations)
 
 
 def _is_china(country: str, location: str) -> bool:

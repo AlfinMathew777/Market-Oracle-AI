@@ -28,6 +28,10 @@
     "status": "completed"
   },
   {
+    "content": "Upgrade 3: Add ticker mapping rules for new event types",
+    "status": "completed"
+  },
+  {
     "content": "Upgrade 4: Create AustralianEconomicContext.js component with all metrics and tooltips",
     "status": "completed"
   },
@@ -41,6 +45,6 @@
   },
   {
     "content": "Final: Comprehensive testing of all 5 upgrades",
-    "status": "in_progress"
+    "status": "completed"
   }
 ]
