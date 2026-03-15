@@ -199,6 +199,7 @@ function App() {
                 portHedlandData={portHedlandData}
                 selectedEvent={selectedEvent}
                 onEventClick={handleEventClick}
+                prediction={prediction}
               />
             ) : (
               <Globe

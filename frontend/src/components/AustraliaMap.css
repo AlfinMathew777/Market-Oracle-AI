@@ -138,6 +138,79 @@
   border: 1px solid rgba(0, 255, 136, 0.4);
 }
 
+/* State impact tooltip */
+.state-tooltip {
+  position: absolute;
+  background: rgba(10, 10, 30, 0.95);
+  border: 1px solid rgba(255, 68, 68, 0.6);
+  border-radius: 6px;
+  padding: 8px 12px;
+  pointer-events: none;
+  z-index: 100;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+.tooltip-state {
+  font-size: 12px;
+  font-weight: 700;
+  color: #ff6666;
+  margin-bottom: 4px;
+}
+
+.tooltip-reason {
+  font-size: 11px;
+  color: #cccccc;
+  line-height: 1.4;
+}
+
+/* Floating macro data badges */
+.macro-badge {
+  position: absolute;
+  background: rgba(10, 15, 30, 0.85);
+  border: 1px solid rgba(100, 180, 255, 0.4);
+  border-radius: 20px;
+  padding: 8px 16px;
+  pointer-events: none;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  z-index: 15;
+}
+
+.badge-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: #888;
+  text-transform: uppercase;
+}
+
+.badge-value {
+  font-size: 13px;
+  font-weight: 700;
+  color: #ffffff;
+  white-space: nowrap;
+}
+
+/* Sentiment flow arrow animation */
+@keyframes dashFlow {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: -36;
+  }
+}
+
+.sentiment-arrow {
+  animation: dashFlow 1.5s linear infinite;
+  pointer-events: none;
+}
+
 /* Hover effects */
 .map-label:hover .label-icon {
   transform: scale(1.1);

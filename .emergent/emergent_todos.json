@@ -1,22 +1,10 @@
 [
   {
-    "content": "Test: Screenshot showing base Australia map with 6 markers",
+    "content": "Feature 3: Test sentiment arrow appearance and color (red DOWN / green UP)",
     "status": "completed"
   },
   {
-    "content": "Add state impact heatmap overlay (color states by event type)",
-    "status": "pending"
-  },
-  {
-    "content": "Add 3 floating data badges (Iron Ore, AUD/USD, ASX 200) pulling from macro data",
-    "status": "pending"
-  },
-  {
-    "content": "Add sentiment flow arrows triggered on simulation completion",
-    "status": "pending"
-  },
-  {
-    "content": "Test: Full testing of Australia map with all overlays",
-    "status": "pending"
+    "content": "Comprehensive testing of Australia map features",
+    "status": "in_progress"
   }
 ]
