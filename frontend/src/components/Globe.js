@@ -1,83 +1,98 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import Globe from 'globe.gl';
 import './Globe.css';
 
 function GlobeComponent({ events, portHedlandData, onEventClick, isSimulating }) {
-  const globeEl = useRef();
-  const globeInstance = useRef();
-  const [selectedEvent, setSelectedEvent] = useState(null);
-  const [popupPosition, setPopupPosition] = useState(null);
+  const globeRef = useRef(null);
+  const globeInstanceRef = useRef(null);
 
+  // Initialize globe ONCE on mount only
   useEffect(() => {
-    if (!globeEl.current) return;
+    if (!globeRef.current || globeInstanceRef.current) return;
 
-    // Initialize globe only once
-    if (!globeInstance.current) {
-      const globe = Globe()(globeEl.current)
-        .globeImageUrl('//unpkg.com/three-globe/example/img/earth-night.jpg')
-        .backgroundImageUrl('//unpkg.com/three-globe/example/img/night-sky.png')
-        .width(globeEl.current.clientWidth)
-        .height(globeEl.current.clientHeight)
-        .atmosphereColor('lightskyblue')
-        .atmosphereAltitude(0.15);
+    const globe = Globe()
+      .globeImageUrl('//unpkg.com/three-globe/example/img/earth-night.jpg')
+      .backgroundImageUrl('//unpkg.com/three-globe/example/img/night-sky.png')
+      .width(globeRef.current.clientWidth)
+      .height(globeRef.current.clientHeight)
+      .atmosphereColor('rgba(30, 100, 255, 0.2)')
+      .atmosphereAltitude(0.15)
+      .pointLat(d => d.geometry.coordinates[1])
+      .pointLng(d => d.geometry.coordinates[0])
+      .pointColor(() => '#ff3333')
+      .pointAltitude(0.02)
+      .pointRadius(d => {
+        const fatalities = d.properties?.fatalities || 0;
+        return Math.max(0.3, Math.min(fatalities / 10, 1.2));
+      })
+      .pointLabel(d => `
+        <div style="background: rgba(0,0,0,0.9); padding: 12px; border-radius: 8px; color: white; max-width: 250px;">
+          <strong style="color: #ff3333;">${d.properties.event_type}</strong><br/>
+          <strong>${d.properties.country}</strong><br/>
+          ${d.properties.description}<br/>
+          <small style="color: #aaa;">Fatalities: ${d.properties.fatalities} | ${d.properties.date}</small>
+        </div>
+      `)
+      .onPointClick((point) => {
+        console.log('🎯 Globe point clicked:', point);
+        if (!isSimulating && onEventClick) {
+          onEventClick(point);
+        }
+      });
 
-      // Auto-rotate when idle
-      globe.controls().autoRotate = true;
-      globe.controls().autoRotateSpeed = 0.5;
+    // Auto-rotate
+    globe.controls().autoRotate = true;
+    globe.controls().autoRotateSpeed = 0.5;
 
-      globeInstance.current = globe;
+    globe(globeRef.current);
+    globeInstanceRef.current = globe;
+
+    // Handle window resize
+    const handleResize = () => {
+      if (globeRef.current && globeInstanceRef.current) {
+        globeInstanceRef.current
+          .width(globeRef.current.clientWidth)
+          .height(globeRef.current.clientHeight);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      if (globeRef.current) {
+        globeRef.current.innerHTML = '';
+      }
+    };
+  }, []); // Empty dependency array - runs ONCE only
+
+  // Separate useEffect to update data without rebinding events
+  useEffect(() => {
+    if (globeInstanceRef.current && events && events.length > 0) {
+      globeInstanceRef.current.pointsData(events);
     }
+  }, [events]); // Only re-runs when data changes
 
-    const globe = globeInstance.current;
-
-    // Update pointer interaction based on simulation state
-    globe.enablePointerInteraction(!isSimulating);
-
-    // Render ACLED conflict events
-    if (events && events.length > 0) {
-      globe
-        .pointsData(events)
-        .pointLat(d => d.geometry.coordinates[1])
-        .pointLng(d => d.geometry.coordinates[0])
-        .pointColor(() => '#ff3333')
-        .pointAltitude(0.01)
-        .pointRadius(d => {
-          const fatalities = d.properties.fatalities || 0;
-          return Math.max(0.3, Math.min(fatalities / 10, 1.2));
-        })
-        .pointLabel(d => `
-          <div style="background: rgba(0,0,0,0.9); padding: 12px; border-radius: 8px; color: white; max-width: 250px;">
-            <strong style="color: #ff3333;">${d.properties.event_type}</strong><br/>
-            <strong>${d.properties.country}</strong><br/>
-            ${d.properties.description}<br/>
-            <small style="color: #aaa;">Fatalities: ${d.properties.fatalities} | ${d.properties.date}</small>
-          </div>
-        `)
-        .onPointClick((point) => {
-          console.log('Globe point clicked:', point);
-          if (!isSimulating) {
-            setSelectedEvent(point);
-            // Position popup in center of screen for consistency
-            setPopupPosition({
-              x: window.innerWidth / 2,
-              y: window.innerHeight / 3
-            });
-            globe.controls().autoRotate = false;
-          }
-        });
+  // Update pointer interaction based on simulation state
+  useEffect(() => {
+    if (globeInstanceRef.current) {
+      globeInstanceRef.current.enablePointerInteraction(!isSimulating);
+      if (globeInstanceRef.current.controls()) {
+        globeInstanceRef.current.controls().autoRotate = !isSimulating;
+      }
     }
+  }, [isSimulating]);
 
-    // Port Hedland marker (if data available)
-    if (portHedlandData) {
+  // Port Hedland marker
+  useEffect(() => {
+    if (globeInstanceRef.current && portHedlandData) {
       const portMarker = [{
         lat: -20.3,
         lng: 118.6,
-        size: 0.3,
-        color: '#4444ff',
         label: 'Port Hedland'
       }];
 
-      globe
+      globeInstanceRef.current
         .labelsData(portMarker)
         .labelLat(d => d.lat)
         .labelLng(d => d.lng)
@@ -86,66 +101,11 @@ function GlobeComponent({ events, portHedlandData, onEventClick, isSimulating })
         .labelColor(() => '#4444ff')
         .labelResolution(2);
     }
-
-    // Handle window resize
-    const handleResize = () => {
-      if (globeEl.current && globe) {
-        globe
-          .width(globeEl.current.clientWidth)
-          .height(globeEl.current.clientHeight);
-      }
-    };
-
-    window.addEventListener('resize', handleResize);
-
-    return () => {
-      window.removeEventListener('resize', handleResize);
-    };
-  }, [events, portHedlandData, isSimulating]);
-
-  const handleSimulateClick = () => {
-    if (selectedEvent && onEventClick) {
-      onEventClick(selectedEvent);
-      setSelectedEvent(null);
-      setPopupPosition(null);
-    }
-  };
-
-  const handleClosePopup = () => {
-    setSelectedEvent(null);
-    setPopupPosition(null);
-    if (globeInstance.current) {
-      globeInstance.current.controls().autoRotate = true;
-    }
-  };
+  }, [portHedlandData]);
 
   return (
     <div className="globe-container">
-      <div ref={globeEl} className="globe" />
-      
-      {selectedEvent && popupPosition && (
-        <div
-          className="event-popup"
-          style={{
-            position: 'fixed',
-            left: `${popupPosition.x}px`,
-            top: `${popupPosition.y}px`,
-            transform: 'translate(-50%, -50%)',
-          }}
-        >
-          <button className="popup-close" onClick={handleClosePopup}>×</button>
-          <h3>{selectedEvent.properties.event_type}</h3>
-          <p><strong>{selectedEvent.properties.country}</strong></p>
-          <p>{selectedEvent.properties.description}</p>
-          <div className="popup-meta">
-            <span>📅 {selectedEvent.properties.date}</span>
-            <span>💀 {selectedEvent.properties.fatalities} fatalities</span>
-          </div>
-          <button className="simulate-btn" onClick={handleSimulateClick}>
-            🔮 Simulate ASX Impact
-          </button>
-        </div>
-      )}
+      <div ref={globeRef} className="globe" />
     </div>
   );
 }

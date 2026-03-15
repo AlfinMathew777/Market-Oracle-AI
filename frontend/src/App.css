@@ -110,6 +110,7 @@ body {
   width: 100%;
   height: 100%;
   overflow: hidden;
+  display: flex;
 }
 
 .simulation-overlay {
@@ -237,6 +238,30 @@ body {
 
 .demo-note strong {
   color: #6699ff;
+}
+
+.selected-event-info {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.selected-event-info h3 {
+  font-size: 14px;
+  margin-bottom: 12px;
+  color: #6699ff;
+}
+
+.selected-event-info p {
+  margin: 4px 0;
+  font-size: 13px;
+  color: #ccc;
+}
+
+.selected-event-info small {
+  color: #888;
+  font-size: 11px;
 }
 
 .app-footer {
