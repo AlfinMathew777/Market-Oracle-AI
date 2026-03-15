@@ -29,6 +29,7 @@ from models.prediction import (
     KeySignal, SignalType, AgentConsensus, CausalChainStep
 )
 from event_ticker_mapping import map_event_to_ticker, get_ticker_info
+from services.market_intelligence import build_enhanced_agent_context
 
 # 8 ASX Persona Archetypes
 PERSONAS = {
@@ -113,7 +114,7 @@ Your characteristics:
 You are participating in a market simulation to predict the impact of a geopolitical event on an ASX stock.
 Give a brief, realistic response as this type of market participant would."""
     
-    async def form_opinion(self, llm_router: LLMRouter, event_context: str, ticker: str, round_num: int, previous_round_summary: str = "") -> Dict[str, Any]:
+    async def form_opinion(self, llm_router: LLMRouter, event_context: str, ticker: str, round_num: int, previous_round_summary: str = "", event_data: dict = None, enhanced_context: str = "") -> Dict[str, Any]:
         """Agent forms opinion on the event's impact on ticker."""
         
         user_prompt = f"""Round {round_num} - Market Simulation
@@ -122,6 +123,8 @@ EVENT CONTEXT:
 {event_context}
 
 TARGET STOCK: {ticker}
+
+{enhanced_context}
 
 {previous_round_summary}
 
@@ -210,13 +213,13 @@ class Simulation:
         
         print(f"✓ Initialized {len(self.agents)} agents across {len(PERSONAS)} personas")
     
-    async def run_round(self, round_num: int, event_context: str, ticker: str, previous_summary: str = "") -> Dict[str, Any]:
+    async def run_round(self, round_num: int, event_context: str, ticker: str, event_data: dict, enhanced_context: str = "", previous_summary: str = "") -> Dict[str, Any]:
         """Run one simulation round with all agents."""
         print(f"\n🔄 Running Round {round_num}...")
         
         # Agents form opinions in parallel (using boost model for speed)
         tasks = [
-            agent.form_opinion(self.llm_router, event_context, ticker, round_num, previous_summary)
+            agent.form_opinion(self.llm_router, event_context, ticker, round_num, previous_summary, event_data, enhanced_context)
             for agent in self.agents
         ]
         
@@ -266,6 +269,12 @@ CONFLICT EVENT:
 - Notes: {event_data.get('notes', 'N/A')}
 """
         
+        # Build enhanced context with sector sensitivity and AUD transmission
+        enhanced_context = build_enhanced_agent_context(ticker, event_data)
+        if enhanced_context:
+            print(f"\n📊 Market Intelligence Injected:")
+            print(enhanced_context[:200] + "..." if len(enhanced_context) > 200 else enhanced_context)
+        
         # Run rounds
         round_results = []
         previous_summary = ""
@@ -275,6 +284,8 @@ CONFLICT EVENT:
                 round_num=round_num,
                 event_context=event_context,
                 ticker=ticker,
+                event_data=event_data,
+                enhanced_context=enhanced_context,
                 previous_summary=previous_summary
             )
             round_results.append(round_result)
@@ -311,8 +322,49 @@ Previous Round {round_num} Consensus:
         event_data = simulation_results['event_data']
         final_consensus = simulation_results['final_consensus']
         
-        # Build comprehensive prompt for Claude
-        system_message = """You are a financial analyst at Market Oracle AI. Your task is to generate a structured prediction report based on a 50-agent simulation.
+        # Build comprehensive prompt for Claude with Australian market context
+        system_message = """You are a financial analyst at Market Oracle AI specializing in Australian Securities Exchange (ASX) intelligence. Your task is to generate a structured prediction report based on a 50-agent market simulation.
+
+AUSTRALIAN MARKET CONTEXT (CRITICAL - USE THESE TRANSMISSION MECHANISMS):
+
+Template A - AUD Commodity Amplifier:
+When AUD depreciates and commodity prices stay flat or rise:
+• Example: Iron ore $100 USD/t → AUD falls 5% → BHP.AX earns 5% more in AUD terms (85% pass-through)
+• Formula: If commodity export price stable + AUD falls X% → ASX resource stock revenue rises ~0.85X% in AUD terms
+• Application: Always cite this FX tailwind when event weakens AUD AND ticker is BHP.AX, RIO.AX, FMG.AX, LYC.AX
+
+Template B - Superannuation Contagion:
+Australian super funds ($3.5T AUM) have 0.65-0.75 correlation with S&P 500:
+• US equity selloff → Super funds mark-to-market losses → domestic equity redemptions
+• Chain: S&P 500 falls 3% → ASX 200 likely falls 2-2.25% within 48 hours via super rebalancing
+• Application: When event originates in US markets (Fed policy, tech selloff), cite super contagion channel
+
+Template C - Rate Sensitivity Asymmetry:
+RBA rate hikes create divergent impacts across ASX sectors:
+• Banks (CBA.AX, WBC.AX): Net Interest Margin (NIM) expansion → bullish (sensitivity +1.8)
+• REITs (GPT.AX, VCX.AX): Property discount rates rise + debt costs increase → bearish (sensitivity -2.2)
+• Example causal chain: "RBA hikes 25bps → CBA.AX NIM expands ~8bps → quarterly profit uplift $120M"
+• Application: Always cite NIM mechanics when event is RBA rate decision AND ticker is a bank
+
+Template D - China Concentration Risk:
+80% of Pilbara iron ore exports go to China:
+• Single-country dependency creates binary risk: China policy shift → immediate margin compression
+• Example: China announces 15% import quota cut → BHP.AX, RIO.AX, FMG.AX face revenue loss within 1 quarter
+• Port Hedland congestion metric is a 72-hour leading indicator of export disruption
+• Application: When event involves China trade policy, tariffs, or geopolitical tension, cite 80% dependency
+
+Template E - Critical Minerals Premium:
+Rare earth supply chain disruptions boost Australian producers:
+• Taiwan Strait risk OR China export restrictions → LYC.AX premium expands (non-China supply valued)
+• Semiconductor demand inelastic → rare earth price spike passes through quickly
+• Example: China rare earth export ban → LYC.AX sees 15-20% price premium as Japan/US buyers scramble
+• Application: When event disrupts China/Taiwan rare earth or semiconductor supply chain
+
+CRITICAL INSTRUCTIONS FOR CAUSAL CHAINS:
+- ALWAYS reference specific transmission mechanisms from Templates A-E when applicable
+- Use concrete numbers (e.g., "8bps NIM expansion" not "margin improvement")
+- Cite the 85% AUD pass-through, 0.70 super correlation, or 80% China dependency explicitly
+- Make causal chains sound like a seasoned ASX analyst who knows these structural relationships
 
 You MUST respond with ONLY valid JSON matching this exact schema (no markdown, no explanations):
 
@@ -323,7 +375,7 @@ You MUST respond with ONLY valid JSON matching this exact schema (no markdown, n
   "time_horizon": "h24" | "d7" | "d30",
   "causal_chain": [
     {"step": 1, "event": "...", "consequence": "..."},
-    ...2-5 steps
+    ...2-5 steps with Australian transmission mechanisms
   ],
   "key_signals": [
     {
@@ -342,7 +394,7 @@ You MUST respond with ONLY valid JSON matching this exact schema (no markdown, n
   "risk_factors": ["...", "..."] or null
 }
 
-Base your analysis on the simulation data provided. Be realistic and specific."""
+Base your analysis on the simulation data provided. Be realistic, specific, and cite Australian market structure."""
         
         user_prompt = f"""Generate a prediction report for this simulation:
 

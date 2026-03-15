@@ -68,6 +68,29 @@ const EVENT_STATE_IMPACT = {
   acled_008: { // Red Sea / Sudan shipping
     'Western Australia': { color: '#ff4444', opacity: 0.35, reason: 'Export route rerouting cost' },
     'Queensland': { color: '#ff6644', opacity: 0.25, reason: 'Coal export rerouting' }
+  },
+  // NEW 2025-2026 EVENTS (Upgrade 3)
+  acled_009: { // US Liberation Day tariffs
+    'Western Australia': { color: '#ff6644', opacity: 0.40, reason: 'Steel & aluminum exports tariffed' },
+    'New South Wales': { color: '#ff8844', opacity: 0.30, reason: 'Manufacturing exports impacted' },
+    'Queensland': { color: '#ff9955', opacity: 0.25, reason: 'Coal export uncertainty' }
+  },
+  acled_010: { // China iron ore ban
+    'Western Australia': { color: '#ff0000', opacity: 0.65, reason: 'Iron ore — 80% exports to China' },
+    'Northern Territory': { color: '#ff4444', opacity: 0.35, reason: 'Darwin port China shipments' }
+  },
+  acled_011: { // ASEAN-India trade realignment
+    'Western Australia': { color: '#ff5544', opacity: 0.35, reason: 'Critical minerals competition from India-Vietnam' },
+    'South Australia': { color: '#ff7744', opacity: 0.25, reason: 'Rare earth processing re-routed' }
+  },
+  acled_012: { // RBA hike to 3.85%
+    'New South Wales': { color: '#4488ff', opacity: 0.50, reason: 'Sydney banking NIM expansion (bullish banks)' },
+    'Victoria': { color: '#5599ff', opacity: 0.45, reason: 'Melbourne banking & REIT pressure' },
+    'Queensland': { color: '#6688ff', opacity: 0.25, reason: 'Brisbane property market cooling' }
+  },
+  acled_013: { // Taiwan semiconductor controls → rare earth surge
+    'Western Australia': { color: '#44ff88', opacity: 0.50, reason: 'LYC rare earth demand spike (bullish)' },
+    'Northern Territory': { color: '#66ff99', opacity: 0.30, reason: 'Rare earth export opportunity' }
   }
 };
 

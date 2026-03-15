@@ -1,50 +1,46 @@
 [
   {
-    "content": "Upgrade 1: Install readabs and pysdmx packages",
+    "content": "Upgrade 1: Add /api/data/australian-macro endpoint to routes/data.py",
     "status": "completed"
   },
   {
-    "content": "Upgrade 1: Create abs_service.py with get_australian_macro function",
+    "content": "Upgrade 1: Update MacroContext.js to fetch and display CPI and GDP Growth badges with arrows and tooltips",
+    "status": "completed"
+  },
+  {
+    "content": "Upgrade 1: Test backend endpoint with curl",
+    "status": "completed"
+  },
+  {
+    "content": "Upgrade 1: Test frontend rendering with screenshot (PAUSE POINT)",
+    "status": "completed"
+  },
+  {
+    "content": "Upgrade 2: Add SECTOR_RATE_SENSITIVITY and AUD_TRANSMISSION_MULTIPLIER to simulation engine",
+    "status": "completed"
+  },
+  {
+    "content": "Upgrade 2: Inject sector sensitivity context into agent prompts",
+    "status": "completed"
+  },
+  {
+    "content": "Upgrade 3: Append 5 NEW_EVENTS to acled_service.py mock data",
+    "status": "completed"
+  },
+  {
+    "content": "Upgrade 4: Create AustralianEconomicContext.js component with all metrics and tooltips",
+    "status": "completed"
+  },
+  {
+    "content": "Upgrade 4: Replace static list in App.js right sidebar with new component",
+    "status": "completed"
+  },
+  {
+    "content": "Upgrade 5: Add AUSTRALIAN_MARKET_CONTEXT templates to ReportAgent prompt in llm_router.py",
+    "status": "completed"
+  },
+  {
+    "content": "Final: Comprehensive testing of all 5 upgrades",
     "status": "in_progress"
-  },
-  {
-    "content": "Upgrade 1: Add GET /api/data/australian-macro endpoint",
-    "status": "pending"
-  },
-  {
-    "content": "Upgrade 1: Add CPI and GDP Growth badges to MacroContext strip",
-    "status": "pending"
-  },
-  {
-    "content": "Upgrade 2: Add SECTOR_RATE_SENSITIVITY lookup table to simulation",
-    "status": "pending"
-  },
-  {
-    "content": "Upgrade 2: Add AUD_TRANSMISSION_MULTIPLIER and apply_aud_transmission function",
-    "status": "pending"
-  },
-  {
-    "content": "Upgrade 2: Inject sector sensitivity into agent reasoning context",
-    "status": "pending"
-  },
-  {
-    "content": "Upgrade 3: Add 5 new ACLED events (US tariffs, China bans, ASEAN pivot, RBA hike, Taiwan chips)",
-    "status": "pending"
-  },
-  {
-    "content": "Upgrade 4: Create AustralianEconomicContext component with 7 metrics + tooltips",
-    "status": "pending"
-  },
-  {
-    "content": "Upgrade 4: Replace static exposures list with dynamic context panel in sidebar",
-    "status": "pending"
-  },
-  {
-    "content": "Upgrade 5: Add AUSTRALIAN_MARKET_CONTEXT templates to ReportAgent system prompt",
-    "status": "pending"
-  },
-  {
-    "content": "Test: Screenshot showing new Economic Context panel (after Upgrade 4)",
-    "status": "pending"
   }
 ]

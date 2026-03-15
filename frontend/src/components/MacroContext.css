@@ -72,6 +72,22 @@
   font-weight: 600;
 }
 
+.macro-arrow {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 4px;
+}
+
+.macro-arrow.warning {
+  color: #ff9933;
+}
+
+.macro-value-with-tooltip {
+  cursor: help;
+  border-bottom: 1px dotted rgba(255, 153, 51, 0.4);
+}
+
+
 .macro-divider {
   width: 1px;
   height: 18px;

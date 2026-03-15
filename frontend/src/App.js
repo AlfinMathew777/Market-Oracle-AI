@@ -8,6 +8,7 @@ import SimulationProgress from './components/SimulationProgress';
 import SectorHeatmap from './components/SectorHeatmap';
 import PredictionHistory from './components/PredictionHistory';
 import MacroContext from './components/MacroContext';
+import AustralianEconomicContext from './components/AustralianEconomicContext';
 import { Globe as GlobeIcon, Map as MapIcon } from 'lucide-react';
 import './App.css';
 
@@ -243,14 +244,6 @@ function App() {
                 <li>50 AI agents simulate ASX market participant reactions</li>
                 <li>Get predictions with Australian economic context</li>
               </ol>
-              <p className="demo-note">
-                <strong>Key Australian Exposures:</strong>
-                <br/>• China trade (iron ore, coal, LNG)
-                <br/>• Resources exports (Port Hedland disruptions)
-                <br/>• Rare earths & lithium (LYC competitive position)
-                <br/>• Shipping routes (Strait of Hormuz, Red Sea)
-                <br/>• Domestic RBA policy & property market
-              </p>
               <div className="demo-url">
                 <strong>asx.marketoracle.ai</strong>
                 <br />
@@ -258,6 +251,9 @@ function App() {
               </div>
             </div>
           )}
+          
+          {/* Australian Economic Context Panel - Always visible */}
+          <AustralianEconomicContext />
         </div>
       </div>
 

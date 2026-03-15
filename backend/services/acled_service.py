@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 # TOGGLE THIS FLAG: True = mock data, False = real ACLED API
 USE_MOCK_DATA = True
 
-# Mock dataset: 8 events focused on Australian economic impact
+# Mock dataset: 13 events focused on Australian economic impact (2025-2026)
 MOCK_ACLED_EVENTS = [
     {
         "id": "acled_001",
@@ -110,6 +110,67 @@ MOCK_ACLED_EVENTS = [
         "fatalities": 8,
         "affected_region": "red_sea_shipping",
         "notes": "Conflict near Port Sudan forces Australian wheat shipments to reroute - adds 10 days transit time"
+    },
+    # NEW 2025-2026 EVENTS (Upgrade 3)
+    {
+        "id": "acled_009",
+        "lat": 38.9,
+        "lon": -77.0,
+        "event_type": "Trade Policy",
+        "country": "United States",
+        "description": "US Liberation Day tariffs - 10% blanket tariff on all imports",
+        "date": "2025-04-02",
+        "fatalities": 0,
+        "affected_region": "us_trade_policy",
+        "notes": "President announces 10% universal baseline tariff on April 2, 2025 ('Liberation Day'). Australian steel, aluminum exports hit. Retaliatory fears."
+    },
+    {
+        "id": "acled_010",
+        "lat": 39.9,
+        "lon": 116.4,
+        "event_type": "Trade Restriction",
+        "country": "China",
+        "description": "China iron ore import ban targets Australian supply",
+        "date": "2025-07-15",
+        "fatalities": 0,
+        "affected_region": "china_iron_ore",
+        "notes": "China Commerce Ministry announces 15% quota reduction on Australian iron ore imports effective Q3 2025. Direct hit to BHP, RIO, FMG."
+    },
+    {
+        "id": "acled_011",
+        "lat": 1.35,
+        "lon": 103.8,
+        "event_type": "Trade Agreement",
+        "country": "Singapore",
+        "description": "ASEAN-India Comprehensive Economic Partnership signed",
+        "date": "2025-11-20",
+        "fatalities": 0,
+        "affected_region": "asean_trade",
+        "notes": "ASEAN+India sign RCEP 2.0 agreement, reducing tariffs on critical minerals. Australia excluded. Shifts rare earth supply chains toward India-Vietnam corridor."
+    },
+    {
+        "id": "acled_012",
+        "lat": -35.3,
+        "lon": 149.1,
+        "event_type": "Monetary Policy",
+        "country": "Australia",
+        "description": "RBA raises cash rate to 3.85% - highest since 2011",
+        "date": "2026-02-03",
+        "fatalities": 0,
+        "affected_region": "australia_domestic",
+        "notes": "Reserve Bank of Australia hikes 25bps to 3.85% citing sticky inflation. Banks (CBA, NAB) benefit from NIM expansion. REITs (GPT, VCX) under pressure."
+    },
+    {
+        "id": "acled_013",
+        "lat": 25.0,
+        "lon": 121.5,
+        "event_type": "Trade Restriction",
+        "country": "Taiwan",
+        "description": "US semiconductor export controls tighten - rare earth demand surge",
+        "date": "2026-01-10",
+        "fatalities": 0,
+        "affected_region": "tech_supply_chain",
+        "notes": "Biden administration restricts advanced chip exports to China. China retaliates by restricting rare earth exports. Australian producers (LYC, ARU) see 18% price spike."
     }
 ]
 

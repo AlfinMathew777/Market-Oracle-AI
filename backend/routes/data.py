@@ -8,6 +8,7 @@ from services.acled_service import ACLEDService
 from services.asx_service import ASXService
 from services.ais_service import AISService
 from services.macro_service import MacroService
+from services.abs_service import ABSService
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +19,7 @@ acled_service = ACLEDService()
 asx_service = ASXService()
 ais_service = AISService()
 macro_service = MacroService()
+abs_service = ABSService()
 
 # Simple in-memory cache (will be replaced with Redis later)
 cache = {}
@@ -154,6 +156,39 @@ async def get_macro_context():
         raise HTTPException(status_code=500, detail=f"Failed to fetch macro context: {str(e)}")
 
 
+@router.get("/australian-macro")
+async def get_australian_macro():
+    """
+    GET /api/data/australian-macro
+    
+    Fetch Australian macroeconomic indicators from ABS and RBA:
+    - CPI (inflation)
+    - RBA Cash Rate
+    - GDP Growth
+    - Unemployment Rate
+    - Household Debt-to-Income Ratio
+    - Household Saving Ratio
+    - Terms of Trade Change
+    - Labor Productivity Change
+    
+    Returns:
+        Dict with 8+ Australian macro indicators
+    """
+    try:
+        logger.info("Fetching Australian macro indicators...")
+        
+        macro_data = abs_service.get_australian_macro()
+        
+        return {
+            "status": "success",
+            "data": macro_data
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in /api/data/australian-macro: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch Australian macro data: {str(e)}")
+
+
 @router.get("/health")
 async def data_health_check():
     """Health check for data endpoints."""
@@ -163,6 +198,7 @@ async def data_health_check():
             "/api/data/acled",
             "/api/data/asx-prices",
             "/api/data/port-hedland",
-            "/api/data/macro-context"
+            "/api/data/macro-context",
+            "/api/data/australian-macro"
         ]
     }

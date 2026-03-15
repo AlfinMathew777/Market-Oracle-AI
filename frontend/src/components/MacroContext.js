@@ -1,29 +1,42 @@
 import React, { useState, useEffect } from 'react';
 import { TrendingUp, TrendingDown } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import './MacroContext.css';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
 
 const MacroContext = () => {
   const [macroData, setMacroData] = useState(null);
+  const [australianMacro, setAustralianMacro] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchMacroContext(); // Load immediately on mount
-    const interval = setInterval(fetchMacroContext, 300000); // Refresh every 5 min
+    fetchAllMacroData(); // Load immediately on mount
+    const interval = setInterval(fetchAllMacroData, 300000); // Refresh every 5 min
     return () => clearInterval(interval);
   }, []);
 
-  const fetchMacroContext = async () => {
+  const fetchAllMacroData = async () => {
     try {
-      const response = await fetch(`${BACKEND_URL}/api/data/macro-context`);
-      const result = await response.json();
-      if (result.status === 'success') {
-        setMacroData(result.data);
-        setLoading(false);
+      // Fetch both macro-context and australian-macro in parallel
+      const [contextResponse, ausResponse] = await Promise.all([
+        fetch(`${BACKEND_URL}/api/data/macro-context`),
+        fetch(`${BACKEND_URL}/api/data/australian-macro`)
+      ]);
+      
+      const contextResult = await contextResponse.json();
+      const ausResult = await ausResponse.json();
+      
+      if (contextResult.status === 'success') {
+        setMacroData(contextResult.data);
       }
+      if (ausResult.status === 'success') {
+        setAustralianMacro(ausResult.data);
+      }
+      
+      setLoading(false);
     } catch (err) {
-      console.error('Error fetching macro context:', err);
+      console.error('Error fetching macro data:', err);
       setLoading(false);
     }
   };
@@ -70,31 +83,79 @@ const MacroContext = () => {
     }
   ];
 
+  // Add Australian macro indicators if available
+  if (australianMacro) {
+    // CPI - Above RBA 2-3% target (warning signal)
+    indicators.push({
+      label: 'CPI',
+      value: `${australianMacro.cpi?.toFixed(1)}%` || 'N/A',
+      arrow: 'up', // Above target
+      tooltip: 'Above RBA 2-3% target — rate hike pressure',
+      testId: 'cpi'
+    });
+    
+    // GDP Growth - Softening (warning signal)
+    indicators.push({
+      label: 'GDP',
+      value: `${australianMacro.gdp_growth?.toFixed(1)}%` || 'N/A',
+      arrow: 'down', // Softening growth
+      tooltip: 'Softening from prior year — domestic demand cooling',
+      testId: 'gdp-growth'
+    });
+  }
+
   return (
-    <div className="macro-context" data-testid="macro-context">
-      {indicators.map((indicator, index) => (
-        <React.Fragment key={indicator.testId}>
-          <div className="macro-indicator" data-testid={`macro-${indicator.testId}`}>
-            <span className="macro-label">{indicator.label}</span>
-            <span className="macro-value" data-testid={`macro-value-${indicator.testId}`}>
-              {indicator.value}
-              {indicator.change !== undefined && indicator.change !== 0 && (
-                <span className={`macro-change ${indicator.change > 0 ? 'positive' : 'negative'}`}>
-                  {indicator.change > 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-                  {Math.abs(indicator.change).toFixed(2)}%
+    <TooltipProvider>
+      <div className="macro-context" data-testid="macro-context">
+        {indicators.map((indicator, index) => (
+          <React.Fragment key={indicator.testId}>
+            <div className="macro-indicator" data-testid={`macro-${indicator.testId}`}>
+              <span className="macro-label">{indicator.label}</span>
+              
+              {indicator.tooltip ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="macro-value macro-value-with-tooltip" data-testid={`macro-value-${indicator.testId}`}>
+                      {indicator.value}
+                      {indicator.arrow === 'up' && (
+                        <span className="macro-arrow warning">
+                          <TrendingUp size={12} />
+                        </span>
+                      )}
+                      {indicator.arrow === 'down' && (
+                        <span className="macro-arrow warning">
+                          <TrendingDown size={12} />
+                        </span>
+                      )}
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>{indicator.tooltip}</p>
+                  </TooltipContent>
+                </Tooltip>
+              ) : (
+                <span className="macro-value" data-testid={`macro-value-${indicator.testId}`}>
+                  {indicator.value}
+                  {indicator.change !== undefined && indicator.change !== 0 && (
+                    <span className={`macro-change ${indicator.change > 0 ? 'positive' : 'negative'}`}>
+                      {indicator.change > 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+                      {Math.abs(indicator.change).toFixed(2)}%
+                    </span>
+                  )}
                 </span>
               )}
-            </span>
-            {indicator.status === 'delayed' && (
-              <span className="macro-status-badge" title="Data may be delayed">
-                DELAYED
-              </span>
-            )}
-          </div>
-          {index < indicators.length - 1 && <div className="macro-divider" />}
-        </React.Fragment>
-      ))}
-    </div>
+              
+              {indicator.status === 'delayed' && (
+                <span className="macro-status-badge" title="Data may be delayed">
+                  DELAYED
+                </span>
+              )}
+            </div>
+            {index < indicators.length - 1 && <div className="macro-divider" />}
+          </React.Fragment>
+        ))}
+      </div>
+    </TooltipProvider>
   );
 };
 
