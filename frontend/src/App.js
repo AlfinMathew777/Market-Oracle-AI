@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Globe from './components/Globe';
+import AustraliaMap from './components/AustraliaMap';
 import EventSidebar from './components/EventSidebar';
 import PredictionCard from './components/PredictionCard';
 import TickerStrip from './components/TickerStrip';
@@ -7,6 +8,7 @@ import SimulationProgress from './components/SimulationProgress';
 import SectorHeatmap from './components/SectorHeatmap';
 import PredictionHistory from './components/PredictionHistory';
 import MacroContext from './components/MacroContext';
+import { Globe as GlobeIcon, Map as MapIcon } from 'lucide-react';
 import './App.css';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
@@ -21,6 +23,7 @@ function App() {
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [error, setError] = useState(null);
   const [correlationArc, setCorrelationArc] = useState({ show: false, eventLat: 0, eventLng: 0 });
+  const [viewMode, setViewMode] = useState('australia'); // 'australia' or 'global'
   const arcTimeoutRef = useRef(null);
 
   // Cleanup arc timeout on unmount
@@ -159,13 +162,54 @@ function App() {
             isSimulating={isSimulating}
           />
 
-          <Globe
-            events={acledEvents}
-            portHedlandData={portHedlandData}
-            onEventClick={handleEventClick}
-            isSimulating={isSimulating}
-            correlationArc={correlationArc}
-          />
+          <div 
+            className="map-view-container" 
+            data-testid="map-view-container"
+            style={{
+              position: 'absolute',
+              left: '280px',
+              right: 0,
+              top: 0,
+              bottom: 0,
+              zIndex: 1
+            }}
+          >
+            {/* View toggle button */}
+            <button
+              className="view-toggle-btn"
+              onClick={() => setViewMode(viewMode === 'australia' ? 'global' : 'australia')}
+              data-testid="view-toggle-btn"
+              title={viewMode === 'australia' ? 'Switch to Global View' : 'Switch to Australia View'}
+            >
+              {viewMode === 'australia' ? (
+                <>
+                  <GlobeIcon size={16} />
+                  <span>Global View</span>
+                </>
+              ) : (
+                <>
+                  <MapIcon size={16} />
+                  <span>Australia View</span>
+                </>
+              )}
+            </button>
+
+            {viewMode === 'australia' ? (
+              <AustraliaMap
+                portHedlandData={portHedlandData}
+                selectedEvent={selectedEvent}
+                onEventClick={handleEventClick}
+              />
+            ) : (
+              <Globe
+                events={acledEvents}
+                portHedlandData={portHedlandData}
+                onEventClick={handleEventClick}
+                isSimulating={isSimulating}
+                correlationArc={correlationArc}
+              />
+            )}
+          </div>
 
           {isSimulating && simulationStartTime && (
             <SimulationProgress startTime={simulationStartTime} />

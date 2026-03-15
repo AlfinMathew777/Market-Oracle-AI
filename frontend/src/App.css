@@ -58,6 +58,49 @@ body {
   background: rgba(255, 255, 255, 0.05);
   padding: 8px 16px;
   border-radius: 8px;
+
+/* Map view container and toggle */
+.globe-section .map-view-container {
+  position: absolute;
+  left: 280px;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  z-index: 1;
+}
+
+.view-toggle-btn {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: rgba(10, 10, 30, 0.95);
+  border: 1px solid rgba(51, 102, 255, 0.4);
+  border-radius: 8px;
+  color: #6699ff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(12px);
+}
+
+.view-toggle-btn:hover {
+  background: rgba(20, 20, 50, 0.98);
+  border-color: rgba(102, 153, 255, 0.6);
+  color: #99bbff;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(51, 102, 255, 0.3);
+}
+
+.view-toggle-btn:active {
+  transform: translateY(0);
+}
+
   border: 1px solid rgba(68, 68, 255, 0.3);
 }
 
