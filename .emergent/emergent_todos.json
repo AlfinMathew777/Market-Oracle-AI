@@ -1,10 +1,6 @@
 [
   {
-    "content": "Feature 3: Test sentiment arrow appearance and color (red DOWN / green UP)",
-    "status": "completed"
-  },
-  {
     "content": "Comprehensive testing of Australia map features",
-    "status": "in_progress"
+    "status": "completed"
   }
 ]
