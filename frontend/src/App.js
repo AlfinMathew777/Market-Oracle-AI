@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Globe from './components/Globe';
 import EventSidebar from './components/EventSidebar';
 import PredictionCard from './components/PredictionCard';
@@ -19,6 +19,17 @@ function App() {
   const [simulationStartTime, setSimulationStartTime] = useState(null);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [error, setError] = useState(null);
+  const [correlationArc, setCorrelationArc] = useState({ show: false, eventLat: 0, eventLng: 0 });
+  const arcTimeoutRef = useRef(null);
+
+  // Cleanup arc timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (arcTimeoutRef.current) {
+        clearTimeout(arcTimeoutRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     fetchInitialData();
@@ -92,6 +103,21 @@ function App() {
 
       if (result.status === 'completed' && result.prediction) {
         setPrediction(result.prediction);
+        
+        // Trigger correlation arc overlay
+        setCorrelationArc({
+          show: true,
+          eventLat: requestBody.lat,
+          eventLng: requestBody.lon
+        });
+        
+        // Auto-fade arc after 8 seconds
+        if (arcTimeoutRef.current) {
+          clearTimeout(arcTimeoutRef.current);
+        }
+        arcTimeoutRef.current = setTimeout(() => {
+          setCorrelationArc({ show: false, eventLat: 0, eventLng: 0 });
+        }, 8000);
       } else {
         throw new Error('Simulation did not complete successfully');
       }
@@ -135,6 +161,7 @@ function App() {
             portHedlandData={portHedlandData}
             onEventClick={handleEventClick}
             isSimulating={isSimulating}
+            correlationArc={correlationArc}
           />
 
           {isSimulating && simulationStartTime && (

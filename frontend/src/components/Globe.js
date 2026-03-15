@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import Globe from 'globe.gl';
 import './Globe.css';
 
-function GlobeComponent({ events, portHedlandData, onEventClick, isSimulating }) {
+function GlobeComponent({ events, portHedlandData, onEventClick, isSimulating, correlationArc }) {
   const globeRef = useRef(null);
   const globeInstanceRef = useRef(null);
 
@@ -106,6 +106,41 @@ function GlobeComponent({ events, portHedlandData, onEventClick, isSimulating })
         .labelResolution(2);
     }
   }, [portHedlandData]);
+
+  // Correlation arc overlay
+  useEffect(() => {
+    if (globeInstanceRef.current) {
+      if (correlationArc && correlationArc.show) {
+        const arcData = [{
+          startLat: correlationArc.eventLat,
+          startLng: correlationArc.eventLng,
+          endLat: -25,  // Australian market anchor
+          endLng: 133,
+          color: ['#ffd000', '#ffaa00']  // Yellow gradient
+        }];
+
+        globeInstanceRef.current
+          .arcsData(arcData)
+          .arcStartLat(d => d.startLat)
+          .arcStartLng(d => d.startLng)
+          .arcEndLat(d => d.endLat)
+          .arcEndLng(d => d.endLng)
+          .arcColor(d => d.color)
+          .arcStroke(3)
+          .arcDashLength(0.4)
+          .arcDashGap(0.3)
+          .arcDashAnimateTime(1500)
+          .arcAltitude(0.25)
+          .arcAltitudeAutoScale(0.6)
+          .arcLabel(() => 'Market Impact Signal');
+        
+        console.log('🔗 Correlation arc activated:', arcData[0]);
+      } else {
+        // Clear arcs when not active
+        globeInstanceRef.current.arcsData([]);
+      }
+    }
+  }, [correlationArc]);
 
   return (
     <div className="globe-container">

@@ -9,7 +9,7 @@
 - Integrate only required data sources: **ACLED**, **Yahoo Finance**, **FRED**, **AISStream (Port Hedland bbox)**.
 - Ensure the UI reads as a **real investor terminal from first render**, prioritizing:
   - ✅ **Bottom full-width ASX heatmap strip** (watchlist-style)
-  - ⏭️ **Right-rail prediction history** (demo track record)
+  - ✅ **Right-rail prediction history** (demo track record)
   - ⏭️ **Cause→effect visual arc** on the globe
   - ⏭️ **Top macro context strip** (auto-refreshing)
 
@@ -78,13 +78,13 @@
 
 ## Phase 4 — Enhancement Phase (Terminal UX + Demo Credibility) 🚧 IN PROGRESS
 
-**Directive:** Implement in *exact* priority order **P0 → P1 → P2 → P3**. Do **not** start P2 until P1 is visually complete and tested.
+**Directive:** Implement in *exact* priority order **P0 → P1 → P2 → P3**.
 
 ### P0 — ASX Sector Heatmap Panel (Bottom Watchlist Strip) ✅ COMPLETE
 
-**Goal:** Add a **bottom-of-screen, full-width, ~120px tall** heatmap-like watchlist panel with **5 equal-width columns**:
+**Goal:** Add a **bottom-of-screen, full-width, ~120px tall** watchlist panel with **5 equal-width columns**:
 - BHP, RIO, FMG, CBA, LYC
-- Each cell shows: **price**, **1D change ($ and %)**, and a **5-day sparkline** (SVG polyline, no chart library)
+- Each cell shows: **price**, **1D change ($ and %)**, and a **5-day sparkline** (SVG polyline; no chart library)
 
 #### Backend ✅
 - Enhanced `GET /api/data/asx-prices` to include **5-day lookback** data for sparklines:
@@ -105,7 +105,6 @@
 #### Success Criteria ✅
 - Heatmap strip renders instantly and does not break globe/sidebar.
 - Each ticker cell shows price, daily change, and visible sparkline.
-- Verified in browser via screenshots and smoke testing.
 
 #### Testing ✅
 - Backend verified: `/api/data/asx-prices` includes `history_5d` with 5 data points per ticker.
@@ -114,40 +113,38 @@
 
 ---
 
-### P1 — Prediction History Log (Right Sidebar, Collapsible) ⏭️ NEXT
+### P1 — Prediction History Log (Right Sidebar, Collapsible) ✅ COMPLETE
 
 **Goal:** Build demo credibility by showing a **session track record** of simulations.
 
-#### UX Requirements
+#### UX Requirements ✅
 - Position: **Right sidebar**, **below existing ASX ticker strip**.
 - Collapsible:
-  - Starts **expanded**, showing **last 3 predictions**.
-  - A “Show all” toggle reveals full log.
-- Max height: **40% of viewport** to avoid crowding the globe.
+  - Shows **last 3 predictions by default**, with a **Show all** toggle.
+- Max height: **40% of viewport**.
 - Persistence: `localStorage` (survives refresh).
+- Clear functionality: user can clear all history (with confirmation).
 
-#### Implementation Steps
-1. Create `frontend/src/components/PredictionHistory.js` (+ CSS).
-2. Add an append-to-history step on simulation completion (when `prediction` arrives in `App.js`):
-   - store: `{timestamp, event_id, event_summary, ticker, direction, confidence}`
-3. `localStorage` keys:
-   - `prediction_history` → JSON array
-4. UI behavior:
-   - default view shows latest 3
-   - toggle expands to full list
-   - optional “Clear” button (if time)
+#### Implementation Notes ✅
+- Implemented `frontend/src/components/PredictionHistory.js` + `PredictionHistory.css`.
+- Integrated into `App.js` below `TickerStrip`.
+- Storage:
+  - `localStorage` key: `prediction_history` (JSON array)
+- Added safe update logic using a functional state update to avoid stale history writes.
+- Added a minimal `min-height` to ensure the panel is always visible in the sidebar layout.
 
-#### Success Criteria
-- After multiple simulations, log shows correct ordering and persists across refresh.
+#### Success Criteria ✅
+- History log renders correctly, displays last 3 entries by default, and expands/collapses.
+- Persists across refresh.
+- Clear history works.
 
-#### Testing
-- Frontend-only smoke test:
-  - run 2–3 simulations, refresh, confirm log persists
-  - confirm collapsed/expanded behavior and max-height
+#### Testing ✅
+- Frontend test pass rate: **100%**.
+- Test report: `/app/test_reports/iteration_5.json`.
 
 ---
 
-### P2 — Signal Correlation Overlay (Animated Globe Arc)
+### P2 — Signal Correlation Overlay (Animated Globe Arc) ⏭️ NEXT
 
 **Goal:** Make causality spatially obvious by connecting event location to Australian market.
 
@@ -159,17 +156,29 @@
 - No additional panel.
 
 #### Implementation Steps
-- Update `frontend/src/components/Globe.js` (and `App.js` state wiring) to:
-  - store last simulated event coordinates
-  - store “arc active” state with timeout
-  - render arc using globe.gl arcs layer
+1. **State wiring (App.js)**
+   - Store `lastSimulatedEvent` (lat/lon + event_id) when a simulation completes.
+   - Store `arcActiveUntil` or a boolean `showCorrelationArc`.
+2. **Globe rendering (Globe.js)**
+   - Add globe.gl arcs layer:
+     - start: event coordinates
+     - end: Australia anchor point
+   - Arc style:
+     - color: yellow (e.g., `#ffd000`)
+     - animate: use dash animation or transition opacity
+3. **Auto-fade logic**
+   - On prediction completion, set arc active and schedule removal after 8 seconds.
+   - Clear any existing timeout when a new simulation completes.
 
 #### Success Criteria
-- Arc reliably appears after prediction and fades out after 8 seconds.
+- Arc reliably appears after prediction completion.
+- Arc fades out automatically after 8 seconds.
+- No regression to globe performance or click/hover interactions.
 
 #### Testing
-- Frontend interaction test:
-  - trigger simulation, confirm arc shows and disappears
+- Frontend interaction smoke test:
+  - trigger simulation, confirm arc appears and disappears.
+  - verify multiple simulations don’t leave stale arcs.
 
 ---
 
@@ -202,7 +211,7 @@
 - Fetch sources in reliability order with caching:
   - **Fed Funds Rate:** FRED series `FEDFUNDS` (no key needed); cache **1800s**
   - **AUD/USD:** Yahoo Finance `AUDUSD=X` via yfinance; cache **300s**
-  - **Iron Ore Spot:** try Yahoo Finance `IRON.AX` (or fallback hardcoded **$97.50/t** with “delayed” label); must not break strip
+  - **Iron Ore Spot:** try Yahoo Finance `IRON.AX` or fallback hardcoded **$97.50/t** with “delayed” label
   - **RBA Cash Rate:** hardcode **4.10%** with last-updated date
   - **ASX 200:** Yahoo Finance `^AXJO` via yfinance; cache **300s**
 - Maintain `USE_MOCK_DATA` strategy for demo stability.
@@ -217,12 +226,12 @@
 ---
 
 ## 3) Next Actions (Immediate)
-1. **Begin P1 (Prediction History Log):**
-   - Create `PredictionHistory` component + CSS
-   - Wire into `App.js` below `TickerStrip`
-   - Persist to `localStorage` and implement collapsible UI
+1. **Begin P2 (Signal Correlation Arc):**
+   - Add arc state in `App.js` based on latest completed simulation
+   - Render animated yellow arc in `Globe.js`
+   - Auto-fade after 8 seconds
    - Frontend smoke test + screenshot
-2. After P1 is complete and visually verified, proceed to **P2 Signal Correlation Arc**.
+2. After P2 is complete and visually verified, proceed to **P3 Economic Context Strip**.
 
 ---
 
@@ -230,7 +239,7 @@
 - Demo works end-to-end: **ACLED globe click → 50-agent simulation → prediction card** (ticker, direction, confidence, causal chain) in **<5 minutes**.
 - UI conveys “investor terminal” quality:
   - ✅ Bottom heatmap watchlist strip
-  - ⏭️ Persistent prediction history
+  - ✅ Persistent prediction history
   - ⏭️ Globe cause→effect arc
   - ⏭️ Auto-refreshing macro context header
 - System remains stable in mock mode and supports switching to live APIs without refactor.
