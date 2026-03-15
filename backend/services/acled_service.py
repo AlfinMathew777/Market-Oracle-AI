@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 # TOGGLE THIS FLAG: True = mock data, False = real ACLED API
 USE_MOCK_DATA = True
 
-# Mock dataset: 8 real-world conflict events relevant to ASX tickers
+# Mock dataset: 8 events focused on Australian economic impact
 MOCK_ACLED_EVENTS = [
     {
         "id": "acled_001",
@@ -21,11 +21,11 @@ MOCK_ACLED_EVENTS = [
         "lon": 56.2,
         "event_type": "Armed Conflict",
         "country": "Iran",
-        "description": "Strait of Hormuz naval tensions",
+        "description": "Strait of Hormuz tensions - Australian LNG export route at risk",
         "date": "2026-03-10",
         "fatalities": 0,
         "affected_region": "middle_east",
-        "notes": "Naval standoff near Hormuz, oil tanker inspection incidents"
+        "notes": "Naval standoff threatens Australian LNG shipments to Asia (40% of export value)"
     },
     {
         "id": "acled_002",
@@ -33,11 +33,11 @@ MOCK_ACLED_EVENTS = [
         "lon": 25.5,
         "event_type": "Armed Conflict",
         "country": "DRC",
-        "description": "Eastern DRC conflict near Manono lithium deposit",
+        "description": "DRC lithium mine conflict - threatens Australian battery supply chain",
         "date": "2026-03-12",
         "fatalities": 14,
         "affected_region": "drc_lithium",
-        "notes": "Armed groups clash near lithium mining operations"
+        "notes": "Armed groups clash near Manono lithium deposit - boosts Australian lithium miners (LYC, PLS)"
     },
     {
         "id": "acled_003",
@@ -45,35 +45,35 @@ MOCK_ACLED_EVENTS = [
         "lon": 113.3,
         "event_type": "Political Crisis",
         "country": "China",
-        "description": "Trade policy tensions, iron ore import restrictions",
+        "description": "China iron ore import quota - direct hit to Australian miners",
         "date": "2026-03-11",
         "fatalities": 0,
         "affected_region": "china_trade",
-        "notes": "China announces new iron ore import quotas affecting Australian exporters"
+        "notes": "China (Australia's largest trading partner) announces iron ore import restrictions targeting Australian supply"
     },
     {
         "id": "acled_004",
-        "lat": 25.2,
-        "lon": 51.5,
-        "event_type": "Armed Conflict",
-        "country": "Qatar/Gulf",
-        "description": "Gulf shipping disruption, LNG tanker rerouting",
-        "date": "2026-03-09",
+        "lat": -20.3,
+        "lon": 118.6,
+        "event_type": "Industrial Action",
+        "country": "Australia",
+        "description": "Port Hedland strike - iron ore exports halted",
+        "date": "2026-03-12",
         "fatalities": 0,
-        "affected_region": "gulf_lng",
-        "notes": "LNG tankers rerouting due to regional tensions"
+        "affected_region": "pilbara_resources",
+        "notes": "Australia's largest iron ore port workers strike - 48hr export shutdown affects BHP, RIO, FMG"
     },
     {
         "id": "acled_005",
-        "lat": -34.6,
-        "lon": -58.4,
+        "lat": -34.0,
+        "lon": 151.0,
         "event_type": "Political Crisis",
-        "country": "Argentina",
-        "description": "Lithium export restrictions, mining nationalisation",
+        "country": "Australia",
+        "description": "RBA emergency rate decision - Australian banks under pressure",
         "date": "2026-03-13",
         "fatalities": 0,
-        "affected_region": "latam_lithium",
-        "notes": "New government announces lithium sector nationalisation plans"
+        "affected_region": "australia_domestic",
+        "notes": "Reserve Bank of Australia signals emergency rate hike - impacts CBA, WBC, NAB, ANZ"
     },
     {
         "id": "acled_006",
@@ -81,23 +81,23 @@ MOCK_ACLED_EVENTS = [
         "lon": 121.5,
         "event_type": "Military Activity",
         "country": "Taiwan Strait",
-        "description": "Taiwan Strait military exercises, semiconductor supply chain risk",
+        "description": "Taiwan crisis - Australian semiconductor & rare earth supply at risk",
         "date": "2026-03-14",
         "fatalities": 0,
         "affected_region": "taiwan_rare_earth",
-        "notes": "Large-scale military exercises impacting regional rare earth logistics"
+        "notes": "Military exercises disrupt rare earth supply chain - opportunity for Australian miners (LYC)"
     },
     {
         "id": "acled_007",
-        "lat": -20.3,
-        "lon": 118.6,
-        "event_type": "Industrial Action",
+        "lat": -37.8,
+        "lon": 144.9,
+        "event_type": "Political Crisis",
         "country": "Australia",
-        "description": "Port Hedland workers strike, iron ore shipment delays",
-        "date": "2026-03-12",
+        "description": "Melbourne property crisis - Australian banking sector warning",
+        "date": "2026-03-11",
         "fatalities": 0,
-        "affected_region": "pilbara_resources",
-        "notes": "Port workers strike causing 48-hour iron ore shipment delays"
+        "affected_region": "australia_property",
+        "notes": "Melbourne apartment developer collapse triggers contagion fears - CBA, WBC exposed"
     },
     {
         "id": "acled_008",
@@ -105,11 +105,11 @@ MOCK_ACLED_EVENTS = [
         "lon": 32.5,
         "event_type": "Armed Conflict",
         "country": "Sudan",
-        "description": "Red Sea corridor disruption, shipping rerouting via Cape",
+        "description": "Red Sea disruption - reroutes Australian grain exports via Cape",
         "date": "2026-03-11",
         "fatalities": 8,
         "affected_region": "red_sea_shipping",
-        "notes": "Conflict near Port Sudan forcing ships to reroute around Cape of Good Hope"
+        "notes": "Conflict near Port Sudan forces Australian wheat shipments to reroute - adds 10 days transit time"
     }
 ]
 

@@ -107,7 +107,7 @@ function App() {
       <header className="app-header">
         <div className="logo">
           <h1>Market Oracle AI</h1>
-          <p className="tagline">ASX Intelligence - 50-Agent Prediction Engine</p>
+          <p className="tagline">Australian Market Intelligence - Geopolitics to ASX in Real-Time</p>
         </div>
         {portHedlandData && (
           <div className="port-hedland-badge">
@@ -155,15 +155,22 @@ function App() {
 
           {!prediction && !isSimulating && !error && (
             <div className="instructions">
-              <h3>How to Use</h3>
+              <h3>Australian Market Intelligence</h3>
+              <p className="australia-focus">
+                Track how global events impact Australian stocks, resources, and economy in real-time.
+              </p>
               <ol>
-                <li>Click any event in the left sidebar or on the globe</li>
-                <li>Watch the simulation progress (3-5 minutes)</li>
-                <li>View the prediction card with confidence score and causal chain</li>
+                <li>Click any geopolitical event affecting Australia</li>
+                <li>50 AI agents simulate ASX market participant reactions</li>
+                <li>Get predictions with Australian economic context</li>
               </ol>
               <p className="demo-note">
-                <strong>Demo Tip:</strong> Try the Iran/Strait of Hormuz event for a 
-                compelling commodity price story, or DRC lithium for rare earths impact.
+                <strong>Key Australian Exposures:</strong>
+                <br/>• China trade (iron ore, coal, LNG)
+                <br/>• Resources exports (Port Hedland disruptions)
+                <br/>• Rare earths & lithium (LYC competitive position)
+                <br/>• Shipping routes (Strait of Hormuz, Red Sea)
+                <br/>• Domestic RBA policy & property market
               </p>
               <div className="demo-url">
                 <strong>asx.marketoracle.ai</strong>
@@ -176,7 +183,7 @@ function App() {
       </div>
 
       <footer className="app-footer">
-        <p>Market Oracle AI MVP - 8 Real-World Events - 5 ASX Tickers - Zero-Cost Infrastructure</p>
+        <p>Market Oracle AI - Australian Market Intelligence Platform - Geopolitical Events to ASX Impact</p>
       </footer>
     </div>
   );

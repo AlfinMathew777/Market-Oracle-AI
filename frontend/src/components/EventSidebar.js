@@ -5,7 +5,7 @@ function EventSidebar({ events, onEventSelect, isSimulating }) {
   if (!events || events.length === 0) {
     return (
       <div className="event-sidebar">
-        <div className="sidebar-header">LIVE INTELLIGENCE FEED</div>
+        <div className="sidebar-header">AUSTRALIAN IMPACT FEED</div>
         <div className="loading-events">Loading events...</div>
       </div>
     );
@@ -19,8 +19,8 @@ function EventSidebar({ events, onEventSelect, isSimulating }) {
 
   return (
     <div className="event-sidebar">
-      <div className="sidebar-header">LIVE INTELLIGENCE FEED</div>
-      <div className="sidebar-subtitle">{events.length} Active Signals</div>
+      <div className="sidebar-header">AUSTRALIAN IMPACT FEED</div>
+      <div className="sidebar-subtitle">{events.length} Global Events Affecting ASX</div>
       
       <div className="events-list">
         {events.map((event) => (
@@ -47,7 +47,7 @@ function EventSidebar({ events, onEventSelect, isSimulating }) {
       </div>
       
       <div className="sidebar-footer">
-        <small>Click any event to trigger ASX prediction</small>
+        <small>Click any event to see ASX market impact prediction</small>
       </div>
     </div>
   );

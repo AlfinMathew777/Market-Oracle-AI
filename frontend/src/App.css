@@ -210,8 +210,19 @@ body {
 
 .instructions h3 {
   font-size: 16px;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
   color: #6699ff;
+}
+
+.australia-focus {
+  background: rgba(51, 102, 255, 0.08);
+  padding: 10px 12px;
+  border-left: 3px solid #3366ff;
+  border-radius: 4px;
+  margin-bottom: 16px;
+  font-size: 13px;
+  color: #ccc;
+  line-height: 1.5;
 }
 
 .instructions ol {
