@@ -1,0 +1,81 @@
+{
+  "ticker": "BHP.AX",
+  "direction": "DOWN",
+  "confidence": 0.88,
+  "time_horizon": "h24",
+  "causal_chain": [
+    {
+      "step": 1,
+      "event": "Armed naval confrontation near Strait of Hormuz with 23 fatalities and oil tanker route disruption",
+      "consequence": "Immediate global risk-off sentiment triggers broad equity sell-off, particularly in capital-intensive resource sectors"
+    },
+    {
+      "step": 2,
+      "event": "Strait of Hormuz shipping disruption raises global freight and energy costs",
+      "consequence": "BHP's operational input costs rise as fuel and logistics expenses increase across its mining and shipping operations"
+    },
+    {
+      "step": 3,
+      "event": "Investor fear of prolonged geopolitical instability in the Middle East escalates",
+      "consequence": "Institutional and retail investors reduce exposure to cyclical resource stocks like BHP, driving share price lower"
+    },
+    {
+      "step": 4,
+      "event": "Demand outlook for industrial commodities (iron ore, copper) weakens on fears of global economic slowdown",
+      "consequence": "BHP's core revenue-generating segments face downward price pressure as forward demand projections deteriorate"
+    },
+    {
+      "step": 5,
+      "event": "ASX opens with broad resource sector underperformance amid overnight global market declines",
+      "consequence": "BHP.AX experiences sustained selling pressure throughout the trading session, closing materially lower"
+    }
+  ],
+  "key_signals": [
+    {
+      "signal_type": "conflict",
+      "description": "Armed naval confrontation near Strait of Hormuz with 23 fatalities; active military engagement in one of the world's most critical oil transit chokepoints",
+      "impact": "negative",
+      "confidence": 0.92
+    },
+    {
+      "signal_type": "shipping",
+      "description": "Oil tanker route through Strait of Hormuz disrupted, raising global shipping costs and insurance premiums for commodity transport",
+      "impact": "negative",
+      "confidence": 0.89
+    },
+    {
+      "signal_type": "macro",
+      "description": "Geopolitical escalation near Iran introduces systemic risk to global trade routes, dampening industrial commodity demand outlook and investor risk appetite",
+      "impact": "negative",
+      "confidence": 0.87
+    },
+    {
+      "signal_type": "commodity",
+      "description": "Oil price spike may provide marginal benefit to BHP's petroleum segment, but BHP's primary revenue exposure is iron ore and copper, which suffer under risk-off conditions",
+      "impact": "neutral",
+      "confidence": 0.65
+    },
+    {
+      "signal_type": "market_sentiment",
+      "description": "Broad investor panic and flight to safe-haven assets expected; diversified mining stocks historically underperform during acute geopolitical conflict events",
+      "impact": "negative",
+      "confidence": 0.91
+    }
+  ],
+  "agent_consensus": {
+    "up": 2,
+    "down": 48,
+    "neutral": 0
+  },
+  "simulation_id": "sim_20260315_012130_10d840",
+  "trigger_event_id": "test_12345",
+  "generated_at": "2026-03-15 01:35:02.328471",
+  "contrarian_view": "A minority of agents (2/50) argue that the Strait of Hormuz disruption could spike global oil prices sufficiently to boost BHP's petroleum segment valuation, partially offsetting broader market risk-off pressure. If the conflict remains contained and oil prices surge sharply, BHP's energy exposure could provide a short-term tailwind. However, this view is weakened by BHP's dominant revenue exposure to iron ore and copper, not petroleum.",
+  "risk_factors": [
+    "Rapid de-escalation or ceasefire near the Strait of Hormuz could quickly reverse risk-off sentiment and limit downside",
+    "An unexpected oil price spike of extraordinary magnitude could boost BHP's petroleum division valuation beyond what the market anticipates",
+    "China announcing major stimulus targeting infrastructure spending could support iron ore demand and partially offset geopolitical headwinds",
+    "Currency effects: AUD weakness vs USD in risk-off environment could partially cushion BHP.AX's reported earnings in local currency terms",
+    "If conflict broadens into a wider regional war, downside could be significantly more severe than modeled in this 24-hour horizon"
+  ]
+}

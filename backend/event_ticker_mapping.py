@@ -78,7 +78,7 @@ def map_event_to_ticker(event_data: dict, macro_context: Optional[dict] = None) 
     
     # Rule 1: Middle East conflict → Resources stocks (commodity risk premium)
     if _is_middle_east(country, location):
-        if fatalities >= 5 or 'battle' in event_type or 'violence' in event_type:
+        if fatalities >= 5 or 'battle' in event_type or 'violence' in event_type or 'conflict' in event_type or 'armed' in event_type:
             logger.info("Middle East conflict detected → BHP.AX (major diversified miner)")
             return 'BHP.AX'
     

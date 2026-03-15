@@ -1,34 +1,268 @@
-.App-logo {
-    height: 40vmin;
-    pointer-events: none;
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-    .App-logo {
-        animation: App-logo-spin infinite 20s linear;
-    }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background: #000011;
+  color: white;
+  overflow: hidden;
 }
 
-.App-header {
-    background-color: #0f0f10;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    font-size: calc(10px + 2vmin);
-    color: white;
+.app {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(135deg, #000011 0%, #001133 100%);
 }
 
-.App-link {
-    color: #61dafb;
+.app-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 24px;
+  background: rgba(10, 10, 30, 0.8);
+  border-bottom: 1px solid rgba(51, 102, 255, 0.3);
+  backdrop-filter: blur(10px);
+  z-index: 100;
 }
 
-@keyframes App-logo-spin {
-    from {
-        transform: rotate(0deg);
-    }
-    to {
-        transform: rotate(360deg);
-    }
+.logo h1 {
+  font-size: 24px;
+  font-weight: 700;
+  background: linear-gradient(135deg, #3366ff 0%, #6633ff 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin: 0;
+}
+
+.tagline {
+  font-size: 12px;
+  color: #888;
+  margin: 4px 0 0 0;
+}
+
+.port-hedland-badge {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid rgba(68, 68, 255, 0.3);
+}
+
+.port-label {
+  font-size: 12px;
+  color: #888;
+}
+
+.congestion-badge {
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.congestion-badge.high {
+  background: rgba(255, 51, 51, 0.2);
+  color: #ff3333;
+  border: 1px solid #ff3333;
+}
+
+.congestion-badge.medium {
+  background: rgba(255, 165, 0, 0.2);
+  color: #ffaa44;
+  border: 1px solid #ffaa44;
+}
+
+.congestion-badge.low {
+  background: rgba(0, 255, 136, 0.2);
+  color: #00ff88;
+  border: 1px solid #00ff88;
+}
+
+.vessel-count {
+  font-size: 12px;
+  color: #6699ff;
+  font-weight: 500;
+}
+
+.main-container {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 400px;
+  gap: 0;
+  overflow: hidden;
+}
+
+.globe-section {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.simulation-overlay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(10, 10, 30, 0.95);
+  border: 2px solid #3366ff;
+  border-radius: 16px;
+  padding: 32px;
+  text-align: center;
+  z-index: 1000;
+  min-width: 400px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8);
+}
+
+.simulation-spinner {
+  width: 60px;
+  height: 60px;
+  border: 4px solid rgba(51, 102, 255, 0.2);
+  border-top-color: #3366ff;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 20px auto;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.simulation-overlay p {
+  font-size: 16px;
+  color: white;
+  margin-bottom: 12px;
+  font-weight: 500;
+}
+
+.simulation-overlay small {
+  font-size: 12px;
+  color: #888;
+  line-height: 1.4;
+  display: block;
+  max-width: 350px;
+  margin: 0 auto;
+}
+
+.sidebar {
+  background: rgba(10, 10, 30, 0.5);
+  border-left: 1px solid rgba(51, 102, 255, 0.3);
+  padding: 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.sidebar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.sidebar::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.sidebar::-webkit-scrollbar-thumb {
+  background: rgba(51, 102, 255, 0.5);
+  border-radius: 4px;
+}
+
+.sidebar::-webkit-scrollbar-thumb:hover {
+  background: rgba(51, 102, 255, 0.7);
+}
+
+.error-message {
+  background: rgba(255, 51, 51, 0.1);
+  border: 1px solid rgba(255, 51, 51, 0.3);
+  border-radius: 8px;
+  padding: 16px;
+  color: #ff6666;
+  font-size: 14px;
+}
+
+.error-message strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.instructions {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.instructions h3 {
+  font-size: 16px;
+  margin-bottom: 16px;
+  color: #6699ff;
+}
+
+.instructions ol {
+  padding-left: 20px;
+  margin-bottom: 16px;
+}
+
+.instructions li {
+  margin-bottom: 8px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #ccc;
+}
+
+.demo-note {
+  background: rgba(51, 102, 255, 0.1);
+  border-left: 3px solid #3366ff;
+  padding: 12px;
+  border-radius: 4px;
+  font-size: 13px;
+  color: #aaa;
+  line-height: 1.5;
+}
+
+.demo-note strong {
+  color: #6699ff;
+}
+
+.app-footer {
+  padding: 12px 24px;
+  background: rgba(10, 10, 30, 0.8);
+  border-top: 1px solid rgba(51, 102, 255, 0.3);
+  text-align: center;
+  font-size: 11px;
+  color: #666;
+}
+
+@media (max-width: 1200px) {
+  .main-container {
+    grid-template-columns: 1fr 350px;
+  }
+}
+
+@media (max-width: 968px) {
+  .main-container {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr auto;
+  }
+
+  .sidebar {
+    max-height: 300px;
+    border-left: none;
+    border-top: 1px solid rgba(51, 102, 255, 0.3);
+  }
 }
