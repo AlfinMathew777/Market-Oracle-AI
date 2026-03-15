@@ -44,14 +44,14 @@ function GlobeComponent({ events, portHedlandData, onEventClick, isSimulating })
             <small style="color: #aaa;">Fatalities: ${d.properties.fatalities} | ${d.properties.date}</small>
           </div>
         `)
-        .onPointClick((point, event) => {
+        .onPointClick((point, evt, coords) => {
           if (!isSimulating) {
             setSelectedEvent(point);
-            // Calculate popup position
+            // Calculate popup position - use evt (MouseEvent) not event
             const rect = globeEl.current.getBoundingClientRect();
             setPopupPosition({
-              x: event.clientX - rect.left,
-              y: event.clientY - rect.top
+              x: evt.clientX - rect.left,
+              y: evt.clientY - rect.top
             });
             globe.controls().autoRotate = false;
           }

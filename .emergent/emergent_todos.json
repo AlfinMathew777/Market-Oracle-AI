@@ -1,22 +1,14 @@
 [
   {
-    "content": "Phase 1: All POC user stories verified",
+    "content": "Phase 2: Fix Globe event click interactions",
     "status": "completed"
   },
   {
-    "content": "Phase 2: Backend - All 4 endpoints working",
-    "status": "completed"
-  },
-  {
-    "content": "Phase 2: Frontend - Complete Globe + Prediction Card UI",
-    "status": "completed"
-  },
-  {
-    "content": "Phase 2: End-to-End Integration Test (Iran → BHP.AX prediction)",
+    "content": "Phase 2: Re-test with Testing Agent after fix",
     "status": "in_progress"
   },
   {
-    "content": "Phase 3: End-to-End Testing using Testing Agent",
+    "content": "Phase 3: Final End-to-End Testing",
     "status": "pending"
   }
 ]
