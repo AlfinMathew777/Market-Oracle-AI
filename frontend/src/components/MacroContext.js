@@ -63,6 +63,18 @@ const MacroContext = () => {
       testId: 'aud-usd'
     },
     {
+      label: 'BRENT CRUDE',
+      value: macroData.brent_crude?.label || 'N/A',
+      status: macroData.brent_crude?.status,
+      testId: 'brent-crude'
+    },
+    {
+      label: 'GOLD',
+      value: macroData.gold?.label || 'N/A',
+      status: macroData.gold?.status,
+      testId: 'gold'
+    },
+    {
       label: 'IRON ORE',
       value: macroData.iron_ore?.label || 'N/A',
       status: macroData.iron_ore?.status,

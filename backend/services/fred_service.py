@@ -9,7 +9,7 @@ import requests
 import logging
 import os
 from typing import Dict
-from datetime import datetime
+from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +29,12 @@ FRED_AUSTRALIAN_SERIES = {
     "AUSCPIALLQINMEI": "cpi",                 # CPI All Items
     "AUSGDPRQDSMEI": "gdp_growth",            # GDP Growth Rate
     "NAEXKP01AUQ189S": "exports"              # Exports of Goods and Services
+}
+
+# Commodity price series (for macro context badges)
+FRED_COMMODITY_SERIES = {
+    "DCOILBRENTEU": "brent_crude_price",      # Brent Crude Oil (Europe) USD/barrel
+    "GOLDPMGBD228NLBM": "gold_price_usd"      # Gold Fixing Price (London) USD/troy oz
 }
 
 
@@ -85,7 +91,63 @@ def get_all_australian_macro() -> Dict:
     return {
         'status': 'success',
         'data': result,
-        'fetched_at': datetime.utcnow().isoformat()
+        'fetched_at': datetime.now(timezone.utc).isoformat()
+    }
+
+
+def get_commodity_prices() -> Dict:
+    """
+    Fetch Brent Crude and Gold prices from FRED for macro context badges.
+    
+    Returns:
+        Dict with brent_crude_price and gold_price_usd
+    """
+    if not FRED_API_KEY:
+        logger.error("FRED API key not configured")
+        return {
+            'status': 'pending_api_key',
+            'data': {}
+        }
+    
+    result = {}
+    
+    for series_id, field_name in FRED_COMMODITY_SERIES.items():
+        try:
+            params = {
+                "series_id": series_id,
+                "api_key": FRED_API_KEY,
+                "file_type": "json",
+                "limit": 1,
+                "sort_order": "desc"
+            }
+            
+            response = requests.get(FRED_BASE, params=params, timeout=10)
+            response.raise_for_status()
+            
+            observations = response.json().get("observations", [])
+            
+            if observations and observations[0]["value"] != ".":
+                result[field_name] = {
+                    "value": float(observations[0]["value"]),
+                    "date": observations[0]["date"],
+                    "source": "FRED",
+                    "series_id": series_id
+                }
+                logger.info(f"FRED: {field_name} = ${result[field_name]['value']:.2f}")
+            else:
+                logger.warning(f"FRED: No data for {series_id}")
+                
+        except requests.RequestException as e:
+            logger.error(f"FRED error fetching {series_id}: {str(e)}")
+            continue
+        except (ValueError, KeyError) as parse_error:
+            logger.error(f"FRED parse error for {series_id}: {parse_error}")
+            continue
+    
+    return {
+        'status': 'success',
+        'data': result,
+        'fetched_at': datetime.now(timezone.utc).isoformat()
     }
 
 
@@ -138,3 +200,14 @@ if __name__ == "__main__":
     else:
         print(f"Status: {result['status']}")
         print(f"Message: {result['message']}")
+    
+    print("\nCommodity Prices Test")
+    print("=" * 60)
+    
+    commodities = get_commodity_prices()
+    
+    if commodities['status'] == 'success':
+        for field, data in commodities['data'].items():
+            print(f"{field}: ${data['value']:.2f} (as of {data['date']})")
+    else:
+        print(f"Status: {commodities['status']}")

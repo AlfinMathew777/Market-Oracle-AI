@@ -46,18 +46,14 @@ async def get_acled_events():
     try:
         logger.info("Fetching ACLED events...")
         
-        # Get events from service
-        events = acled_service.get_recent_events(limit=50)
-        
-        # Convert to GeoJSON
-        geojson = acled_service.to_geojson(events)
+        # Get events from service (already returns GeoJSON)
+        geojson = acled_service.get_events()
         
         return {
             "status": "success",
             "data": geojson,
-            "count": len(events),
-            "cache_ttl": CACHE_TTL['acled'],
-            "data_source": "mock" if acled_service.use_mock else "acled_api"
+            "count": geojson.get('count', 0),
+            "cache_ttl": CACHE_TTL['acled']
         }
         
     except Exception as e:
@@ -264,6 +260,49 @@ async def data_health_check():
             "/api/data/macro-context",
             "/api/data/australian-macro",
             "/api/data/gdelt-sentiment",
-            "/api/data/mineral-deposits"
+            "/api/data/mineral-deposits",
+            "/api/data/pre-simulation-sentiment"
         ]
     }
+
+
+@router.get("/pre-simulation-sentiment")
+async def get_pre_simulation_sentiment(tickers: str, topic: str):
+    """
+    GET /api/data/pre-simulation-sentiment?tickers=BHP.AX,RIO.AX&topic=China+iron+ore+ban
+    
+    Generate combined pre-simulation context by merging:
+    - GDELT geopolitical sentiment
+    - MarketAux ticker-specific news sentiment
+    - Current commodity prices (Brent, Gold) and ticker sensitivity
+    
+    This is the 'powerful signal' that combines multiple data sources before
+    the 50-agent simulation runs.
+    
+    Args:
+        tickers: Comma-separated ASX tickers (e.g., "BHP.AX,RIO.AX,FMG.AX")
+        topic: Event topic/description for GDELT query
+    
+    Returns:
+        Dict with combined sentiment, individual signals, and commodity context
+    """
+    try:
+        # Parse tickers
+        ticker_list = [t.strip() for t in tickers.split(',')]
+        
+        logger.info(f"Generating pre-simulation context for {len(ticker_list)} tickers, topic: '{topic}'")
+        
+        # Import and call the pre-simulation context generator
+        from services.market_intelligence import get_pre_simulation_context
+        
+        context = get_pre_simulation_context(ticker_list, topic)
+        
+        return {
+            "status": "success",
+            "data": context
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in /api/data/pre-simulation-sentiment: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate pre-simulation context: {str(e)}")
+

@@ -10,7 +10,7 @@ No API key required - GDELT is fully open access (with rate limits).
 import requests
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Dict
 
 logger = logging.getLogger(__name__)
@@ -20,6 +20,10 @@ GDELT_API_BASE = "https://api.gdeltproject.org/api/v2/doc/doc"
 
 # REAL DATA - attempt live API with graceful degradation
 USE_MOCK_GDELT = False
+
+# In-memory cache with 1-hour TTL to prevent rate limiting
+_gdelt_cache = {}
+CACHE_TTL_SECONDS = 3600  # 1 hour
 
 # Tone score interpretation (GDELT scale: -10 to +10)
 # Most news clusters around -2 to +2; scores beyond ±5 are significant
@@ -50,7 +54,26 @@ def get_gdelt_sentiment_score(topic: str, timespan: str = "24h", max_records: in
         - signal_strength: "strong" | "moderate" | "weak"
         - tone_category: Human-readable interpretation
         - sample_articles: List of up to 3 article titles
+        - from_cache: Boolean indicating if result came from cache
     """
+    # Check cache first (1-hour TTL to prevent rate limiting)
+    cache_key = f"{topic}:{timespan}:{max_records}"
+    if cache_key in _gdelt_cache:
+        cached_entry = _gdelt_cache[cache_key]
+        cached_at = cached_entry['cached_at']
+        age_seconds = (datetime.now(timezone.utc) - cached_at).total_seconds()
+        
+        if age_seconds < CACHE_TTL_SECONDS:
+            logger.info(f"GDELT cache HIT for '{topic}' (age: {age_seconds:.0f}s)")
+            result = cached_entry['data'].copy()
+            result['from_cache'] = True
+            result['cache_age_seconds'] = int(age_seconds)
+            return result
+        else:
+            # Cache expired, remove it
+            logger.info(f"GDELT cache EXPIRED for '{topic}' (age: {age_seconds:.0f}s)")
+            del _gdelt_cache[cache_key]
+    
     try:
         # Build GDELT query URL - use ArtList mode for better tone data
         query_params = {
@@ -61,13 +84,21 @@ def get_gdelt_sentiment_score(topic: str, timespan: str = "24h", max_records: in
             "maxrecords": max_records
         }
         
-        logger.info(f"Querying GDELT for topic: '{topic}'")
+        logger.info(f"Querying GDELT API for topic: '{topic}'")
         
         response = requests.get(GDELT_API_BASE, params=query_params, timeout=12)
         
         # Handle rate limits gracefully
         if response.status_code == 429:
-            logger.warning("GDELT rate limit hit - returning unavailable status")
+            logger.warning("GDELT rate limit hit - checking for stale cache")
+            # If we have ANY cached version (even if expired), use it rather than failing
+            if cache_key in _gdelt_cache:
+                stale_data = _gdelt_cache[cache_key]['data'].copy()
+                stale_data['from_cache'] = True
+                stale_data['cache_status'] = 'stale_due_to_rate_limit'
+                logger.info("Returning stale cache due to rate limit")
+                return stale_data
+            
             return {
                 "avgtone": 0.0,
                 "article_count": 0,
@@ -77,7 +108,8 @@ def get_gdelt_sentiment_score(topic: str, timespan: str = "24h", max_records: in
                 "sample_articles": [],
                 "source": "GDELT (Rate Limited)",
                 "status": "rate_limited",
-                "message": "GDELT API rate limit - try again in 60 seconds"
+                "message": "GDELT API rate limit - data cached for 1 hour to prevent this",
+                "from_cache": False
             }
         
         response.raise_for_status()
@@ -90,7 +122,7 @@ def get_gdelt_sentiment_score(topic: str, timespan: str = "24h", max_records: in
         
         if article_count == 0:
             logger.warning(f"No GDELT articles found for topic: {topic}")
-            return {
+            result = {
                 "avgtone": 0.0,
                 "article_count": 0,
                 "sentiment": "neutral",
@@ -98,8 +130,15 @@ def get_gdelt_sentiment_score(topic: str, timespan: str = "24h", max_records: in
                 "tone_category": "No data",
                 "sample_articles": [],
                 "source": "GDELT DOC 2.0 API (Live)",
-                "status": "no_data"
+                "status": "no_data",
+                "from_cache": False
             }
+            # Cache even empty results to prevent hammering API
+            _gdelt_cache[cache_key] = {
+                'data': result.copy(),
+                'cached_at': datetime.now(timezone.utc)
+            }
+            return result
         
         # Calculate average tone across all articles
         total_tone = 0.0
@@ -131,7 +170,7 @@ def get_gdelt_sentiment_score(topic: str, timespan: str = "24h", max_records: in
         
         logger.info(f"GDELT result: {article_count} articles, avg tone: {avgtone:.2f}, sentiment: {sentiment}")
         
-        return {
+        result = {
             "avgtone": round(avgtone, 2),
             "article_count": article_count,
             "sentiment": sentiment,
@@ -140,8 +179,18 @@ def get_gdelt_sentiment_score(topic: str, timespan: str = "24h", max_records: in
             "sample_articles": sample_articles,
             "source": "GDELT DOC 2.0 API (Live)",
             "status": "success",
-            "queried_at": datetime.utcnow().isoformat()
+            "queried_at": datetime.now(timezone.utc).isoformat(),
+            "from_cache": False
         }
+        
+        # Cache the successful result
+        _gdelt_cache[cache_key] = {
+            'data': result.copy(),
+            'cached_at': datetime.now(timezone.utc)
+        }
+        logger.info(f"GDELT result cached for '{topic}' (TTL: {CACHE_TTL_SECONDS}s)")
+        
+        return result
         
     except requests.Timeout:
         logger.error("GDELT API timeout")

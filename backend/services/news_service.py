@@ -11,6 +11,7 @@ import requests
 import logging
 import os
 from typing import List, Dict
+from datetime import datetime, timedelta, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -47,11 +48,15 @@ def get_asx_news_sentiment(symbols: List[str], hours: int = 24) -> Dict:
         # Convert ASX tickers to format MarketAux expects (remove .AX suffix)
         cleaned_symbols = [s.replace('.AX', '') for s in symbols]
         
+        # Calculate published_after as ISO date string
+        published_after_date = datetime.now(timezone.utc) - timedelta(hours=hours)
+        published_after_str = published_after_date.strftime('%Y-%m-%dT%H:%M:%S')
+        
         params = {
             "api_token": MARKETAUX_API_KEY,
             "symbols": ",".join(cleaned_symbols),
             "filter_entities": "true",
-            "published_after": f"{hours}h",
+            "published_after": published_after_str,
             "limit": 20,
             "language": "en"
         }
@@ -127,7 +132,7 @@ def get_asx_news_sentiment(symbols: List[str], hours: int = 24) -> Dict:
             'articles': len(articles),
             'headlines': headlines,
             'source': 'MarketAux API (Live)',
-            'fetched_at': datetime.utcnow().isoformat()
+            'fetched_at': datetime.now(timezone.utc).isoformat()
         }
         
     except requests.Timeout:

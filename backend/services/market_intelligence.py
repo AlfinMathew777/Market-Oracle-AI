@@ -4,6 +4,10 @@ This module provides sector-specific rate sensitivity data and AUD transmission 
 to enhance simulation realism when modeling RBA/Fed rate decisions and currency moves.
 """
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 # Sector rate sensitivity lookup (per user document)
 # Maps ASX tickers to their interest rate sensitivity characteristics
 SECTOR_RATE_SENSITIVITY = {
@@ -203,3 +207,253 @@ def build_enhanced_agent_context(ticker: str, event_data: dict, aud_movement_pct
         contexts.append(aud_context)
     
     return "\n".join(contexts) if contexts else ""
+
+
+
+def get_commodity_price_sensitivity(ticker: str) -> dict:
+    """Get commodity price sensitivity for resource stocks.
+    
+    Returns sensitivity to Brent Crude and Gold price movements.
+    Used for pre-simulation context generation.
+    
+    Args:
+        ticker: ASX ticker symbol (e.g., 'BHP.AX')
+    
+    Returns:
+        Dict with commodity_exposure and sensitivities
+    """
+    # Resource stocks have varying exposure to commodity prices
+    commodity_sensitivity_map = {
+        # Iron ore producers - high oil correlation (shipping/diesel costs)
+        "BHP.AX": {
+            "primary_commodity": "iron_ore",
+            "oil_sensitivity": -0.15,  # Higher oil = higher costs = margin pressure
+            "gold_sensitivity": 0.05,  # Weak positive (some gold exposure)
+            "reasoning": "Major iron ore exporter; diesel/shipping costs sensitive to Brent"
+        },
+        "RIO.AX": {
+            "primary_commodity": "iron_ore",
+            "oil_sensitivity": -0.12,
+            "gold_sensitivity": 0.03,
+            "reasoning": "Diversified miner; iron ore shipping costs tied to oil"
+        },
+        "FMG.AX": {
+            "primary_commodity": "iron_ore",
+            "oil_sensitivity": -0.18,  # Pure iron ore = higher diesel sensitivity
+            "gold_sensitivity": 0.0,
+            "reasoning": "Pure-play iron ore; high diesel cost exposure"
+        },
+        
+        # Gold producers - direct gold price exposure
+        "NCM.AX": {
+            "primary_commodity": "gold",
+            "oil_sensitivity": -0.08,
+            "gold_sensitivity": 0.85,  # Strong direct correlation
+            "reasoning": "Major gold producer; revenues directly tied to gold price"
+        },
+        "EVN.AX": {
+            "primary_commodity": "gold",
+            "oil_sensitivity": -0.10,
+            "gold_sensitivity": 0.80,
+            "reasoning": "Gold miner; strong positive correlation to gold prices"
+        },
+        
+        # Other resources - moderate oil sensitivity
+        "MIN.AX": {
+            "primary_commodity": "lithium",
+            "oil_sensitivity": -0.08,
+            "gold_sensitivity": 0.0,
+            "reasoning": "Lithium producer; moderate energy cost exposure"
+        },
+        "LYC.AX": {
+            "primary_commodity": "rare_earths",
+            "oil_sensitivity": -0.06,
+            "gold_sensitivity": 0.0,
+            "reasoning": "Rare earths; moderate processing energy costs"
+        },
+        "PLS.AX": {
+            "primary_commodity": "lithium",
+            "oil_sensitivity": -0.08,
+            "gold_sensitivity": 0.0,
+            "reasoning": "Lithium producer; moderate energy cost exposure"
+        },
+        
+        # Banks - minimal commodity sensitivity
+        "CBA.AX": {
+            "primary_commodity": "none",
+            "oil_sensitivity": 0.0,
+            "gold_sensitivity": 0.0,
+            "reasoning": "Financial services; no direct commodity exposure"
+        },
+        "WBC.AX": {
+            "primary_commodity": "none",
+            "oil_sensitivity": 0.0,
+            "gold_sensitivity": 0.0,
+            "reasoning": "Financial services; no direct commodity exposure"
+        }
+    }
+    
+    return commodity_sensitivity_map.get(ticker, {
+        "primary_commodity": "unknown",
+        "oil_sensitivity": 0.0,
+        "gold_sensitivity": 0.0,
+        "reasoning": "No commodity exposure data available"
+    })
+
+
+def build_commodity_context(ticker: str, brent_price: float, gold_price: float) -> str:
+    """Build commodity price context for pre-simulation analysis.
+    
+    Args:
+        ticker: ASX ticker
+        brent_price: Current Brent Crude price (USD/bbl)
+        gold_price: Current Gold price (USD/oz)
+    
+    Returns:
+        Formatted context string or empty if not relevant
+    """
+    sensitivity = get_commodity_price_sensitivity(ticker)
+    
+    # Skip if no meaningful commodity exposure
+    if abs(sensitivity['oil_sensitivity']) < 0.05 and abs(sensitivity['gold_sensitivity']) < 0.05:
+        return ""
+    
+    context_parts = []
+    
+    # Oil context
+    if abs(sensitivity['oil_sensitivity']) >= 0.05:
+        if sensitivity['oil_sensitivity'] < 0:
+            context_parts.append(
+                f"COMMODITY CONTEXT (Oil): Brent crude at ${brent_price:.2f}/bbl. "
+                f"{ticker} has {abs(sensitivity['oil_sensitivity']):.0%} negative sensitivity "
+                f"(higher oil = higher costs). {sensitivity['reasoning']}"
+            )
+        else:
+            context_parts.append(
+                f"COMMODITY CONTEXT (Oil): Brent crude at ${brent_price:.2f}/bbl. "
+                f"{ticker} benefits from higher oil prices."
+            )
+    
+    # Gold context
+    if sensitivity['gold_sensitivity'] >= 0.05:
+        context_parts.append(
+            f"COMMODITY CONTEXT (Gold): Gold at ${gold_price:.2f}/oz. "
+            f"{ticker} has {sensitivity['gold_sensitivity']:.0%} positive exposure "
+            f"(direct revenue correlation). {sensitivity['reasoning']}"
+        )
+    
+    return "\n".join(context_parts) if context_parts else ""
+
+
+def get_pre_simulation_context(tickers: list, topic: str, brent_price: float = None, gold_price: float = None) -> dict:
+    """Generate combined pre-simulation sentiment context.
+    
+    Combines GDELT geopolitical sentiment + MarketAux news sentiment + commodity prices.
+    This is the 'powerful signal' mentioned in user requirements.
+    
+    Args:
+        tickers: List of ASX tickers to analyze (e.g., ['BHP.AX', 'RIO.AX'])
+        topic: Event topic/description for GDELT query
+        brent_price: Current Brent price (will fetch if not provided)
+        gold_price: Current Gold price (will fetch if not provided)
+    
+    Returns:
+        Dict with combined sentiment analysis and commodity context
+    """
+    from services.gdelt_service import get_gdelt_sentiment_score
+    from services.news_service import get_asx_news_sentiment
+    from services.fred_service import get_commodity_prices
+    
+    result = {
+        "topic": topic,
+        "tickers": tickers,
+        "gdelt_signal": {},
+        "news_signal": {},
+        "commodity_context": {},
+        "combined_sentiment_bias": 0.0,
+        "signal_strength": "UNKNOWN",
+        "generated_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    # 1. Fetch GDELT geopolitical sentiment
+    try:
+        gdelt_data = get_gdelt_sentiment_score(topic)
+        result["gdelt_signal"] = {
+            "avgtone": gdelt_data.get("avgtone", 0.0),
+            "article_count": gdelt_data.get("article_count", 0),
+            "sentiment": gdelt_data.get("sentiment", "neutral"),
+            "signal_strength": gdelt_data.get("signal_strength", "none"),
+            "status": gdelt_data.get("status", "unknown")
+        }
+    except Exception as e:
+        logger.error(f"GDELT fetch failed in pre-simulation context: {str(e)}")
+        result["gdelt_signal"] = {"status": "error", "error": str(e)}
+    
+    # 2. Fetch MarketAux ticker-specific news sentiment
+    try:
+        news_data = get_asx_news_sentiment(tickers, hours=24)
+        result["news_signal"] = {
+            "bias": news_data.get("bias", 0.0),
+            "signal": news_data.get("signal", "NEUTRAL"),
+            "article_count": news_data.get("articles", 0),
+            "signal_strength": news_data.get("signal_strength", "NONE"),
+            "status": news_data.get("status", "unknown")
+        }
+    except Exception as e:
+        logger.error(f"MarketAux fetch failed in pre-simulation context: {str(e)}")
+        result["news_signal"] = {"status": "error", "error": str(e)}
+    
+    # 3. Fetch commodity prices if not provided
+    if brent_price is None or gold_price is None:
+        try:
+            commodity_data = get_commodity_prices()
+            if commodity_data['status'] == 'success':
+                if brent_price is None:
+                    brent_price = commodity_data['data'].get('brent_crude_price', {}).get('value', 82.50)
+                if gold_price is None:
+                    gold_price = commodity_data['data'].get('gold_price_usd', {}).get('value', 2650.00)
+        except Exception as e:
+            logger.warning(f"Commodity prices fetch failed, using defaults: {str(e)}")
+            brent_price = brent_price or 82.50
+            gold_price = gold_price or 2650.00
+    
+    result["commodity_context"] = {
+        "brent_crude": brent_price,
+        "gold": gold_price
+    }
+    
+    # 4. Calculate combined sentiment bias
+    # Weight GDELT (geopolitical) at 40%, MarketAux (ticker-specific) at 60%
+    gdelt_bias = result["gdelt_signal"].get("avgtone", 0.0) / 10.0  # Normalize GDELT -10 to +10 scale to -1 to +1
+    news_bias = result["news_signal"].get("bias", 0.0)  # MarketAux already -1 to +1
+    
+    combined_bias = (0.4 * gdelt_bias) + (0.6 * news_bias)
+    result["combined_sentiment_bias"] = round(combined_bias, 3)
+    
+    # 5. Determine overall signal strength
+    gdelt_strength = result["gdelt_signal"].get("signal_strength", "none")
+    news_strength = result["news_signal"].get("signal_strength", "NONE")
+    
+    # Combine strength assessment
+    if gdelt_strength in ["strong"] or news_strength in ["STRONG"]:
+        result["signal_strength"] = "STRONG"
+    elif gdelt_strength in ["moderate", "strong"] and news_strength in ["MODERATE", "STRONG"]:
+        result["signal_strength"] = "STRONG"
+    elif gdelt_strength in ["moderate"] or news_strength in ["MODERATE"]:
+        result["signal_strength"] = "MODERATE"
+    elif gdelt_strength == "weak" or news_strength == "WEAK":
+        result["signal_strength"] = "WEAK"
+    else:
+        result["signal_strength"] = "INSUFFICIENT"
+    
+    # 6. Add commodity context strings for each ticker
+    result["commodity_context_strings"] = {}
+    for ticker in tickers:
+        commodity_str = build_commodity_context(ticker, brent_price, gold_price)
+        if commodity_str:
+            result["commodity_context_strings"][ticker] = commodity_str
+    
+    return result
+
+
+from datetime import datetime, timezone

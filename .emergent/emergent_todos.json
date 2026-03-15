@@ -1,58 +1,10 @@
 [
   {
-    "content": "Update ACLED service to real API (needs key)",
+    "content": "Phase 3.3: Take screenshot of MacroContext with new badges",
+    "status": "completed"
+  },
+  {
+    "content": "Phase 3.4: Fix any bugs found and run comprehensive testing agent",
     "status": "in_progress"
-  },
-  {
-    "content": "Update AISStream service to real WebSocket API (needs key)",
-    "status": "pending"
-  },
-  {
-    "content": "Update GDELT to real API (no key, verify working)",
-    "status": "pending"
-  },
-  {
-    "content": "Update FRED service to real API (needs key)",
-    "status": "pending"
-  },
-  {
-    "content": "Update Geoscience to real WFS API (no key, verify working)",
-    "status": "pending"
-  },
-  {
-    "content": "Verify yfinance returning real prices for 17 tickers",
-    "status": "pending"
-  },
-  {
-    "content": "Remove all USE_MOCK_DATA=True flags across codebase",
-    "status": "pending"
-  },
-  {
-    "content": "Add pending key error handling to all services",
-    "status": "pending"
-  },
-  {
-    "content": "Update .env files with API key placeholders",
-    "status": "pending"
-  },
-  {
-    "content": "Get API keys from user: ACLED, AISStream, FRED, MarketAux",
-    "status": "pending"
-  },
-  {
-    "content": "Wire GDELT into simulation as pre-simulation bias",
-    "status": "pending"
-  },
-  {
-    "content": "Add sentiment bar to prediction panel UI",
-    "status": "pending"
-  },
-  {
-    "content": "Render mineral deposit icons on Australia map",
-    "status": "pending"
-  },
-  {
-    "content": "Final: Test all real data endpoints",
-    "status": "pending"
   }
 ]

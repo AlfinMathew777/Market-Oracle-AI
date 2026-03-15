@@ -36,10 +36,10 @@ class MacroService:
         }
     
     def get_macro_context(self) -> Dict[str, Any]:
-        """Get all macro indicators.
+        """Get all macro indicators including commodity prices.
         
         Returns:
-            Dict with 5 macro indicators
+            Dict with 7 macro indicators (5 existing + Brent + Gold)
         """
         context = {}
         
@@ -63,6 +63,12 @@ class MacroService:
         
         # 5. ASX 200 Index
         context['asx_200'] = self._get_asx_200()
+        
+        # 6. Brent Crude Oil Price from FRED
+        context['brent_crude'] = self._get_brent_crude()
+        
+        # 7. Gold Price from FRED
+        context['gold'] = self._get_gold_price()
         
         context['fetched_at'] = datetime.now().isoformat()
         
@@ -244,6 +250,70 @@ class MacroService:
                 'updated': datetime.now().strftime('%Y-%m-%d'),
                 'status': 'delayed'
             }
+    
+    def _get_brent_crude(self) -> Dict[str, Any]:
+        """Fetch Brent Crude oil price from FRED."""
+        try:
+            from services.fred_service import get_commodity_prices
+            commodities = get_commodity_prices()
+            
+            if commodities['status'] == 'success' and 'brent_crude_price' in commodities['data']:
+                brent_data = commodities['data']['brent_crude_price']
+                return {
+                    'value': brent_data['value'],
+                    'label': f"${brent_data['value']:.2f}/bbl",
+                    'source': 'FRED',
+                    'updated': brent_data['date'],
+                    'status': 'live'
+                }
+            else:
+                logger.warning("Brent Crude data unavailable from FRED")
+                return self._fallback_brent_crude()
+        except Exception as e:
+            logger.error(f"Error fetching Brent Crude: {str(e)}")
+            return self._fallback_brent_crude()
+    
+    def _fallback_brent_crude(self) -> Dict[str, Any]:
+        """Fallback Brent Crude price."""
+        return {
+            'value': 82.50,
+            'label': '$82.50/bbl',
+            'source': 'Estimated',
+            'updated': datetime.now().strftime('%Y-%m-%d'),
+            'status': 'delayed'
+        }
+    
+    def _get_gold_price(self) -> Dict[str, Any]:
+        """Fetch Gold price from FRED."""
+        try:
+            from services.fred_service import get_commodity_prices
+            commodities = get_commodity_prices()
+            
+            if commodities['status'] == 'success' and 'gold_price_usd' in commodities['data']:
+                gold_data = commodities['data']['gold_price_usd']
+                return {
+                    'value': gold_data['value'],
+                    'label': f"${gold_data['value']:.2f}/oz",
+                    'source': 'FRED',
+                    'updated': gold_data['date'],
+                    'status': 'live'
+                }
+            else:
+                logger.warning("Gold price data unavailable from FRED")
+                return self._fallback_gold_price()
+        except Exception as e:
+            logger.error(f"Error fetching Gold price: {str(e)}")
+            return self._fallback_gold_price()
+    
+    def _fallback_gold_price(self) -> Dict[str, Any]:
+        """Fallback Gold price."""
+        return {
+            'value': 2650.00,
+            'label': '$2650.00/oz',
+            'source': 'Estimated',
+            'updated': datetime.now().strftime('%Y-%m-%d'),
+            'status': 'delayed'
+        }
     
     def _get_mock_macro_context(self) -> Dict[str, Any]:
         """Return mock macro context for demo."""
