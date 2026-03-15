@@ -1,8 +1,8 @@
 # Development Plan — Market Oracle AI (ASX Intelligence MVP)
 
 ## 1) Objectives
-- Deliver a **single end-to-end demo**:
-  - **Select global event (ACLED) → run 50-agent simulation (3–5 minutes) → show prediction card** for one of **BHP.AX, RIO.AX, FMG.AX, CBA.AX, LYC.AX**.
+- Deliver an **end-to-end investor demo**:
+  - **Select event (ACLED) → run 50-agent simulation (3–5 minutes) → show prediction card** for one of **BHP.AX, RIO.AX, FMG.AX, CBA.AX, LYC.AX**.
 - Maintain a **credible investor-terminal UX from first render**, including:
   - ✅ **Top macro context strip** (auto-refreshing)
   - ✅ **Bottom full-width ASX heatmap strip** (watchlist-style)
@@ -10,19 +10,26 @@
   - ✅ **Cause→effect visual overlay**
     - ✅ Global View: animated globe arc event → AU anchor
     - ✅ Australia View: animated sentiment flow arrow event → ASX Sydney
-- Shift the primary visualization narrative to **Australia-first market impact**:
+- Shift the platform narrative to **Australia-first market impact**:
   - ✅ Default center visualization is an **Australia-focused map** showing domestic impact indicators.
-  - ✅ Keep the **3D globe as an optional toggle** (button in top-right of map panel), but default to Australia View.
+  - ✅ Keep the **3D globe as an optional toggle** (button in top-right of center panel), default to Australia View.
+- Upgrade the product to be **institutional-grade** using document-sourced Australian market structure and macro intelligence (2024–2026):
+  - ⏭️ Replace key hardcoded macro data with **ABS and RBA** sources (via `readabs` / `pysdmx`) while preserving `USE_MOCK_DATA`.
+  - ⏭️ Inject **sector rate sensitivity** and **AUD transmission** logic into the simulation engine so agents behave like real market participants.
+  - ⏭️ Expand the event library with **real 2025–2026 geopolitical events** that map to Australian exposures.
+  - ⏭️ Replace static copy blocks with a **dynamic Australian Economic Context** panel.
+  - ⏭️ Improve causal-chain quality with **standard Australian transmission templates** baked into the ReportAgent prompt.
 - Keep infrastructure **$0 / low-cost** using **Emergent Universal LLM Key** with model split:
   - **Claude Sonnet 4.6**: ontology extraction + ReportAgent + final prediction JSON
   - **Gemini 2.5 Flash**: per-agent reasoning inside simulation rounds
   - **GPT-4.1**: fallback
-- Integrate only required data sources, with graceful fallbacks:
-  - **ACLED** (events)
+- Integrate required data sources with graceful fallbacks:
+  - **ACLED (mock now; live later)**
   - **Yahoo Finance (yfinance)** (ASX prices, AUD/USD, ASX200, optional Iron Ore)
   - **FRED** (Fed Funds Rate)
   - **AISStream** (Port Hedland bbox — optional / demo)
-- Preserve the **`USE_MOCK_DATA=True`** architecture across services to keep the demo stable and to enable later switching to live APIs.
+  - ⏭️ **ABS Indicator API + RBA (readabs)**
+- Preserve the **`USE_MOCK_DATA=True`** architecture across services to keep the demo stable and enable later switching to live APIs.
 
 ---
 
@@ -274,18 +281,173 @@
 
 ---
 
-## Phase 6 — P4: Swap to Real APIs (Production Data Mode) ⏭️ FUTURE
+## Phase 6 — Document-Sourced Intelligence Upgrades (2024–2026 AU Economic Report) ⏭️ IN PROGRESS
+
+**Goal:** Upgrade Market Oracle AI from a strong demo to an **institutional-grade Australian economic intelligence system** by grounding macro data, agent logic, event library, and causal chains in the provided 2024–2026 Australian economic report.
+
+### Upgrade Ordering (must follow)
+1) **Upgrades 1 & 2** first (simulation quality impact)
+2) Then **Upgrades 3 & 4** (dashboard richness)
+3) Then **Upgrade 5** (permanent causal-chain improvement)
+
+---
+
+### Upgrade 1 — Replace hardcoded mock data with ABS/RBA connections ✅/⏭️
+
+#### Requirements
+- Add dependencies:
+  - `readabs`
+  - `pysdmx`
+- Create `backend/services/abs_service.py` implementing `get_australian_macro()` with `USE_MOCK_DATA` pattern.
+- New endpoint: `GET /api/data/australian-macro`.
+- Wire into dashboard:
+  - Economic Context Strip gets **two new badges**: **CPI** and **GDP Growth**.
+
+#### Implementation Steps
+1. Add `readabs` and `pysdmx` to `backend/requirements.txt`.
+2. Create `backend/services/abs_service.py`:
+   - Mock return:
+     - CPI 3.8
+     - RBA cash rate 3.85
+     - GDP growth 1.4
+     - unemployment 4.1
+     - household debt % income 176
+     - household saving ratio 6.1
+     - terms of trade change -4.0
+     - labor productivity change -0.7
+   - Live mode:
+     - CPI via `ra.read_abs_cat("6401.0")`
+     - Labour Force via `ra.read_abs_cat("6202.0")`
+     - RBA cash via `ra.read_rba_ocr(monthly=True)`
+3. Add endpoint `GET /api/data/australian-macro` (routes/data.py).
+4. Update `MacroContext` component to display:
+   - CPI 3.8%
+   - GDP Growth 1.4%
+5. Testing:
+   - Verify endpoint returns expected JSON
+   - Verify macro strip renders 2 new badges without layout break.
+
+#### Success Criteria
+- Dashboard shows CPI and GDP Growth in macro strip.
+- Backend supports mock mode now and can flip to live with ABS key later.
+
+---
+
+### Upgrade 2 — Sector sensitivity logic in simulation engine ⏭️
+
+#### Requirements
+- Add sector lookup table and AUD transmission mechanism:
+  - `SECTOR_RATE_SENSITIVITY`
+  - `AUD_TRANSMISSION_MULTIPLIER`
+  - `apply_aud_transmission()`
+- Inject into agent reasoning context so RBA rate events produce credible sector-biased votes.
+
+#### Implementation Steps
+1. Add the lookup table to `backend/services/simulation_engine.py`.
+2. Detect rate events (e.g., `event_type == "Monetary Policy"` or affected region `domestic_rates`).
+3. For each agent prompt/context:
+   - Add relevant sensitivity snippet for the affected sector/ticker.
+4. For resources tickers:
+   - Add AUD commodity amplifier context and apply `apply_aud_transmission()` when AUD movement is relevant.
+5. Testing:
+   - Run simulation on the RBA hike event (acled_012 once added) and verify CBA leans bullish.
+
+#### Success Criteria
+- Rate events produce consistent, explainable bank-vs-REIT divergence.
+- Causal chains explicitly cite NIM expansion for banks.
+
+---
+
+### Upgrade 3 — Add five new ACLED events (real 2025–2026 geopolitics) ⏭️
+
+#### Requirements
+- Add `acled_009`…`acled_013` to mock ACLED service:
+  - US Liberation Day tariffs (Washington DC)
+  - China iron ore bans (Beijing)
+  - ASEAN/India trade realignment (Singapore)
+  - RBA raises to 3.85% (Canberra)
+  - Semiconductor controls intensify rare earth demand (Taiwan)
+
+#### Implementation Steps
+1. Update `backend/services/acled_service.py` mock list to append `NEW_EVENTS`.
+2. Ensure `GET /api/data/acled` returns 13 total events.
+3. Update Australia map `EVENT_STATE_IMPACT` mapping for new event IDs (esp. RBA hike and trade restrictions).
+4. Testing:
+   - Verify new events appear in sidebar.
+   - Verify state heatmap reacts sensibly.
+
+#### Success Criteria
+- 13 events cover resources, rates, trade, rare earths, ASEAN realignment.
+
+---
+
+### Upgrade 4 — Australian Economic Context panel (right sidebar) ⏭️
+
+#### Requirements
+- Replace static “Key Australian Exposures” bullet list with a dynamic panel:
+  - GDP Growth 1.4% ↓
+  - Inflation (CPI) 3.8% ↑
+  - RBA Cash Rate 3.85% ↑
+  - Household Debt 176% of income
+  - Saving Ratio 6.1% ↑
+  - Terms of Trade -4.0%
+  - Labor Productivity -0.7%
+  - Mining Export Share 57.4%
+  - Superannuation AUM $3.5T
+  - National Net Worth $21.4T
+- Add tooltips explaining ASX relevance (e.g., household debt tooltip about rate sensitivity).
+- Initial values hardcoded from document.
+
+#### Implementation Steps
+1. Create `frontend/src/components/AustralianEconomicContext.js` + CSS.
+2. Remove/replace static list in sidebar with this component.
+3. Add tooltip system (existing tooltip components can be reused).
+4. Optional integration:
+   - Once Upgrade 1 endpoint exists, this panel can be partially driven from `/api/data/australian-macro`.
+5. Testing:
+   - Verify tooltips render.
+   - Verify layout stays within right sidebar constraints.
+
+#### Success Criteria
+- Panel renders as a live intelligence block and becomes the primary right-rail narrative component.
+- **User-visible deliverable:** provide screenshot after this upgrade.
+
+---
+
+### Upgrade 5 — Improve causal chain quality (document transmission mechanisms) ⏭️
+
+#### Requirements
+- Add `AUSTRALIAN_MARKET_CONTEXT` block to the **Claude ReportAgent system prompt** so reports reference:
+  1) AUD Commodity Amplifier
+  2) Superannuation Contagion (correlation 0.65–0.75 with S&P 500)
+  3) Rate Sensitivity Asymmetry (banks vs REITs)
+  4) China Concentration Risk (80% Pilbara iron ore)
+  5) Critical Minerals Premium
+
+#### Implementation Steps
+1. Update ReportAgent prompt (where Claude is invoked for final synthesis/report).
+2. Ensure causal chain output uses Template A and Template B when relevant.
+3. Testing:
+   - Run at least one commodity shock event (resources) and one US-tech selloff style event and verify templates appear.
+
+#### Success Criteria
+- Causal chains become consistent, sophisticated, and recognizably Australia-specific.
+
+---
+
+## Phase 7 — P4: Swap to Real APIs (Production Data Mode) ⏭️ FUTURE
 
 **Goal:** Switch from mock mode to live data feeds for a production-ready demo.
 
 ### User Stories
-1. As a user, I see *live* ACLED events and market/macro data without manual updates.
+1. As a user, I see *live* events and market/macro data without manual updates.
 2. As a developer, I can flip from mock to live via environment variables without refactoring.
 
 ### Implementation Steps
 1. Obtain and add API keys (as needed):
    - ACLED (if required for higher quota)
    - AISStream
+   - ABS API key (if required)
 2. Update `.env` and relevant service modules in `/app/backend/services/`.
 3. Set `USE_MOCK_DATA=False`.
 4. Add defensive fallbacks and timeouts per service so one failing feed does not break the UI.
@@ -297,11 +459,11 @@
 ---
 
 ## 3) Next Actions (Immediate)
-1. **P5.4 (Optional):** Implement Event Impact Popup/Panel tailored to Australia map (states/sectors → tickers → simulate CTA).
-2. **Polish:** Address low-priority styling verification:
-   - Ensure `.state-boundary` transition explicitly matches `fill 0.6s ease, fill-opacity 0.6s ease` (test agent could not detect exact computed spec; visual behavior is correct).
-3. **Demo validation:** Run the “hero interaction”:
-   - Select **Port Hedland Strike** → confirm WA deep red → run simulation → confirm DOWN prediction → confirm red dashed flow arrow to ASX Sydney.
+1. **Phase 6 / Upgrade 1:** Add ABS/RBA macro endpoint + CPI & GDP Growth badges.
+2. **Phase 6 / Upgrade 2:** Add sector rate sensitivity + AUD transmission logic to simulation engine.
+3. **Phase 6 / Upgrade 3:** Add five new ACLED events (2025–2026 real geopolitics).
+4. **Phase 6 / Upgrade 4:** Replace static right sidebar bullets with **Australian Economic Context** panel (deliver screenshot).
+5. **Phase 6 / Upgrade 5:** Add AU transmission templates to Claude ReportAgent prompt.
 
 ---
 
@@ -313,4 +475,9 @@
   - ✅ Persistent prediction history
   - ✅ Cause→effect overlay (globe arc and Australia flow arrow)
   - ✅ Australia-first center visualization (state impacts + key ports/hubs + macro badges)
+  - ⏭️ Right-rail **Australian Economic Context** intelligence panel
+- Simulation reasoning is Australia-realistic:
+  - ⏭️ Sector rate sensitivity
+  - ⏭️ AUD commodity amplifier
+  - ⏭️ Superannuation contagion templates
 - System remains stable in mock mode and supports switching to live APIs without refactor.

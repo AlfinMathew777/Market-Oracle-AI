@@ -1,6 +1,50 @@
 [
   {
-    "content": "Comprehensive testing of Australia map features",
+    "content": "Upgrade 1: Install readabs and pysdmx packages",
     "status": "completed"
+  },
+  {
+    "content": "Upgrade 1: Create abs_service.py with get_australian_macro function",
+    "status": "in_progress"
+  },
+  {
+    "content": "Upgrade 1: Add GET /api/data/australian-macro endpoint",
+    "status": "pending"
+  },
+  {
+    "content": "Upgrade 1: Add CPI and GDP Growth badges to MacroContext strip",
+    "status": "pending"
+  },
+  {
+    "content": "Upgrade 2: Add SECTOR_RATE_SENSITIVITY lookup table to simulation",
+    "status": "pending"
+  },
+  {
+    "content": "Upgrade 2: Add AUD_TRANSMISSION_MULTIPLIER and apply_aud_transmission function",
+    "status": "pending"
+  },
+  {
+    "content": "Upgrade 2: Inject sector sensitivity into agent reasoning context",
+    "status": "pending"
+  },
+  {
+    "content": "Upgrade 3: Add 5 new ACLED events (US tariffs, China bans, ASEAN pivot, RBA hike, Taiwan chips)",
+    "status": "pending"
+  },
+  {
+    "content": "Upgrade 4: Create AustralianEconomicContext component with 7 metrics + tooltips",
+    "status": "pending"
+  },
+  {
+    "content": "Upgrade 4: Replace static exposures list with dynamic context panel in sidebar",
+    "status": "pending"
+  },
+  {
+    "content": "Upgrade 5: Add AUSTRALIAN_MARKET_CONTEXT templates to ReportAgent system prompt",
+    "status": "pending"
+  },
+  {
+    "content": "Test: Screenshot showing new Economic Context panel (after Upgrade 4)",
+    "status": "pending"
   }
 ]
