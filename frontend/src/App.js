@@ -4,6 +4,7 @@ import EventSidebar from './components/EventSidebar';
 import PredictionCard from './components/PredictionCard';
 import TickerStrip from './components/TickerStrip';
 import SimulationProgress from './components/SimulationProgress';
+import SectorHeatmap from './components/SectorHeatmap';
 import './App.css';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
@@ -181,6 +182,8 @@ function App() {
           )}
         </div>
       </div>
+
+      <SectorHeatmap />
 
       <footer className="app-footer">
         <p>Market Oracle AI - Australian Market Intelligence Platform - Geopolitical Events to ASX Impact</p>

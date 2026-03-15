@@ -103,6 +103,7 @@ body {
   grid-template-columns: 1fr 400px;
   gap: 0;
   overflow: hidden;
+  margin-bottom: 120px; /* Reserve space for fixed heatmap at bottom */
 }
 
 .globe-section {

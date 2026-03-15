@@ -129,7 +129,7 @@ class MarketOracleAPITester:
             self.log_test("ACLED Events Endpoint", False, f"Error: {str(e)}")
 
     def test_asx_prices_endpoint(self):
-        """Test ASX prices endpoint"""
+        """Test ASX prices endpoint with P0 heatmap requirements"""
         expected_tickers = ['BHP.AX', 'RIO.AX', 'FMG.AX', 'CBA.AX', 'LYC.AX']
         
         try:
@@ -157,25 +157,74 @@ class MarketOracleAPITester:
                         "ticker" in sample_ticker and
                         "price" in sample_ticker and
                         "currency" in sample_ticker and
-                        "change_pct_1d" in sample_ticker
+                        "change_pct_1d" in sample_ticker and
+                        "change_abs_1d" in sample_ticker
                     )
                     
-                    overall_success = count_correct and tickers_correct and structure_valid
+                    # P0 Feature Test: Check history_5d array with 5 data points
+                    history_5d_valid = self.validate_history_5d_data(tickers)
+                    
+                    overall_success = count_correct and tickers_correct and structure_valid and history_5d_valid
                     
                     self.log_test(
-                        "ASX Prices Endpoint",
+                        "ASX Prices Endpoint (P0 Feature)",
                         overall_success,
-                        f"Tickers: {ticker_count}, Sample price: ${sample_ticker.get('price', 'N/A')}",
+                        f"Tickers: {ticker_count}, Sample price: ${sample_ticker.get('price', 'N/A')}, History 5d: {'✓' if history_5d_valid else '✗'}",
                         f"Expected 5 tickers {expected_tickers}, got {found_tickers}"
                     )
                     
                 else:
-                    self.log_test("ASX Prices Endpoint", False, "Invalid response structure")
+                    self.log_test("ASX Prices Endpoint (P0 Feature)", False, "Invalid response structure")
             else:
-                self.log_test("ASX Prices Endpoint", False, f"HTTP {response.status_code}")
+                self.log_test("ASX Prices Endpoint (P0 Feature)", False, f"HTTP {response.status_code}")
 
         except Exception as e:
-            self.log_test("ASX Prices Endpoint", False, f"Error: {str(e)}")
+            self.log_test("ASX Prices Endpoint (P0 Feature)", False, f"Error: {str(e)}")
+
+    def validate_history_5d_data(self, tickers):
+        """Validate history_5d array structure for P0 heatmap feature"""
+        for ticker_data in tickers:
+            history_5d = ticker_data.get("history_5d", [])
+            
+            # Must have exactly 5 data points
+            if len(history_5d) != 5:
+                self.log_test(
+                    f"History 5D Count - {ticker_data.get('ticker')}",
+                    False,
+                    f"Expected 5 data points, got {len(history_5d)}"
+                )
+                return False
+            
+            # Each data point must have date and close
+            for i, data_point in enumerate(history_5d):
+                if not isinstance(data_point, dict) or "date" not in data_point or "close" not in data_point:
+                    self.log_test(
+                        f"History 5D Structure - {ticker_data.get('ticker')} Day {i+1}",
+                        False,
+                        f"Invalid data point structure: {data_point}"
+                    )
+                    return False
+                
+                # Validate close price is numeric
+                try:
+                    float(data_point["close"])
+                except (ValueError, TypeError):
+                    self.log_test(
+                        f"History 5D Price - {ticker_data.get('ticker')} Day {i+1}",
+                        False,
+                        f"Invalid close price: {data_point['close']}"
+                    )
+                    return False
+        
+        # Log success for history_5d validation
+        sample_ticker = tickers[0].get('ticker', 'Unknown') if tickers else 'Unknown'
+        sample_history = tickers[0].get('history_5d', []) if tickers else []
+        self.log_test(
+            "History 5D Data Validation",
+            True,
+            f"All 5 tickers have valid 5-day price history. Sample ({sample_ticker}): {len(sample_history)} days"
+        )
+        return True
 
     def test_port_hedland_endpoint(self):
         """Test Port Hedland vessel status endpoint"""

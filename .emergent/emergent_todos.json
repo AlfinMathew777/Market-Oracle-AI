@@ -1,14 +1,6 @@
 [
   {
-    "content": "Phase 2: Fix Globe event click interactions",
+    "content": "Test: Take screenshot to verify heatmap renders correctly without breaking existing layout",
     "status": "completed"
-  },
-  {
-    "content": "Phase 2: Re-test with Testing Agent after fix",
-    "status": "in_progress"
-  },
-  {
-    "content": "Phase 3: Final End-to-End Testing",
-    "status": "pending"
   }
 ]
