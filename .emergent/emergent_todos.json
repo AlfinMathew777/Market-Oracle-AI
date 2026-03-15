@@ -1,0 +1,58 @@
+[
+  {
+    "content": "Phase 1: Setup Emergent Universal LLM Key and multi-model configuration",
+    "status": "completed"
+  },
+  {
+    "content": "Phase 1: Implement LLM router with Claude/Gemini/GPT fallback",
+    "status": "completed"
+  },
+  {
+    "content": "Phase 1: Define PredictionCard output schema",
+    "status": "completed"
+  },
+  {
+    "content": "Phase 1: Create test_core.py simulation script with 50 agents and 8 personas",
+    "status": "completed"
+  },
+  {
+    "content": "Phase 1: Implement event-to-ticker mapping rules",
+    "status": "completed"
+  },
+  {
+    "content": "Phase 1: Test simulation 5 times and validate JSON output",
+    "status": "in_progress"
+  },
+  {
+    "content": "Phase 1: All POC user stories verified",
+    "status": "pending"
+  },
+  {
+    "content": "Phase 2: Backend data ingestion endpoints (ACLED, Yahoo Finance, FRED, AIS)",
+    "status": "pending"
+  },
+  {
+    "content": "Phase 2: Backend simulation endpoint POST /api/simulate",
+    "status": "pending"
+  },
+  {
+    "content": "Phase 2: Frontend 3D Globe with ACLED markers",
+    "status": "pending"
+  },
+  {
+    "content": "Phase 2: Frontend Prediction Card component",
+    "status": "pending"
+  },
+  {
+    "content": "Phase 2: Frontend ticker strip and prediction history",
+    "status": "pending"
+  },
+  {
+    "content": "Phase 2: All Phase 2 user stories implemented",
+    "status": "pending"
+  },
+  {
+    "content": "Phase 3: End-to-End Testing using Testing Agent",
+    "status": "pending"
+  }
+]
