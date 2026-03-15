@@ -4,25 +4,34 @@ import './Globe.css';
 
 function GlobeComponent({ events, portHedlandData, onEventClick, isSimulating }) {
   const globeEl = useRef();
+  const globeInstance = useRef();
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [popupPosition, setPopupPosition] = useState(null);
 
   useEffect(() => {
     if (!globeEl.current) return;
 
-    // Initialize globe
-    const globe = Globe()(globeEl.current)
-      .globeImageUrl('//unpkg.com/three-globe/example/img/earth-night.jpg')
-      .backgroundImageUrl('//unpkg.com/three-globe/example/img/night-sky.png')
-      .width(globeEl.current.clientWidth)
-      .height(globeEl.current.clientHeight)
-      .atmosphereColor('lightskyblue')
-      .atmosphereAltitude(0.15)
-      .enablePointerInteraction(!isSimulating);
+    // Initialize globe only once
+    if (!globeInstance.current) {
+      const globe = Globe()(globeEl.current)
+        .globeImageUrl('//unpkg.com/three-globe/example/img/earth-night.jpg')
+        .backgroundImageUrl('//unpkg.com/three-globe/example/img/night-sky.png')
+        .width(globeEl.current.clientWidth)
+        .height(globeEl.current.clientHeight)
+        .atmosphereColor('lightskyblue')
+        .atmosphereAltitude(0.15);
 
-    // Auto-rotate when idle
-    globe.controls().autoRotate = true;
-    globe.controls().autoRotateSpeed = 0.5;
+      // Auto-rotate when idle
+      globe.controls().autoRotate = true;
+      globe.controls().autoRotateSpeed = 0.5;
+
+      globeInstance.current = globe;
+    }
+
+    const globe = globeInstance.current;
+
+    // Update pointer interaction based on simulation state
+    globe.enablePointerInteraction(!isSimulating);
 
     // Render ACLED conflict events
     if (events && events.length > 0) {
@@ -34,7 +43,7 @@ function GlobeComponent({ events, portHedlandData, onEventClick, isSimulating })
         .pointAltitude(0.01)
         .pointRadius(d => {
           const fatalities = d.properties.fatalities || 0;
-          return Math.max(0.2, Math.min(fatalities / 20, 1.5));
+          return Math.max(0.3, Math.min(fatalities / 10, 1.2));
         })
         .pointLabel(d => `
           <div style="background: rgba(0,0,0,0.9); padding: 12px; border-radius: 8px; color: white; max-width: 250px;">
@@ -44,14 +53,14 @@ function GlobeComponent({ events, portHedlandData, onEventClick, isSimulating })
             <small style="color: #aaa;">Fatalities: ${d.properties.fatalities} | ${d.properties.date}</small>
           </div>
         `)
-        .onPointClick((point, evt, coords) => {
+        .onPointClick((point) => {
+          console.log('Globe point clicked:', point);
           if (!isSimulating) {
             setSelectedEvent(point);
-            // Calculate popup position - use evt (MouseEvent) not event
-            const rect = globeEl.current.getBoundingClientRect();
+            // Position popup in center of screen for consistency
             setPopupPosition({
-              x: evt.clientX - rect.left,
-              y: evt.clientY - rect.top
+              x: window.innerWidth / 2,
+              y: window.innerHeight / 3
             });
             globe.controls().autoRotate = false;
           }
@@ -80,7 +89,7 @@ function GlobeComponent({ events, portHedlandData, onEventClick, isSimulating })
 
     // Handle window resize
     const handleResize = () => {
-      if (globeEl.current) {
+      if (globeEl.current && globe) {
         globe
           .width(globeEl.current.clientWidth)
           .height(globeEl.current.clientHeight);
@@ -105,6 +114,9 @@ function GlobeComponent({ events, portHedlandData, onEventClick, isSimulating })
   const handleClosePopup = () => {
     setSelectedEvent(null);
     setPopupPosition(null);
+    if (globeInstance.current) {
+      globeInstance.current.controls().autoRotate = true;
+    }
   };
 
   return (
@@ -115,8 +127,10 @@ function GlobeComponent({ events, portHedlandData, onEventClick, isSimulating })
         <div
           className="event-popup"
           style={{
+            position: 'fixed',
             left: `${popupPosition.x}px`,
             top: `${popupPosition.y}px`,
+            transform: 'translate(-50%, -50%)',
           }}
         >
           <button className="popup-close" onClick={handleClosePopup}>×</button>

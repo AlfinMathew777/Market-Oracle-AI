@@ -13,7 +13,7 @@
 }
 
 .event-popup {
-  position: absolute;
+  position: fixed;
   background: linear-gradient(135deg, rgba(10, 10, 30, 0.98), rgba(20, 20, 50, 0.98));
   border: 1px solid #3366ff;
   border-radius: 12px;
@@ -23,7 +23,6 @@
   color: white;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8);
   backdrop-filter: blur(10px);
-  transform: translate(-50%, -120%);
   z-index: 1000;
   animation: popupFadeIn 0.3s ease-out;
 }
@@ -31,11 +30,11 @@
 @keyframes popupFadeIn {
   from {
     opacity: 0;
-    transform: translate(-50%, -100%) scale(0.9);
+    transform: translate(-50%, -50%) scale(0.9);
   }
   to {
     opacity: 1;
-    transform: translate(-50%, -120%) scale(1);
+    transform: translate(-50%, -50%) scale(1);
   }
 }
 
