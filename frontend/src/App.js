@@ -165,6 +165,11 @@ function App() {
                 <strong>Demo Tip:</strong> Try the Iran/Strait of Hormuz event for a 
                 compelling commodity price story, or DRC lithium for rare earths impact.
               </p>
+              <div className="demo-url">
+                <strong>asx.marketoracle.ai</strong>
+                <br />
+                <small>(demo environment)</small>
+              </div>
             </div>
           )}
         </div>

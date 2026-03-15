@@ -50,8 +50,21 @@ function PredictionCard({ prediction }) {
         </div>
       </div>
 
+      <div className="prediction-timestamp">
+        Prediction generated: {new Date(prediction.generated_at).toLocaleString('en-AU', { 
+          timeZone: 'Australia/Sydney', 
+          dateStyle: 'medium', 
+          timeStyle: 'short' 
+        })} AEST
+      </div>
+
       <div className="confidence-section">
-        <label>Confidence</label>
+        <label>
+          Confidence 
+          <span className="confidence-tooltip" title="Confidence reflects agent consensus strength — 73% means 37 of 50 agents voted the same direction with high conviction.">
+            ℹ️
+          </span>
+        </label>
         <div className="confidence-bar">
           <div
             className="confidence-fill"

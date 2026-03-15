@@ -41,8 +41,11 @@ function GlobeComponent({ events, portHedlandData, onEventClick, isSimulating })
       });
 
     // Auto-rotate
-    globe.controls().autoRotate = true;
-    globe.controls().autoRotateSpeed = 0.5;
+    const controls = globe.controls();
+    if (controls) {
+      controls.autoRotate = true;
+      controls.autoRotateSpeed = 0.5;
+    }
 
     globe(globeRef.current);
     globeInstanceRef.current = globe;
@@ -77,8 +80,9 @@ function GlobeComponent({ events, portHedlandData, onEventClick, isSimulating })
   useEffect(() => {
     if (globeInstanceRef.current) {
       globeInstanceRef.current.enablePointerInteraction(!isSimulating);
-      if (globeInstanceRef.current.controls()) {
-        globeInstanceRef.current.controls().autoRotate = !isSimulating;
+      const controls = globeInstanceRef.current.controls();
+      if (controls) {
+        controls.autoRotate = !isSimulating;
       }
     }
   }, [isSimulating]);
