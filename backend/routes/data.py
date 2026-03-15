@@ -9,6 +9,8 @@ from services.asx_service import ASXService
 from services.ais_service import AISService
 from services.macro_service import MacroService
 from services.abs_service import ABSService
+from services.gdelt_service import get_gdelt_sentiment_score
+from services.geoscience_service import get_mineral_deposits
 
 logger = logging.getLogger(__name__)
 
@@ -189,6 +191,67 @@ async def get_australian_macro():
         raise HTTPException(status_code=500, detail=f"Failed to fetch Australian macro data: {str(e)}")
 
 
+@router.get("/gdelt-sentiment")
+async def get_gdelt_sentiment(topic: str):
+    """
+    GET /api/data/gdelt-sentiment?topic=China+Australia+iron+ore
+    
+    Query GDELT for news sentiment on a topic in the last 24 hours.
+    Returns average tone score, article count, and sentiment classification.
+    
+    Args:
+        topic: Search keywords (e.g., "China Australia iron ore", "RBA rate decision")
+    
+    Returns:
+        Dict with avgtone, article_count, sentiment, signal_strength, sample articles
+    """
+    try:
+        logger.info(f"Fetching GDELT sentiment for topic: {topic}")
+        
+        sentiment_data = get_gdelt_sentiment_score(topic)
+        
+        return {
+            "status": "success",
+            "data": sentiment_data
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in /api/data/gdelt-sentiment: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch GDELT sentiment: {str(e)}")
+
+
+@router.get("/mineral-deposits")
+async def get_geo_mineral_deposits(mineral: str = "Lithium"):
+    """
+    GET /api/data/mineral-deposits?mineral=Lithium
+    
+    Query Geoscience Australia for major mineral deposit locations.
+    
+    Args:
+        mineral: Commodity type (Lithium, Iron, Rare Earths, Gold, etc.)
+    
+    Returns:
+        List of deposits with name, lat, lon, endowment
+    """
+    try:
+        logger.info(f"Fetching Geoscience Australia deposits for: {mineral}")
+        
+        deposits = get_mineral_deposits(mineral)
+        
+        return {
+            "status": "success",
+            "data": {
+                "mineral": mineral,
+                "count": len(deposits),
+                "deposits": deposits
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in /api/data/mineral-deposits: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch mineral deposits: {str(e)}")
+
+
 @router.get("/health")
 async def data_health_check():
     """Health check for data endpoints."""
@@ -199,6 +262,8 @@ async def data_health_check():
             "/api/data/asx-prices",
             "/api/data/port-hedland",
             "/api/data/macro-context",
-            "/api/data/australian-macro"
+            "/api/data/australian-macro",
+            "/api/data/gdelt-sentiment",
+            "/api/data/mineral-deposits"
         ]
     }

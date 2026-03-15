@@ -1,50 +1,54 @@
 [
   {
-    "content": "Upgrade 1: Add /api/data/australian-macro endpoint to routes/data.py",
+    "content": "Step 1: Wire GDELT into simulation as pre-simulation bias",
+    "status": "pending"
+  },
+  {
+    "content": "Step 1: Add sentiment bar to prediction panel UI",
+    "status": "pending"
+  },
+  {
+    "content": "Step 3: Get FRED API key from user",
+    "status": "pending"
+  },
+  {
+    "content": "Step 3: Create fred_service.py with 7 Australian series",
+    "status": "pending"
+  },
+  {
+    "content": "Step 3: Add 4 FRED metrics to Australian Economic Context panel",
+    "status": "pending"
+  },
+  {
+    "content": "Step 4: Create geoscience_service.py for mineral deposits",
     "status": "completed"
   },
   {
-    "content": "Upgrade 1: Update MacroContext.js to fetch and display CPI and GDP Growth badges with arrows and tooltips",
+    "content": "Step 4: Add GET /api/data/mineral-deposits endpoint",
     "status": "completed"
   },
   {
-    "content": "Upgrade 1: Test backend endpoint with curl",
-    "status": "completed"
+    "content": "Step 4: Render mineral deposit icons on Australia map",
+    "status": "pending"
   },
   {
-    "content": "Upgrade 1: Test frontend rendering with screenshot (PAUSE POINT)",
-    "status": "completed"
+    "content": "Step 5: Get AEMO API key from user",
+    "status": "pending"
   },
   {
-    "content": "Upgrade 2: Add SECTOR_RATE_SENSITIVITY and AUD_TRANSMISSION_MULTIPLIER to simulation engine",
-    "status": "completed"
+    "content": "Step 5: Create aemo_service.py for NEM electricity price",
+    "status": "pending"
   },
   {
-    "content": "Upgrade 2: Inject sector sensitivity context into agent prompts",
-    "status": "completed"
+    "content": "Step 5: Add NEM SPOT badge to macro strip with threshold logic",
+    "status": "pending"
   },
   {
-    "content": "Upgrade 3: Append 5 NEW_EVENTS to acled_service.py mock data",
-    "status": "completed"
+    "content": "Final: Update README.md with complete API registry table",
+    "status": "pending"
   },
   {
-    "content": "Upgrade 3: Add ticker mapping rules for new event types",
-    "status": "completed"
-  },
-  {
-    "content": "Upgrade 4: Create AustralianEconomicContext.js component with all metrics and tooltips",
-    "status": "completed"
-  },
-  {
-    "content": "Upgrade 4: Replace static list in App.js right sidebar with new component",
-    "status": "completed"
-  },
-  {
-    "content": "Upgrade 5: Add AUSTRALIAN_MARKET_CONTEXT templates to ReportAgent prompt in llm_router.py",
-    "status": "completed"
-  },
-  {
-    "content": "Final: Comprehensive testing of all 5 upgrades",
-    "status": "completed"
+    "content": "Final: Test GDELT sentiment and 20-ticker heatmap",
+    "status": "pending"
   }
 ]

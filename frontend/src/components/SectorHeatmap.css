@@ -3,65 +3,157 @@
   bottom: 0;
   left: 0;
   right: 0;
-  height: 120px;
+  height: 140px;
   background: rgba(10, 10, 30, 0.95);
   border-top: 1px solid rgba(51, 102, 255, 0.3);
   backdrop-filter: blur(12px);
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 1px;
   z-index: 50;
-  padding: 0;
+  padding: 12px 16px;
+  overflow: hidden;
+}
+
+.heatmap-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(51, 102, 255, 0.2);
+}
+
+.heatmap-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #ffffff;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.heatmap-subtitle {
+  font-size: 10px;
+  color: #888;
+  font-weight: 500;
 }
 
 .heatmap-loading {
-  grid-column: 1 / -1;
   display: flex;
   align-items: center;
   justify-content: center;
+  height: 100%;
   color: #888;
   font-size: 14px;
 }
 
+.heatmap-scroll-container {
+  overflow-x: auto;
+  overflow-y: hidden;
+  height: 100px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(51, 102, 255, 0.3) transparent;
+}
+
+.heatmap-scroll-container::-webkit-scrollbar {
+  height: 6px;
+}
+
+.heatmap-scroll-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.heatmap-scroll-container::-webkit-scrollbar-thumb {
+  background: rgba(51, 102, 255, 0.3);
+  border-radius: 3px;
+}
+
+.heatmap-scroll-container::-webkit-scrollbar-thumb:hover {
+  background: rgba(51, 102, 255, 0.5);
+}
+
+.heatmap-groups {
+  display: flex;
+  align-items: stretch;
+  gap: 20px;
+  min-width: min-content;
+  padding-bottom: 8px;
+}
+
+.sector-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sector-label {
+  font-size: 9px;
+  font-weight: 700;
+  color: #6699ff;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin-bottom: 2px;
+  white-space: nowrap;
+}
+
+.sector-tickers {
+  display: flex;
+  gap: 12px;
+  align-items: stretch;
+}
+
+.sector-divider {
+  width: 1px;
+  background: linear-gradient(to bottom, 
+    transparent, 
+    rgba(51, 102, 255, 0.3) 20%, 
+    rgba(51, 102, 255, 0.3) 80%, 
+    transparent
+  );
+  align-self: stretch;
+}
+
 .heatmap-cell {
-  background: rgba(15, 15, 40, 0.8);
-  padding: 12px 16px;
+  background: rgba(15, 15, 40, 0.6);
+  padding: 8px 12px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   align-items: center;
-  gap: 6px;
-  transition: background 0.2s ease;
-  border-right: 1px solid rgba(51, 102, 255, 0.15);
-}
-
-.heatmap-cell:last-child {
-  border-right: none;
+  gap: 4px;
+  transition: all 0.2s ease;
+  border-radius: 6px;
+  border: 1px solid rgba(51, 102, 255, 0.15);
+  min-width: 100px;
 }
 
 .heatmap-cell:hover {
   background: rgba(25, 25, 60, 0.9);
+  border-color: rgba(51, 102, 255, 0.4);
+  transform: translateY(-2px);
+}
+
+.heatmap-cell.empty {
+  opacity: 0.4;
 }
 
 .ticker-symbol {
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 700;
   color: #6699ff;
   letter-spacing: 0.5px;
 }
 
 .ticker-price {
-  font-size: 18px;
+  font-size: 15px;
   font-weight: 600;
   color: #ffffff;
   margin: 2px 0;
 }
 
 .ticker-change {
-  font-size: 12px;
+  font-size: 10px;
   font-weight: 600;
-  padding: 3px 8px;
-  border-radius: 4px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  white-space: nowrap;
 }
 
 .ticker-change.positive {
@@ -75,12 +167,12 @@
 }
 
 .ticker-sparkline {
-  width: 80px;
-  height: 40px;
+  width: 60px;
+  height: 30px;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-top: 4px;
+  margin-top: 2px;
 }
 
 .sparkline {
@@ -94,26 +186,27 @@
 
 @media (max-width: 1200px) {
   .sector-heatmap {
-    grid-template-columns: repeat(3, 1fr);
+    height: 120px;
   }
   
-  .heatmap-cell:nth-child(n+4) {
-    display: none;
+  .heatmap-cell {
+    min-width: 85px;
+    padding: 6px 10px;
+  }
+  
+  .ticker-price {
+    font-size: 14px;
   }
 }
 
 @media (max-width: 768px) {
   .sector-heatmap {
     height: auto;
-    grid-template-columns: repeat(2, 1fr);
-    padding: 8px;
+    max-height: 180px;
   }
   
-  .heatmap-cell {
-    padding: 8px;
-  }
-  
-  .ticker-price {
-    font-size: 16px;
+  .heatmap-scroll-container {
+    height: auto;
+    max-height: 140px;
   }
 }
