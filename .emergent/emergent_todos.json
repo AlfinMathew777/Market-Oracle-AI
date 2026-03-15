@@ -1,10 +1,6 @@
 [
   {
-    "content": "Phase 3.3: Take screenshot of MacroContext with new badges",
+    "content": "Phase 4: Document remaining work and update plan.md",
     "status": "completed"
-  },
-  {
-    "content": "Phase 3.4: Fix any bugs found and run comprehensive testing agent",
-    "status": "in_progress"
   }
 ]

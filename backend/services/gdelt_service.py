@@ -99,7 +99,8 @@ def get_gdelt_sentiment_score(topic: str, timespan: str = "24h", max_records: in
                 logger.info("Returning stale cache due to rate limit")
                 return stale_data
             
-            return {
+            # No cache available - return rate limited status and cache it
+            rate_limited_response = {
                 "avgtone": 0.0,
                 "article_count": 0,
                 "sentiment": "neutral",
@@ -111,6 +112,15 @@ def get_gdelt_sentiment_score(topic: str, timespan: str = "24h", max_records: in
                 "message": "GDELT API rate limit - data cached for 1 hour to prevent this",
                 "from_cache": False
             }
+            
+            # Cache the rate-limited response to prevent hammering
+            _gdelt_cache[cache_key] = {
+                'data': rate_limited_response.copy(),
+                'cached_at': datetime.now(timezone.utc)
+            }
+            logger.info(f"Cached rate-limited response for '{topic}'")
+            
+            return rate_limited_response
         
         response.raise_for_status()
         

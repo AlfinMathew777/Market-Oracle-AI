@@ -56,10 +56,12 @@ class ABSService:
                 # Live from FRED
                 'cpi': fred_data.get('cpi', {}).get('value'),
                 'rba_cash_rate': fred_data.get('rba_cash_rate', {}).get('value'),
-                'gdp_growth': fred_data.get('gdp_growth', {}).get('value'),
                 'unemployment_rate': fred_data.get('unemployment_rate', {}).get('value'),
                 'long_term_interest_rate': fred_data.get('long_term_rate', {}).get('value'),
                 'aud_usd': fred_data.get('aud_usd', {}).get('value'),
+                
+                # GDP Growth - use document value (FRED series returns nominal GDP, not growth rate)
+                'gdp_growth': 1.4,  # From user document - Q4 2025 estimate
                 
                 # From document - TODO: integrate ABS Indicator API for real-time data
                 'household_debt_pct_income': 176,
