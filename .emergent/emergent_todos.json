@@ -1,6 +1,10 @@
 [
   {
-    "content": "Test: Take screenshot to verify heatmap renders correctly without breaking existing layout",
+    "content": "Test: Run 2-3 simulations and verify history persists across refresh",
+    "status": "completed"
+  },
+  {
+    "content": "Test: Take screenshot showing prediction history with entries",
     "status": "completed"
   }
 ]

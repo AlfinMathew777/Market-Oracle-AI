@@ -1,17 +1,17 @@
 # Development Plan — Market Oracle AI (ASX Intelligence MVP)
 
 ## 1) Objectives
-- Deliver a **single end-to-end demo**: **Click ACLED event on 3D globe → run 50-agent simulation (3–5 rounds) → show prediction card** for one of **BHP.AX, RIO.AX, FMG.AX, CBA.AX, LYC.AX**.
+- Deliver a **single end-to-end demo**: **Click ACLED event on 3D globe (or select from sidebar) → run 50-agent simulation (3–5 rounds) → show prediction card** for one of **BHP.AX, RIO.AX, FMG.AX, CBA.AX, LYC.AX**.
 - Keep infrastructure **$0** (free tiers) using **Emergent Universal LLM Key** with model split:
   - **Claude Sonnet 4.6**: ontology extraction + ReportAgent + final prediction JSON
   - **Gemini 2.5 Flash**: per-agent reasoning inside simulation rounds
   - **GPT-4.1**: fallback
 - Integrate only required data sources: **ACLED**, **Yahoo Finance**, **FRED**, **AISStream (Port Hedland bbox)**.
 - Ensure the UI reads as a **real investor terminal from first render**, prioritizing:
-  - **Bottom full-width ASX heatmap strip** (watchlist-style)
-  - **Right-rail prediction history** (demo track record)
-  - **Cause→effect visual arc** on the globe
-  - **Top macro context strip** (auto-refreshing)
+  - ✅ **Bottom full-width ASX heatmap strip** (watchlist-style)
+  - ⏭️ **Right-rail prediction history** (demo track record)
+  - ⏭️ **Cause→effect visual arc** on the globe
+  - ⏭️ **Top macro context strip** (auto-refreshing)
 
 ---
 
@@ -78,40 +78,43 @@
 
 ## Phase 4 — Enhancement Phase (Terminal UX + Demo Credibility) 🚧 IN PROGRESS
 
-**Directive:** Implement in *exact* priority order **P0 → P1 → P2 → P3**. Do **not** start P1 until P0 is visually complete and tested.
+**Directive:** Implement in *exact* priority order **P0 → P1 → P2 → P3**. Do **not** start P2 until P1 is visually complete and tested.
 
-### P0 — ASX Sector Heatmap Panel (Bottom Watchlist Strip) 🔥 HIGHEST PRIORITY
+### P0 — ASX Sector Heatmap Panel (Bottom Watchlist Strip) ✅ COMPLETE
 
 **Goal:** Add a **bottom-of-screen, full-width, ~120px tall** heatmap-like watchlist panel with **5 equal-width columns**:
 - BHP, RIO, FMG, CBA, LYC
-- Each cell shows: **price**, **1D % change**, and a **5-day sparkline** (SVG polyline, no chart library)
+- Each cell shows: **price**, **1D change ($ and %)**, and a **5-day sparkline** (SVG polyline, no chart library)
 
-#### Backend
-- Enhance `GET /api/data/asx-prices` to include **5-day lookback** data for sparklines.
-  - For real mode: `yfinance.download(ticker, period='5d', interval='1d')`
-  - For mock mode: extend mock payload with plausible 5-day arrays.
-- Return schema (proposed):
-  - `[{ ticker, name, price, change_pct_1d, updated_at, history_5d: [{date, close}] }]`
+#### Backend ✅
+- Enhanced `GET /api/data/asx-prices` to include **5-day lookback** data for sparklines:
+  - Real mode supported via `yfinance.download(ticker, period='5d', interval='1d')`.
+  - Mock mode extended with realistic 5-day arrays to keep demo stable.
+- Current response schema (implemented):
+  - `[{ ticker, name, price, currency, change_pct_1d, change_abs_1d, history_5d: [{date, close}], updated_at, ... }]`
 
-#### Frontend
-- Create `frontend/src/components/SectorHeatmap.js` (+ CSS).
-- Render at the **bottom of the screen**, below the globe, full width.
-- Sparkline:
-  - Normalize 5 values to cell height; render SVG polyline.
-  - Green stroke if 5-day trend is up; red if down.
+#### Frontend ✅
+- Implemented `frontend/src/components/SectorHeatmap.js` and `SectorHeatmap.css`.
+- Rendered as **fixed bottom strip** with **5 equal columns**.
+- Sparklines:
+  - 5-point SVG polyline, normalized to cell height
+  - Green for uptrend, red for downtrend
+  - Visibility improved with slightly thicker stroke + subtle glow
+- Layout reserved space using `margin-bottom: 120px` on `.main-container`.
 
-#### Success Criteria
+#### Success Criteria ✅
 - Heatmap strip renders instantly and does not break globe/sidebar.
-- Each ticker cell shows price, daily change, and sparkline.
-- Verified in browser via screenshot and manual smoke test.
+- Each ticker cell shows price, daily change, and visible sparkline.
+- Verified in browser via screenshots and smoke testing.
 
-#### Testing
-- Backend: verify endpoint returns `history_5d` (mock and/or live).
-- Frontend: verify rendering/layout at 1920×1080 and no overflow issues.
+#### Testing ✅
+- Backend verified: `/api/data/asx-prices` includes `history_5d` with 5 data points per ticker.
+- Frontend verified: renders correctly at 1920×1080; responsive behavior acceptable.
+- Test report: `/app/test_reports/iteration_4.json`.
 
 ---
 
-### P1 — Prediction History Log (Right Sidebar, Collapsible)
+### P1 — Prediction History Log (Right Sidebar, Collapsible) ⏭️ NEXT
 
 **Goal:** Build demo credibility by showing a **session track record** of simulations.
 
@@ -124,19 +127,23 @@
 - Persistence: `localStorage` (survives refresh).
 
 #### Implementation Steps
-- Create `frontend/src/components/PredictionHistory.js` (+ CSS).
-- Add log append on simulation completion (when prediction arrives):
-  - store: `{timestamp, event_id, event_summary, ticker, direction, confidence}`
-- Add simple controls:
-  - expand/collapse
-  - optional clear log
+1. Create `frontend/src/components/PredictionHistory.js` (+ CSS).
+2. Add an append-to-history step on simulation completion (when `prediction` arrives in `App.js`):
+   - store: `{timestamp, event_id, event_summary, ticker, direction, confidence}`
+3. `localStorage` keys:
+   - `prediction_history` → JSON array
+4. UI behavior:
+   - default view shows latest 3
+   - toggle expands to full list
+   - optional “Clear” button (if time)
 
 #### Success Criteria
 - After multiple simulations, log shows correct ordering and persists across refresh.
 
 #### Testing
 - Frontend-only smoke test:
-  - run 2–3 simulations, refresh, confirm log persists.
+  - run 2–3 simulations, refresh, confirm log persists
+  - confirm collapsed/expanded behavior and max-height
 
 ---
 
@@ -162,7 +169,7 @@
 
 #### Testing
 - Frontend interaction test:
-  - trigger simulation, confirm arc shows and disappears.
+  - trigger simulation, confirm arc shows and disappears
 
 ---
 
@@ -210,19 +217,20 @@
 ---
 
 ## 3) Next Actions (Immediate)
-1. **Implement P0 (Heatmap):**
-   - Backend: extend `/api/data/asx-prices` to include `history_5d`.
-   - Frontend: add `SectorHeatmap` bottom strip with SVG sparklines.
-   - Run backend + frontend smoke tests; capture screenshot.
-2. After P0 is complete and visually verified, proceed to **P1 Prediction History**.
+1. **Begin P1 (Prediction History Log):**
+   - Create `PredictionHistory` component + CSS
+   - Wire into `App.js` below `TickerStrip`
+   - Persist to `localStorage` and implement collapsible UI
+   - Frontend smoke test + screenshot
+2. After P1 is complete and visually verified, proceed to **P2 Signal Correlation Arc**.
 
 ---
 
 ## 4) Overall Success Criteria
 - Demo works end-to-end: **ACLED globe click → 50-agent simulation → prediction card** (ticker, direction, confidence, causal chain) in **<5 minutes**.
 - UI conveys “investor terminal” quality:
-  - Bottom heatmap watchlist strip
-  - Persistent prediction history
-  - Globe cause→effect arc
-  - Auto-refreshing macro context header
+  - ✅ Bottom heatmap watchlist strip
+  - ⏭️ Persistent prediction history
+  - ⏭️ Globe cause→effect arc
+  - ⏭️ Auto-refreshing macro context header
 - System remains stable in mock mode and supports switching to live APIs without refactor.
