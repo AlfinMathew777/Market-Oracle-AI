@@ -1,125 +1,175 @@
-"""AIS vessel tracking service for Port Hedland.
+"""AISStream API integration for real-time vessel tracking at Port Hedland.
 
-USE_MOCK_DATA flag controls whether to use mock data or real AISStream API.
+WebSocket connection to AISStream for live AIS (Automatic Identification System)
+vessel position data. Monitors Port Hedland shipping congestion as a leading
+indicator for BHP, RIO, FMG iron ore export volumes.
+
+API key required: Free instant key at aisstream.io
 """
 
-import os
-from typing import Dict, Any
-from datetime import datetime
+import asyncio
+import websockets
+import json
 import logging
+import os
+from datetime import datetime, timezone
+from typing import Dict
 
 logger = logging.getLogger(__name__)
 
-# TOGGLE THIS FLAG: True = mock data, False = real AISStream API
-USE_MOCK_DATA = True
+# REAL DATA - no mock fallback
+USE_MOCK_DATA = False
 
-# Port Hedland bounding box (lat -20.31 ±1.0, lon 118.58 ±1.5)
+# AISStream API configuration
+AISSTREAM_API_KEY = os.getenv("AISSTREAM_API_KEY")
+
+# Port Hedland bounding box (world's largest iron ore export port)
 PORT_HEDLAND_BBOX = {
-    'lat_min': -21.31,
-    'lat_max': -19.31,
-    'lon_min': 117.08,
-    'lon_max': 120.08
+    "min_lat": -21.0,
+    "max_lat": -19.5,
+    "min_lon": 117.5,
+    "max_lon": 119.5
 }
 
-# Mock data: realistic Port Hedland congestion during peak export season
-MOCK_PORT_HEDLAND_DATA = {
-    "vessel_count": 14,
-    "bulk_carrier_count": 11,
-    "congestion_level": "HIGH",
-    "vessels": ["IMO9674562", "IMO9445618", "IMO9312847"],
-    "avg_wait_time_hours": 38,
-    "data_source": "mock",
-    "bbox": PORT_HEDLAND_BBOX
+# Global vessel cache - updated by background WebSocket stream
+_vessel_cache = {
+    "vessels": [],
+    "bulk_carrier_count": 0,
+    "vessel_count": 0,
+    "congestion_level": "UNKNOWN",
+    "updated_at": None,
+    "status": "not_started"
 }
+
+
+async def _stream_port_hedland():
+    """Background WebSocket connection to AISStream for Port Hedland monitoring."""
+    
+    if not AISSTREAM_API_KEY:
+        logger.error("AISSTREAM_API_KEY not configured - cannot start vessel monitoring")
+        _vessel_cache["status"] = "pending_api_key"
+        return
+    
+    uri = "wss://stream.aisstream.io/v0/stream"
+    
+    subscribe_message = {
+        "APIKey": AISSTREAM_API_KEY,
+        "BoundingBoxes": [[
+            [PORT_HEDLAND_BBOX["min_lon"], PORT_HEDLAND_BBOX["min_lat"]],
+            [PORT_HEDLAND_BBOX["max_lon"], PORT_HEDLAND_BBOX["max_lat"]]
+        ]],
+        "FilterMessageTypes": ["PositionReport"]
+    }
+    
+    try:
+        logger.info("Connecting to AISStream WebSocket for Port Hedland monitoring...")
+        
+        async with websockets.connect(uri) as websocket:
+            # Send subscription
+            await websocket.send(json.dumps(subscribe_message))
+            logger.info("✓ Connected to AISStream - monitoring Port Hedland vessels")
+            
+            _vessel_cache["status"] = "connected"
+            vessels_seen = {}
+            
+            async for message in websocket:
+                try:
+                    data = json.loads(message)
+                    
+                    if data.get("MessageType") == "PositionReport":
+                        position = data["Message"]["PositionReport"]
+                        metadata = data.get("MetaData", {})
+                        
+                        mmsi = str(position["UserID"])
+                        ship_type = metadata.get("ShipType", 0)
+                        
+                        vessels_seen[mmsi] = {
+                            "mmsi": mmsi,
+                            "lat": position["Latitude"],
+                            "lon": position["Longitude"],
+                            "speed": position.get("Sog", 0),
+                            "course": position.get("Cog", 0),
+                            "ship_type": ship_type,
+                            "ship_name": metadata.get("ShipName", "Unknown"),
+                            "updated_at": datetime.now(timezone.utc).isoformat()
+                        }
+                        
+                        # Update cache every 30 messages (reduce CPU load)
+                        if len(vessels_seen) % 30 == 0:
+                            # Bulk carriers are ship types 70-79
+                            bulk_carriers = [
+                                v for v in vessels_seen.values()
+                                if 70 <= v.get("ship_type", 0) <= 79
+                            ]
+                            
+                            count = len(bulk_carriers)
+                            
+                            _vessel_cache.update({
+                                "vessels": list(vessels_seen.values()),
+                                "bulk_carrier_count": count,
+                                "vessel_count": len(vessels_seen),
+                                "congestion_level": "HIGH" if count > 10 else "MEDIUM" if count > 5 else "LOW",
+                                "updated_at": datetime.now(timezone.utc).isoformat(),
+                                "status": "live"
+                            })
+                            
+                            logger.info(f"Port Hedland update: {count} bulk carriers, {len(vessels_seen)} total vessels")
+                
+                except json.JSONDecodeError:
+                    logger.warning("Invalid JSON from AISStream")
+                    continue
+                except KeyError as ke:
+                    logger.warning(f"Unexpected message format: {ke}")
+                    continue
+                    
+    except Exception as e:
+        logger.error(f"AISStream connection error: {str(e)}")
+        _vessel_cache["status"] = "error"
+        _vessel_cache["error"] = str(e)
+
+
+def start_ais_background_stream():
+    """Start WebSocket stream in background thread on app startup."""
+    import threading
+    
+    def run():
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            loop.run_until_complete(_stream_port_hedland())
+        except Exception as e:
+            logger.error(f"AIS background stream crashed: {str(e)}")
+            _vessel_cache["status"] = "crashed"
+    
+    thread = threading.Thread(target=run, daemon=True)
+    thread.start()
+    logger.info("AISStream background thread started")
+
+
+def get_port_hedland_status() -> Dict:
+    """Return current cached Port Hedland vessel data."""
+    
+    if not AISSTREAM_API_KEY:
+        return {
+            "vessel_count": 0,
+            "bulk_carrier_count": 0,
+            "congestion_level": "UNKNOWN",
+            "status": "pending_api_key",
+            "message": "AISStream API key not configured. Get free key at aisstream.io (2 minutes)",
+            "updated_at": None
+        }
+    
+    if _vessel_cache["status"] == "not_started":
+        return {
+            **_vessel_cache,
+            "message": "AISStream connection initializing..."
+        }
+    
+    return _vessel_cache
 
 
 class AISService:
-    """Service for fetching AIS vessel tracking data for Port Hedland."""
+    """Legacy class wrapper for compatibility."""
     
-    def __init__(self):
-        self.use_mock = USE_MOCK_DATA
-        self.ais_api_key = os.getenv('AISSTREAM_API_KEY')
-        
-        if not self.use_mock and not self.ais_api_key:
-            logger.warning("AISStream API key not found, falling back to mock data")
-            self.use_mock = True
-    
-    def get_port_hedland_status(self) -> Dict[str, Any]:
-        """Get current Port Hedland vessel status and congestion.
-        
-        Returns:
-            Dict with vessel count, congestion level, and metadata
-        """
-        if self.use_mock:
-            logger.info("Returning mock Port Hedland AIS data")
-            data = MOCK_PORT_HEDLAND_DATA.copy()
-            data['updated_at'] = datetime.now().isoformat()
-            return data
-        else:
-            return self._fetch_real_ais_data()
-    
-    def _fetch_real_ais_data(self) -> Dict[str, Any]:
-        """Fetch real AIS data from AISStream API.
-        
-        This will be implemented when USE_MOCK_DATA = False.
-        """
-        import requests
-        
-        try:
-            # AISStream WebSocket API would be used in production
-            # For REST fallback, we would query their API with bbox
-            
-            # Example AISStream REST endpoint (adjust based on actual API)
-            url = "https://stream.aisstream.io/v0/stream"
-            headers = {
-                'Authorization': f'Bearer {self.ais_api_key}'
-            }
-            
-            bbox = PORT_HEDLAND_BBOX
-            params = {
-                'bbox': f"{bbox['lon_min']},{bbox['lat_min']},{bbox['lon_max']},{bbox['lat_max']}"
-            }
-            
-            response = requests.get(url, headers=headers, params=params, timeout=10)
-            response.raise_for_status()
-            
-            vessels = response.json()
-            
-            # Process vessel data
-            vessel_count = len(vessels)
-            bulk_carrier_count = sum(1 for v in vessels if v.get('ship_type', '').lower() in ['cargo', 'tanker', 'bulk'])
-            
-            # Determine congestion level
-            if vessel_count >= 12:
-                congestion = "HIGH"
-            elif vessel_count >= 7:
-                congestion = "MEDIUM"
-            else:
-                congestion = "LOW"
-            
-            return {
-                'vessel_count': vessel_count,
-                'bulk_carrier_count': bulk_carrier_count,
-                'congestion_level': congestion,
-                'vessels': [v.get('mmsi') or v.get('imo') for v in vessels[:10]],
-                'avg_wait_time_hours': self._estimate_wait_time(congestion),
-                'data_source': 'aisstream',
-                'bbox': bbox,
-                'updated_at': datetime.now().isoformat()
-            }
-            
-        except Exception as e:
-            logger.error(f"Error fetching real AIS data: {str(e)}")
-            logger.warning("Falling back to mock data")
-            data = MOCK_PORT_HEDLAND_DATA.copy()
-            data['updated_at'] = datetime.now().isoformat()
-            return data
-    
-    def _estimate_wait_time(self, congestion: str) -> int:
-        """Estimate wait time based on congestion level."""
-        if congestion == "HIGH":
-            return 36
-        elif congestion == "MEDIUM":
-            return 18
-        else:
-            return 6
+    def get_port_hedland_status(self) -> Dict:
+        return get_port_hedland_status()

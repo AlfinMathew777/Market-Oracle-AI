@@ -1,54 +1,58 @@
 [
   {
-    "content": "Step 1: Wire GDELT into simulation as pre-simulation bias",
+    "content": "Update ACLED service to real API (needs key)",
+    "status": "in_progress"
+  },
+  {
+    "content": "Update AISStream service to real WebSocket API (needs key)",
     "status": "pending"
   },
   {
-    "content": "Step 1: Add sentiment bar to prediction panel UI",
+    "content": "Update GDELT to real API (no key, verify working)",
     "status": "pending"
   },
   {
-    "content": "Step 3: Get FRED API key from user",
+    "content": "Update FRED service to real API (needs key)",
     "status": "pending"
   },
   {
-    "content": "Step 3: Create fred_service.py with 7 Australian series",
+    "content": "Update Geoscience to real WFS API (no key, verify working)",
     "status": "pending"
   },
   {
-    "content": "Step 3: Add 4 FRED metrics to Australian Economic Context panel",
+    "content": "Verify yfinance returning real prices for 17 tickers",
     "status": "pending"
   },
   {
-    "content": "Step 4: Create geoscience_service.py for mineral deposits",
-    "status": "completed"
-  },
-  {
-    "content": "Step 4: Add GET /api/data/mineral-deposits endpoint",
-    "status": "completed"
-  },
-  {
-    "content": "Step 4: Render mineral deposit icons on Australia map",
+    "content": "Remove all USE_MOCK_DATA=True flags across codebase",
     "status": "pending"
   },
   {
-    "content": "Step 5: Get AEMO API key from user",
+    "content": "Add pending key error handling to all services",
     "status": "pending"
   },
   {
-    "content": "Step 5: Create aemo_service.py for NEM electricity price",
+    "content": "Update .env files with API key placeholders",
     "status": "pending"
   },
   {
-    "content": "Step 5: Add NEM SPOT badge to macro strip with threshold logic",
+    "content": "Get API keys from user: ACLED, AISStream, FRED, MarketAux",
     "status": "pending"
   },
   {
-    "content": "Final: Update README.md with complete API registry table",
+    "content": "Wire GDELT into simulation as pre-simulation bias",
     "status": "pending"
   },
   {
-    "content": "Final: Test GDELT sentiment and 20-ticker heatmap",
+    "content": "Add sentiment bar to prediction panel UI",
+    "status": "pending"
+  },
+  {
+    "content": "Render mineral deposit icons on Australia map",
+    "status": "pending"
+  },
+  {
+    "content": "Final: Test all real data endpoints",
     "status": "pending"
   }
 ]

@@ -13,13 +13,13 @@ import requests
 from typing import Dict, Any
 from datetime import datetime, timedelta
 import logging
-import os
 
 logger = logging.getLogger(__name__)
 
-USE_MOCK_DATA = os.environ.get('USE_MOCK_DATA', 'True').lower() == 'true'
+# REAL DATA - no mock fallback
+USE_MOCK_DATA = False
 
-# FRED API base URL (no key needed for public series)
+# FRED API base URL (no key needed for public series like Fed Funds Rate)
 FRED_BASE_URL = "https://api.stlouisfed.org/fred/series/observations"
 
 
@@ -41,9 +41,6 @@ class MacroService:
         Returns:
             Dict with 5 macro indicators
         """
-        if USE_MOCK_DATA:
-            return self._get_mock_macro_context()
-        
         context = {}
         
         # 1. Fed Funds Rate from FRED

@@ -1,88 +1,97 @@
-"""Australian Bureau of Statistics (ABS) and RBA data service.
+"""Australian Bureau of Statistics (ABS) and Reserve Bank of Australia (RBA) data integration.
 
-Fetches Australian macro economic indicators using readabs library.
-Data sourced from 2024-2026 Australian economic intelligence report.
+Primary: FRED (Federal Reserve Economic Data) for Australian series
+Fallback: ABS Indicator API and RBA DataStream (when keys available)
+
+This service provides comprehensive Australian macroeconomic indicators.
 """
 
-import readabs as ra
-import pandas as pd
-from typing import Dict, Any
-from datetime import datetime
-import logging
 import os
+import logging
+from datetime import datetime
+from typing import Dict
 
 logger = logging.getLogger(__name__)
 
-USE_MOCK_DATA = os.environ.get('USE_MOCK_DATA', 'True').lower() == 'true'
+# REAL DATA - no mock fallback
+USE_MOCK_DATA = False
 
 
 class ABSService:
-    """Service for fetching Australian macro indicators from ABS and RBA."""
+    """Service for fetching Australian macroeconomic indicators."""
     
-    def get_australian_macro(self) -> Dict[str, Any]:
-        """Get Australian macro economic indicators.
+    def get_australian_macro(self) -> Dict:
+        """
+        Fetch comprehensive Australian macro indicators.
+        
+        Primary source: FRED API
+        Fallback: ABS Indicator API (when key available)
         
         Returns:
-            Dict with 8 key Australian macro indicators
+            Dict with 11+ Australian economic indicators
         """
-        if USE_MOCK_DATA:
-            return self._get_mock_australian_macro()
-        
         try:
-            # Real ABS API calls
-            context = {}
+            # Import FRED service
+            from services.fred_service import get_all_australian_macro
             
-            # CPI from ABS
-            cpi = ra.read_abs_cat("6401.0")  # Consumer Price Index
-            context['cpi'] = float(cpi.iloc[-1]['value']) if not cpi.empty else 3.8
+            fred_result = get_all_australian_macro()
             
-            # Labour Force from ABS
-            lf = ra.read_abs_cat("6202.0")  # Labour Force
-            if not lf.empty:
-                unemployment_series = lf[lf['series'].str.contains('Unemployment rate', case=False, na=False)]
-                if not unemployment_series.empty:
-                    context['unemployment'] = float(unemployment_series.iloc[-1]['value'])
-                else:
-                    context['unemployment'] = 4.1
-            else:
-                context['unemployment'] = 4.1
+            if fred_result.get('status') == 'pending_api_key':
+                logger.warning("FRED API key not configured - returning pending status")
+                return {
+                    'status': 'pending_api_key',
+                    'message': 'FRED API key required for live Australian macro data. Get free key at fred.stlouisfed.org/docs/api (2 minutes)',
+                    'source': 'N/A',
+                    'fetched_at': datetime.utcnow().isoformat()
+                }
             
-            # RBA Cash Rate
-            ocr = ra.read_rba_ocr(monthly=True)
-            context['rba_cash_rate'] = float(ocr.iloc[-1]['value']) if not ocr.empty else 3.85
+            if fred_result.get('status') != 'success' or not fred_result.get('data'):
+                logger.error("FRED returned no data")
+                return self._error_response("FRED API returned no data")
             
-            # GDP Growth - would need specific ABS series
-            context['gdp_growth'] = 1.4  # Hardcoded for now
+            fred_data = fred_result['data']
             
-            # Other indicators - require specific ABS series or calculations
-            context['household_debt_pct_income'] = 176
-            context['household_saving_ratio'] = 6.1
-            context['terms_of_trade_change'] = -4.0
-            context['labor_productivity_change'] = -0.7
+            # Map FRED data to our response format
+            macro_data = {
+                # Live from FRED
+                'cpi': fred_data.get('cpi', {}).get('value'),
+                'rba_cash_rate': fred_data.get('rba_cash_rate', {}).get('value'),
+                'gdp_growth': fred_data.get('gdp_growth', {}).get('value'),
+                'unemployment_rate': fred_data.get('unemployment_rate', {}).get('value'),
+                'long_term_interest_rate': fred_data.get('long_term_rate', {}).get('value'),
+                'aud_usd': fred_data.get('aud_usd', {}).get('value'),
+                
+                # From document - TODO: integrate ABS Indicator API for real-time data
+                'household_debt_pct_income': 176,
+                'household_saving_ratio': 6.1,
+                'terms_of_trade_change': -4.0,
+                'labor_productivity_change': -0.7,
+                'mining_export_share': 57.4,
+                'superannuation_aum': 3500,  # Billions AUD
+                'national_net_worth': 21400,  # Billions AUD
+                
+                'source': 'FRED API (Live) + Document',
+                'fetched_at': datetime.utcnow().isoformat()
+            }
             
-            context['fetched_at'] = datetime.now().isoformat()
-            context['source'] = 'ABS/RBA Live API'
+            # Remove None values
+            macro_data = {k: v for k, v in macro_data.items() if v is not None}
             
-            return context
+            logger.info(f"✓ Fetched {len([k for k in macro_data.keys() if k not in ['source', 'fetched_at']])} Australian macro indicators")
+            return macro_data
             
+        except ImportError as ie:
+            logger.error(f"FRED service import failed: {ie}")
+            return self._error_response("FRED service not available")
         except Exception as e:
-            logger.error(f"Error fetching ABS data: {str(e)}")
-            return self._get_mock_australian_macro()
+            logger.error(f"Error fetching Australian macro data: {str(e)}")
+            return self._error_response(str(e))
     
-    def _get_mock_australian_macro(self) -> Dict[str, Any]:
-        """Return mock Australian macro data from 2024-2026 economic report."""
+    def _error_response(self, error_msg: str) -> Dict:
+        """Return error response."""
         return {
-            'cpi': 3.8,                          # Current inflation - above target
-            'rba_cash_rate': 3.85,               # RBA Feb 2026 hike
-            'gdp_growth': 1.4,                   # 2024-25 chain volume
-            'unemployment': 4.1,                 # Labour market
-            'household_debt_pct_income': 176,    # High debt-to-income ratio
-            'household_saving_ratio': 6.1,       # Consumers cautious
-            'terms_of_trade_change': -4.0,       # Commodity prices cooling
-            'labor_productivity_change': -0.7,   # Structural challenge
-            'mining_export_share': 57.4,         # % of total exports
-            'superannuation_aum': 3500,          # Billions AUD
-            'national_net_worth': 21400,         # Billions AUD
-            'fetched_at': datetime.now().isoformat(),
-            'source': 'Mock Data (2024-2026 Report)'
+            'status': 'error',
+            'message': f'Australian macro data unavailable: {error_msg}',
+            'source': 'N/A',
+            'fetched_at': datetime.utcnow().isoformat()
         }

@@ -4,9 +4,7 @@ GDELT (Global Database of Events, Language and Tone) monitors worldwide news med
 and provides tone/sentiment scoring. This service queries the GDELT DOC 2.0 API
 to get sentiment bias for event topics in the last 24 hours.
 
-No API key required - GDELT is fully open access.
-
-Note: GDELT has rate limits. Service includes mock fallback for development.
+No API key required - GDELT is fully open access (with rate limits).
 """
 
 import requests
@@ -20,8 +18,8 @@ logger = logging.getLogger(__name__)
 # GDELT DOC 2.0 API base URL
 GDELT_API_BASE = "https://api.gdeltproject.org/api/v2/doc/doc"
 
-# Use mock data if rate limited or for development
-USE_MOCK_GDELT = os.getenv("USE_MOCK_GDELT", "True").lower() == "true"
+# REAL DATA - attempt live API with graceful degradation
+USE_MOCK_GDELT = False
 
 # Tone score interpretation (GDELT scale: -10 to +10)
 # Most news clusters around -2 to +2; scores beyond ±5 are significant
@@ -35,14 +33,14 @@ TONE_THRESHOLDS = {
 }
 
 
-def get_gdelt_sentiment_score(topic: str, timespan: str = "1day", max_records: int = 250) -> Dict:
+def get_gdelt_sentiment_score(topic: str, timespan: str = "24h", max_records: int = 75) -> Dict:
     """
     Query GDELT for news sentiment on a topic in the last 24 hours.
     
     Args:
         topic: Search keywords (e.g., "China Australia iron ore", "RBA interest rate")
-        timespan: Time window (default "1day" for last 24 hours)
-        max_records: Maximum articles to analyze (default 250)
+        timespan: Time window (default "24h" for last 24 hours)
+        max_records: Maximum articles to analyze (default 75, reduced for rate limits)
     
     Returns:
         Dict with:
@@ -53,23 +51,35 @@ def get_gdelt_sentiment_score(topic: str, timespan: str = "1day", max_records: i
         - tone_category: Human-readable interpretation
         - sample_articles: List of up to 3 article titles
     """
-    # Use mock data if enabled (for rate limit resilience)
-    if USE_MOCK_GDELT:
-        return _get_mock_sentiment(topic)
-    
     try:
-        # Build GDELT query URL
+        # Build GDELT query URL - use ArtList mode for better tone data
         query_params = {
             "query": topic,
             "format": "json",
-            "mode": "ArticlesLatest",
+            "mode": "ArtList",
             "timespan": timespan,
             "maxrecords": max_records
         }
         
         logger.info(f"Querying GDELT for topic: '{topic}'")
         
-        response = requests.get(GDELT_API_BASE, params=query_params, timeout=10)
+        response = requests.get(GDELT_API_BASE, params=query_params, timeout=12)
+        
+        # Handle rate limits gracefully
+        if response.status_code == 429:
+            logger.warning("GDELT rate limit hit - returning unavailable status")
+            return {
+                "avgtone": 0.0,
+                "article_count": 0,
+                "sentiment": "neutral",
+                "signal_strength": "unavailable",
+                "tone_category": "Rate limited",
+                "sample_articles": [],
+                "source": "GDELT (Rate Limited)",
+                "status": "rate_limited",
+                "message": "GDELT API rate limit - try again in 60 seconds"
+            }
+        
         response.raise_for_status()
         
         data = response.json()
@@ -87,7 +97,8 @@ def get_gdelt_sentiment_score(topic: str, timespan: str = "1day", max_records: i
                 "signal_strength": "none",
                 "tone_category": "No data",
                 "sample_articles": [],
-                "source": "GDELT DOC 2.0 API (Live)"
+                "source": "GDELT DOC 2.0 API (Live)",
+                "status": "no_data"
             }
         
         # Calculate average tone across all articles
@@ -111,7 +122,7 @@ def get_gdelt_sentiment_score(topic: str, timespan: str = "1day", max_records: i
                 })
         
         # Compute average tone
-        avgtone = total_tone / max(valid_tone_count, 1)
+        avgtone = total_tone / max(valid_tone_count, 1) if valid_tone_count > 0 else 0.0
         
         # Interpret tone
         sentiment = _interpret_sentiment(avgtone)
@@ -128,18 +139,19 @@ def get_gdelt_sentiment_score(topic: str, timespan: str = "1day", max_records: i
             "tone_category": tone_category,
             "sample_articles": sample_articles,
             "source": "GDELT DOC 2.0 API (Live)",
+            "status": "success",
             "queried_at": datetime.utcnow().isoformat()
         }
         
     except requests.Timeout:
-        logger.error("GDELT API timeout - falling back to mock")
-        return _get_mock_sentiment(topic)
+        logger.error("GDELT API timeout")
+        return _error_response("API timeout after 12s")
     except requests.RequestException as e:
-        logger.error(f"GDELT API error: {str(e)} - falling back to mock")
-        return _get_mock_sentiment(topic)
+        logger.error(f"GDELT API error: {str(e)}")
+        return _error_response(f"API error: {str(e)}")
     except Exception as e:
         logger.error(f"Unexpected error in GDELT service: {str(e)}")
-        return _get_mock_sentiment(topic)
+        return _error_response(f"Unexpected error: {str(e)}")
 
 
 def _get_mock_sentiment(topic: str) -> Dict:
@@ -237,6 +249,21 @@ def _interpret_sentiment(avgtone: float) -> str:
         return "bearish"
     else:
         return "neutral"
+
+
+def _error_response(error_msg: str) -> Dict:
+    """Return error response in expected format."""
+    return {
+        "avgtone": 0.0,
+        "article_count": 0,
+        "sentiment": "neutral",
+        "signal_strength": "error",
+        "tone_category": f"Error: {error_msg}",
+        "sample_articles": [],
+        "source": "GDELT DOC 2.0 API",
+        "status": "error",
+        "error": error_msg
+    }
 
 
 def _assess_signal_strength(avgtone: float, article_count: int) -> str:

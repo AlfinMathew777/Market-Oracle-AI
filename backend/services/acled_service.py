@@ -1,308 +1,159 @@
-"""ACLED conflict events data service.
+"""ACLED (Armed Conflict Location & Event Data Project) API integration.
 
-USE_MOCK_DATA flag controls whether to use mock data or real ACLED API.
+Provides real-time conflict event data from ACLED's researcher API.
+Free tier available for research purposes.
+
+API key required: Register at acleddata.com/access
 """
 
-import os
-from typing import List, Dict, Any, Optional
-from datetime import datetime
+import requests
 import logging
+import os
+from typing import List, Dict
 
 logger = logging.getLogger(__name__)
 
-# TOGGLE THIS FLAG: True = mock data, False = real ACLED API
-USE_MOCK_DATA = True
+# REAL DATA - no mock fallback
+USE_MOCK_DATA = False
 
-# Mock dataset: 13 events focused on Australian economic impact (2025-2026)
-MOCK_ACLED_EVENTS = [
-    {
-        "id": "acled_001",
-        "lat": 26.9,
-        "lon": 56.2,
-        "event_type": "Armed Conflict",
-        "country": "Iran",
-        "description": "Strait of Hormuz tensions - Australian LNG export route at risk",
-        "date": "2026-03-10",
-        "fatalities": 0,
-        "affected_region": "middle_east",
-        "notes": "Naval standoff threatens Australian LNG shipments to Asia (40% of export value)"
-    },
-    {
-        "id": "acled_002",
-        "lat": -8.8,
-        "lon": 25.5,
-        "event_type": "Armed Conflict",
-        "country": "DRC",
-        "description": "DRC lithium mine conflict - threatens Australian battery supply chain",
-        "date": "2026-03-12",
-        "fatalities": 14,
-        "affected_region": "drc_lithium",
-        "notes": "Armed groups clash near Manono lithium deposit - boosts Australian lithium miners (LYC, PLS)"
-    },
-    {
-        "id": "acled_003",
-        "lat": 23.1,
-        "lon": 113.3,
-        "event_type": "Political Crisis",
-        "country": "China",
-        "description": "China iron ore import quota - direct hit to Australian miners",
-        "date": "2026-03-11",
-        "fatalities": 0,
-        "affected_region": "china_trade",
-        "notes": "China (Australia's largest trading partner) announces iron ore import restrictions targeting Australian supply"
-    },
-    {
-        "id": "acled_004",
-        "lat": -20.3,
-        "lon": 118.6,
-        "event_type": "Industrial Action",
-        "country": "Australia",
-        "description": "Port Hedland strike - iron ore exports halted",
-        "date": "2026-03-12",
-        "fatalities": 0,
-        "affected_region": "pilbara_resources",
-        "notes": "Australia's largest iron ore port workers strike - 48hr export shutdown affects BHP, RIO, FMG"
-    },
-    {
-        "id": "acled_005",
-        "lat": -34.0,
-        "lon": 151.0,
-        "event_type": "Political Crisis",
-        "country": "Australia",
-        "description": "RBA emergency rate decision - Australian banks under pressure",
-        "date": "2026-03-13",
-        "fatalities": 0,
-        "affected_region": "australia_domestic",
-        "notes": "Reserve Bank of Australia signals emergency rate hike - impacts CBA, WBC, NAB, ANZ"
-    },
-    {
-        "id": "acled_006",
-        "lat": 25.0,
-        "lon": 121.5,
-        "event_type": "Military Activity",
-        "country": "Taiwan Strait",
-        "description": "Taiwan crisis - Australian semiconductor & rare earth supply at risk",
-        "date": "2026-03-14",
-        "fatalities": 0,
-        "affected_region": "taiwan_rare_earth",
-        "notes": "Military exercises disrupt rare earth supply chain - opportunity for Australian miners (LYC)"
-    },
-    {
-        "id": "acled_007",
-        "lat": -37.8,
-        "lon": 144.9,
-        "event_type": "Political Crisis",
-        "country": "Australia",
-        "description": "Melbourne property crisis - Australian banking sector warning",
-        "date": "2026-03-11",
-        "fatalities": 0,
-        "affected_region": "australia_property",
-        "notes": "Melbourne apartment developer collapse triggers contagion fears - CBA, WBC exposed"
-    },
-    {
-        "id": "acled_008",
-        "lat": 15.5,
-        "lon": 32.5,
-        "event_type": "Armed Conflict",
-        "country": "Sudan",
-        "description": "Red Sea disruption - reroutes Australian grain exports via Cape",
-        "date": "2026-03-11",
-        "fatalities": 8,
-        "affected_region": "red_sea_shipping",
-        "notes": "Conflict near Port Sudan forces Australian wheat shipments to reroute - adds 10 days transit time"
-    },
-    # NEW 2025-2026 EVENTS (Upgrade 3)
-    {
-        "id": "acled_009",
-        "lat": 38.9,
-        "lon": -77.0,
-        "event_type": "Trade Policy",
-        "country": "United States",
-        "description": "US Liberation Day tariffs - 10% blanket tariff on all imports",
-        "date": "2025-04-02",
-        "fatalities": 0,
-        "affected_region": "us_trade_policy",
-        "notes": "President announces 10% universal baseline tariff on April 2, 2025 ('Liberation Day'). Australian steel, aluminum exports hit. Retaliatory fears."
-    },
-    {
-        "id": "acled_010",
-        "lat": 39.9,
-        "lon": 116.4,
-        "event_type": "Trade Restriction",
-        "country": "China",
-        "description": "China iron ore import ban targets Australian supply",
-        "date": "2025-07-15",
-        "fatalities": 0,
-        "affected_region": "china_iron_ore",
-        "notes": "China Commerce Ministry announces 15% quota reduction on Australian iron ore imports effective Q3 2025. Direct hit to BHP, RIO, FMG."
-    },
-    {
-        "id": "acled_011",
-        "lat": 1.35,
-        "lon": 103.8,
-        "event_type": "Trade Agreement",
-        "country": "Singapore",
-        "description": "ASEAN-India Comprehensive Economic Partnership signed",
-        "date": "2025-11-20",
-        "fatalities": 0,
-        "affected_region": "asean_trade",
-        "notes": "ASEAN+India sign RCEP 2.0 agreement, reducing tariffs on critical minerals. Australia excluded. Shifts rare earth supply chains toward India-Vietnam corridor."
-    },
-    {
-        "id": "acled_012",
-        "lat": -35.3,
-        "lon": 149.1,
-        "event_type": "Monetary Policy",
-        "country": "Australia",
-        "description": "RBA raises cash rate to 3.85% - highest since 2011",
-        "date": "2026-02-03",
-        "fatalities": 0,
-        "affected_region": "australia_domestic",
-        "notes": "Reserve Bank of Australia hikes 25bps to 3.85% citing sticky inflation. Banks (CBA, NAB) benefit from NIM expansion. REITs (GPT, VCX) under pressure."
-    },
-    {
-        "id": "acled_013",
-        "lat": 25.0,
-        "lon": 121.5,
-        "event_type": "Trade Restriction",
-        "country": "Taiwan",
-        "description": "US semiconductor export controls tighten - rare earth demand surge",
-        "date": "2026-01-10",
-        "fatalities": 0,
-        "affected_region": "tech_supply_chain",
-        "notes": "Biden administration restricts advanced chip exports to China. China retaliates by restricting rare earth exports. Australian producers (LYC, ARU) see 18% price spike."
-    }
+# ACLED API configuration
+ACLED_EMAIL = os.getenv("ACLED_EMAIL")
+ACLED_API_KEY = os.getenv("ACLED_API_KEY")
+ACLED_BASE = "https://api.acleddata.com/acled/read"
+
+# Regions with direct ASX stock exposure
+RELEVANT_COUNTRIES = [
+    "China", "Iran", "Democratic Republic of Congo",
+    "Taiwan", "Sudan", "Argentina", "Chile",
+    "Papua New Guinea", "Indonesia", "Myanmar",
+    "Ukraine", "Russia", "Israel", "Yemen",
+    "Australia", "United States", "Singapore"
 ]
 
 
 class ACLEDService:
-    """Service for fetching ACLED conflict event data."""
+    """Service for fetching real conflict events from ACLED."""
     
-    def __init__(self):
-        self.use_mock = USE_MOCK_DATA
-        self.acled_username = os.getenv('ACLED_USERNAME')
-        self.acled_password = os.getenv('ACLED_PASSWORD')
-        
-        if not self.use_mock and (not self.acled_username or not self.acled_password):
-            logger.warning("ACLED credentials not found, falling back to mock data")
-            self.use_mock = True
-    
-    def get_recent_events(self, limit: int = 50) -> List[Dict[str, Any]]:
-        """Get recent conflict events.
-        
-        Args:
-            limit: Maximum number of events to return
+    def get_events(self) -> Dict:
+        """
+        Fetch real conflict events from last 30 days filtered to ASX-relevant regions.
         
         Returns:
-            List of event dictionaries
+            GeoJSON FeatureCollection with conflict events
         """
-        if self.use_mock:
-            logger.info(f"Returning {len(MOCK_ACLED_EVENTS)} mock ACLED events")
-            return MOCK_ACLED_EVENTS[:limit]
-        else:
-            return self._fetch_real_acled_events(limit)
-    
-    def _fetch_real_acled_events(self, limit: int) -> List[Dict[str, Any]]:
-        """Fetch events from real ACLED API.
-        
-        This will be implemented when USE_MOCK_DATA = False.
-        """
-        import requests
-        from datetime import datetime, timedelta
-        
-        # ACLED API endpoint
-        base_url = "https://api.acleddata.com/acled/read"
-        
-        # OAuth authentication (from integration playbook)
-        auth_url = "https://acleddata.com/oauth/token"
-        auth_data = {
-            'username': self.acled_username,
-            'password': self.acled_password,
-            'grant_type': 'password',
-            'client_id': 'acled'
-        }
+        # Check if API keys are configured
+        if not ACLED_EMAIL or not ACLED_API_KEY:
+            logger.error("ACLED API credentials not configured")
+            return {
+                'type': 'FeatureCollection',
+                'count': 0,
+                'features': [],
+                'error': 'ACLED API key not configured',
+                'status': 'pending_api_key',
+                'message': 'Get free researcher key at acleddata.com/access (5 minutes)'
+            }
         
         try:
-            # Get OAuth token
-            auth_response = requests.post(auth_url, data=auth_data, timeout=10)
-            auth_response.raise_for_status()
-            access_token = auth_response.json()['access_token']
-            
-            # Fetch recent events
-            headers = {
-                'Authorization': f'Bearer {access_token}',
-                'Content-Type': 'application/json'
-            }
-            
-            # Get events from last 30 days
-            start_date = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
-            
             params = {
-                'limit': limit,
-                'event_date': f'{start_date}:2026-12-31',
-                'event_date_where': 'BETWEEN'
+                "key": ACLED_API_KEY,
+                "email": ACLED_EMAIL,
+                "country": "|".join(RELEVANT_COUNTRIES),
+                "fields": "event_id_cnty|event_date|event_type|country|location|latitude|longitude|fatalities|notes",
+                "limit": 50,
+                "format": "json",
+                "order": "event_date:desc"
             }
             
-            response = requests.get(base_url, headers=headers, params=params, timeout=30)
+            logger.info(f"Fetching ACLED events for {len(RELEVANT_COUNTRIES)} countries...")
+            
+            response = requests.get(ACLED_BASE, params=params, timeout=15)
             response.raise_for_status()
             
             data = response.json()
-            events = []
+            events = data.get("data", [])
             
-            for item in data.get('data', []):
-                events.append({
-                    'id': item.get('event_id_cnty'),
-                    'lat': float(item.get('latitude', 0)),
-                    'lon': float(item.get('longitude', 0)),
-                    'event_type': item.get('event_type'),
-                    'country': item.get('country'),
-                    'description': item.get('location'),
-                    'date': item.get('event_date'),
-                    'fatalities': int(item.get('fatalities', 0)),
-                    'notes': item.get('notes', '')
-                })
+            # Convert to GeoJSON
+            features = []
+            for event in events:
+                if not event.get("latitude") or not event.get("longitude"):
+                    continue
+                
+                try:
+                    feature = {
+                        'type': 'Feature',
+                        'geometry': {
+                            'type': 'Point',
+                            'coordinates': [float(event["longitude"]), float(event["latitude"])]
+                        },
+                        'properties': {
+                            'id': event["event_id_cnty"],
+                            'event_type': event["event_type"],
+                            'country': event["country"],
+                            'location': event["location"],
+                            'description': event["notes"][:200] if event["notes"] else event["event_type"],
+                            'event_date': event["event_date"],
+                            'fatalities': int(event["fatalities"] or 0),
+                            'notes': event["notes"] if event["notes"] else "",
+                            'affected_region': self._classify_region(event)
+                        }
+                    }
+                    features.append(feature)
+                except (ValueError, KeyError) as parse_error:
+                    logger.warning(f"Skipping malformed event: {parse_error}")
+                    continue
             
-            logger.info(f"Fetched {len(events)} real ACLED events")
-            return events
+            logger.info(f"Fetched {len(features)} valid ACLED events")
             
-        except Exception as e:
-            logger.error(f"Error fetching real ACLED data: {str(e)}")
-            logger.warning("Falling back to mock data")
-            return MOCK_ACLED_EVENTS[:limit]
-    
-    def get_event_by_id(self, event_id: str) -> Optional[Dict[str, Any]]:
-        """Get specific event by ID."""
-        events = self.get_recent_events()
-        for event in events:
-            if event['id'] == event_id:
-                return event
-        return None
-    
-    def to_geojson(self, events: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Convert events to GeoJSON format."""
-        features = []
-        
-        for event in events:
-            feature = {
-                'type': 'Feature',
-                'geometry': {
-                    'type': 'Point',
-                    'coordinates': [event['lon'], event['lat']]
-                },
-                'properties': {
-                    'id': event['id'],
-                    'event_type': event['event_type'],
-                    'country': event['country'],
-                    'description': event['description'],
-                    'date': event['date'],
-                    'fatalities': event['fatalities'],
-                    'notes': event.get('notes', ''),
-                    'affected_region': event.get('affected_region', '')
-                }
+            return {
+                'type': 'FeatureCollection',
+                'count': len(features),
+                'features': features,
+                'source': 'ACLED API (Live)',
+                'status': 'live'
             }
-            features.append(feature)
+            
+        except requests.Timeout:
+            logger.error("ACLED API timeout")
+            return self._error_response("API timeout after 15s")
+        except requests.HTTPError as http_err:
+            logger.error(f"ACLED HTTP error: {http_err}")
+            if http_err.response.status_code == 401:
+                return self._error_response("Invalid ACLED API credentials")
+            return self._error_response(f"HTTP {http_err.response.status_code}")
+        except Exception as e:
+            logger.error(f"ACLED error: {str(e)}")
+            return self._error_response(str(e))
+    
+    def _classify_region(self, event: dict) -> str:
+        """Classify event into ASX-relevant regions."""
+        country = event.get("country", "").lower()
         
+        if "china" in country:
+            return "china_trade"
+        elif "iran" in country or "yemen" in country:
+            return "middle_east"
+        elif "congo" in country:
+            return "drc_lithium"
+        elif "taiwan" in country:
+            return "taiwan_rare_earth"
+        elif "sudan" in country:
+            return "red_sea_shipping"
+        elif "australia" in country:
+            return "australia_domestic"
+        elif "united states" in country:
+            return "us_trade_policy"
+        elif "singapore" in country:
+            return "asean_trade"
+        else:
+            return "other"
+    
+    def _error_response(self, error_msg: str) -> Dict:
+        """Return error response in GeoJSON format."""
         return {
             'type': 'FeatureCollection',
-            'features': features
+            'count': 0,
+            'features': [],
+            'error': error_msg,
+            'status': 'error',
+            'message': 'ACLED data unavailable - check API credentials'
         }
