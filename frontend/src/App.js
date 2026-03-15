@@ -6,6 +6,7 @@ import TickerStrip from './components/TickerStrip';
 import SimulationProgress from './components/SimulationProgress';
 import SectorHeatmap from './components/SectorHeatmap';
 import PredictionHistory from './components/PredictionHistory';
+import MacroContext from './components/MacroContext';
 import './App.css';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
@@ -132,6 +133,8 @@ function App() {
 
   return (
     <div className="app">
+      <MacroContext />
+      
       <header className="app-header">
         <div className="logo">
           <h1>Market Oracle AI</h1>

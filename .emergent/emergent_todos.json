@@ -1,22 +1,6 @@
 [
   {
-    "content": "Frontend: Add state in App.js to track active arc (event coords, show/hide, timer)",
+    "content": "Test: Screenshot showing macro context strip at top",
     "status": "completed"
-  },
-  {
-    "content": "Frontend: Add 8-second auto-fade timer for arc after simulation completes",
-    "status": "completed"
-  },
-  {
-    "content": "Test: Trigger simulation via sidebar and verify arc appears on globe",
-    "status": "in_progress"
-  },
-  {
-    "content": "Test: Verify arc fades out after 8 seconds automatically",
-    "status": "pending"
-  },
-  {
-    "content": "Test: Screenshot showing arc overlay on globe",
-    "status": "pending"
   }
 ]

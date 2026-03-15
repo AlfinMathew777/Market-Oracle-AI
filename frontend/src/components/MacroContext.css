@@ -1,0 +1,113 @@
+.macro-context {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 36px;
+  background: rgba(15, 15, 35, 0.98);
+  border-bottom: 1px solid rgba(51, 102, 255, 0.25);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: space-evenly;
+  padding: 0 20px;
+  z-index: 100;
+  font-size: 11px;
+}
+
+.macro-loading {
+  color: #888;
+  font-size: 11px;
+  margin: 0 auto;
+}
+
+.macro-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.macro-label {
+  color: #888;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.macro-value {
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.macro-change {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 10px;
+  font-weight: 600;
+  margin-left: 4px;
+}
+
+.macro-change.positive {
+  color: #00ff88;
+}
+
+.macro-change.negative {
+  color: #ff3366;
+}
+
+.macro-status-badge {
+  font-size: 9px;
+  color: #ff9933;
+  background: rgba(255, 153, 51, 0.15);
+  padding: 2px 6px;
+  border-radius: 3px;
+  margin-left: 4px;
+  font-weight: 600;
+}
+
+.macro-divider {
+  width: 1px;
+  height: 18px;
+  background: rgba(51, 102, 255, 0.2);
+}
+
+@media (max-width: 1200px) {
+  .macro-context {
+    font-size: 10px;
+    padding: 0 12px;
+    gap: 12px;
+  }
+  
+  .macro-label {
+    font-size: 9px;
+  }
+  
+  .macro-value {
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 768px) {
+  .macro-context {
+    height: auto;
+    min-height: 36px;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    padding: 6px 12px;
+  }
+  
+  .macro-divider {
+    display: none;
+  }
+  
+  .macro-indicator {
+    padding: 4px 8px;
+  }
+}

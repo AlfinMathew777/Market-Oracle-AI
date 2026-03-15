@@ -267,6 +267,107 @@ class MarketOracleAPITester:
         except Exception as e:
             self.log_test("Port Hedland Endpoint", False, f"Error: {str(e)}")
 
+    def test_macro_context_endpoint(self):
+        """Test P3 Feature: Macro economic context endpoint"""
+        expected_indicators = ['fed_rate', 'aud_usd', 'iron_ore', 'rba_rate', 'asx_200']
+        
+        try:
+            response = requests.get(f"{self.base_url}/api/data/macro-context", timeout=15)
+            
+            if response.status_code == 200:
+                data = response.json()
+                
+                success = data.get("status") == "success" and "data" in data
+                
+                if success:
+                    macro_data = data["data"]
+                    
+                    # Check all 5 indicators are present
+                    indicators_present = all(indicator in macro_data for indicator in expected_indicators)
+                    
+                    # Check Fed Funds Rate structure
+                    fed_rate = macro_data.get("fed_rate", {})
+                    fed_valid = (
+                        "value" in fed_rate and 
+                        "label" in fed_rate and
+                        "source" in fed_rate and
+                        fed_rate.get("source") == "FRED"
+                    )
+                    
+                    # Check AUD/USD structure
+                    aud_usd = macro_data.get("aud_usd", {})
+                    aud_valid = (
+                        "value" in aud_usd and 
+                        "label" in aud_usd and
+                        "source" in aud_usd and
+                        aud_usd.get("source") == "Yahoo Finance"
+                    )
+                    
+                    # Check Iron Ore with fallback
+                    iron_ore = macro_data.get("iron_ore", {})
+                    iron_valid = (
+                        "value" in iron_ore and 
+                        "label" in iron_ore and
+                        "status" in iron_ore and
+                        iron_ore.get("value") == 97.50 and  # Expected fallback value
+                        iron_ore.get("status") == "delayed"
+                    )
+                    
+                    # Check RBA Cash Rate (hardcoded)
+                    rba_rate = macro_data.get("rba_rate", {})
+                    rba_valid = (
+                        "value" in rba_rate and 
+                        "label" in rba_rate and
+                        rba_rate.get("value") == 4.10 and  # Expected hardcoded value
+                        rba_rate.get("source") == "RBA"
+                    )
+                    
+                    # Check ASX 200 with change percentage
+                    asx_200 = macro_data.get("asx_200", {})
+                    asx_valid = (
+                        "value" in asx_200 and 
+                        "label" in asx_200 and
+                        "change_pct" in asx_200 and
+                        "source" in asx_200 and
+                        asx_200.get("source") == "Yahoo Finance"
+                    )
+                    
+                    # Check fetched_at timestamp
+                    has_timestamp = "fetched_at" in macro_data
+                    
+                    overall_success = (
+                        indicators_present and fed_valid and aud_valid and 
+                        iron_valid and rba_valid and asx_valid and has_timestamp
+                    )
+                    
+                    self.log_test(
+                        "P3 Macro Context Endpoint",
+                        overall_success,
+                        f"Indicators: {len([i for i in expected_indicators if i in macro_data])}/5, "
+                        f"Fed: {fed_rate.get('label', 'N/A')}, "
+                        f"AUD/USD: {aud_usd.get('label', 'N/A')}, "
+                        f"Iron Ore: {iron_ore.get('label', 'N/A')} ({iron_ore.get('status', 'N/A')}), "
+                        f"RBA: {rba_rate.get('label', 'N/A')}, "
+                        f"ASX 200: {asx_200.get('label', 'N/A')} ({asx_200.get('change_pct', 0):.2f}%)",
+                        f"Expected all 5 indicators with proper structure"
+                    )
+                    
+                    # Test Iron Ore fallback mechanism specifically
+                    self.log_test(
+                        "Iron Ore Fallback ($97.50/t)",
+                        iron_ore.get("value") == 97.50 and iron_ore.get("status") == "delayed",
+                        f"Value: ${iron_ore.get('value', 'N/A')}/t, Status: {iron_ore.get('status', 'N/A')}",
+                        "Expected $97.50/t with delayed status"
+                    )
+                    
+                else:
+                    self.log_test("P3 Macro Context Endpoint", False, "Invalid response structure")
+            else:
+                self.log_test("P3 Macro Context Endpoint", False, f"HTTP {response.status_code}")
+
+        except Exception as e:
+            self.log_test("P3 Macro Context Endpoint", False, f"Error: {str(e)}")
+
     def test_simulate_endpoint_exists(self):
         """Test that simulation endpoint exists (without running simulation)"""
         try:
@@ -301,6 +402,7 @@ class MarketOracleAPITester:
         self.test_acled_endpoint()
         self.test_asx_prices_endpoint()
         self.test_port_hedland_endpoint()
+        self.test_macro_context_endpoint()  # P3 Feature Test
         self.test_simulate_endpoint_exists()
         
         print("\n" + "=" * 60)
