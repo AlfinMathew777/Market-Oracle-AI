@@ -18,42 +18,38 @@ logger = logging.getLogger(__name__)
 # REAL DATA - no mock fallback
 USE_MOCK_DATA = False
 
-# MarketAux API configuration
-MARKETAUX_API_KEY = os.getenv("MARKETAUX_API_KEY")
 MARKETAUX_BASE = "https://api.marketaux.com/v1/news/all"
 
 
 def get_asx_news_sentiment(symbols: List[str], hours: int = 24) -> Dict:
     """
     Get real news sentiment for specific ASX tickers from MarketAux.
-    
+
     Args:
         symbols: List of ticker symbols (e.g., ["BHP.AX", "RIO.AX"])
         hours: Lookback period in hours (default 24)
-    
+
     Returns:
         Dict with combined sentiment bias and article details
     """
-    if not MARKETAUX_API_KEY:
+    api_key = os.getenv("MARKETAUX_API_KEY")
+    if not api_key:
         logger.error("MarketAux API key not configured")
         return {
+            **_error_response("MarketAux API key not configured. Get free key at marketaux.com (2 minutes)"),
             'status': 'pending_api_key',
-            'message': 'MarketAux API key not configured. Get free key at marketaux.com (2 minutes)',
-            'bias': 0.0,
-            'signal': 'UNKNOWN',
-            'articles': 0
         }
-    
+
     try:
         # Convert ASX tickers to format MarketAux expects (remove .AX suffix)
         cleaned_symbols = [s.replace('.AX', '') for s in symbols]
-        
+
         # Calculate published_after as ISO date string
         published_after_date = datetime.now(timezone.utc) - timedelta(hours=hours)
         published_after_str = published_after_date.strftime('%Y-%m-%dT%H:%M:%S')
-        
+
         params = {
-            "api_token": MARKETAUX_API_KEY,
+            "api_token": api_key,
             "symbols": ",".join(cleaned_symbols),
             "filter_entities": "true",
             "published_after": published_after_str,
@@ -84,21 +80,21 @@ def get_asx_news_sentiment(symbols: List[str], hours: int = 24) -> Dict:
         # Extract sentiment scores from article entities
         scores = []
         headlines = []
-        
+
         for article in articles:
-            # Collect headline
-            if len(headlines) < 3:
-                headlines.append({
-                    "title": article.get("title", "Untitled"),
-                    "url": article.get("url", ""),
-                    "published_at": article.get("published_at", ""),
-                    "source": article.get("source", "")
-                })
-            
+            headlines.append({
+                "title": article.get("title", "Untitled"),
+                "url": article.get("url", ""),
+                "published_at": article.get("published_at", ""),
+                "source": article.get("source", "")
+            })
+
             # Extract sentiment from entities matching our tickers
             for entity in article.get("entities", []):
                 if entity.get("sentiment_score") is not None:
                     scores.append(float(entity["sentiment_score"]))
+
+        headlines = headlines[:3]
         
         # Calculate average sentiment
         if scores:

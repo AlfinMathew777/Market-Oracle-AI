@@ -114,7 +114,7 @@ async def _stream_port_hedland():
             _vessel_cache["status"] = "error"
             _vessel_cache["connected"] = False
             retry_count += 1
-            await asyncio.sleep(min(retry_count * 2, 30))  # Exponential backoff
+            await asyncio.sleep(min(2 ** retry_count, 30))  # Exponential backoff
             
         except Exception as e:
             logger.error(f"AISStream connection error: {str(e)}")
@@ -122,7 +122,7 @@ async def _stream_port_hedland():
             _vessel_cache["connected"] = False
             _vessel_cache["error"] = str(e)
             retry_count += 1
-            await asyncio.sleep(min(retry_count * 2, 30))  # Exponential backoff
+            await asyncio.sleep(min(2 ** retry_count, 30))  # Exponential backoff
     
     # Max retries exhausted
     logger.error("AISStream connection failed after max retries")

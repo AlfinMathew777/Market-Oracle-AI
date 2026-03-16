@@ -9,6 +9,7 @@ API key required: Register at acleddata.com/access
 import requests
 import logging
 import os
+from datetime import datetime, timezone, timedelta
 from typing import List, Dict
 
 logger = logging.getLogger(__name__)
@@ -17,9 +18,12 @@ logger = logging.getLogger(__name__)
 USE_MOCK_DATA = False
 
 # ACLED API configuration
-ACLED_EMAIL = os.getenv("ACLED_EMAIL")
-ACLED_API_KEY = os.getenv("ACLED_API_KEY")
 ACLED_BASE = "https://api.acleddata.com/acled/read"
+
+# Simple TTL cache — ACLED data changes at most daily
+_cache: Dict = {}
+_cache_expiry: datetime | None = None
+_CACHE_TTL = timedelta(hours=1)
 
 # Regions with direct ASX stock exposure
 RELEVANT_COUNTRIES = [
@@ -37,12 +41,17 @@ class ACLEDService:
     def get_events(self) -> Dict:
         """
         Fetch real conflict events from last 30 days filtered to ASX-relevant regions.
-        
+
         Returns:
             GeoJSON FeatureCollection with conflict events
         """
+        global _cache, _cache_expiry
+
+        acled_email = os.getenv("ACLED_EMAIL")
+        acled_api_key = os.getenv("ACLED_API_KEY")
+
         # Check if API keys are configured
-        if not ACLED_EMAIL or not ACLED_API_KEY:
+        if not acled_email or not acled_api_key:
             logger.error("ACLED API credentials not configured")
             return {
                 'type': 'FeatureCollection',
@@ -52,11 +61,17 @@ class ACLEDService:
                 'status': 'pending_api_key',
                 'message': 'Get free researcher key at acleddata.com/access (5 minutes)'
             }
-        
+
+        # Return cached result if still fresh
+        now = datetime.now(timezone.utc)
+        if _cache and _cache_expiry and now < _cache_expiry:
+            logger.info("Returning cached ACLED events")
+            return _cache
+
         try:
             params = {
-                "key": ACLED_API_KEY,
-                "email": ACLED_EMAIL,
+                "key": acled_api_key,
+                "email": acled_email,
                 "country": "|".join(RELEVANT_COUNTRIES),
                 "fields": "event_id_cnty|event_date|event_type|country|location|latitude|longitude|fatalities|notes",
                 "limit": 50,
@@ -103,14 +118,17 @@ class ACLEDService:
                     continue
             
             logger.info(f"Fetched {len(features)} valid ACLED events")
-            
-            return {
+
+            result = {
                 'type': 'FeatureCollection',
                 'count': len(features),
                 'features': features,
                 'source': 'ACLED API (Live)',
                 'status': 'live'
             }
+            _cache = result
+            _cache_expiry = datetime.now(timezone.utc) + _CACHE_TTL
+            return result
             
         except requests.Timeout:
             logger.error("ACLED API timeout")
