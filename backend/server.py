@@ -1,8 +1,28 @@
 """Market Oracle AI - FastAPI Backend Server."""
 
+import sys
+import io
+import os
+
+# Force UTF-8 for ALL I/O on Windows before anything else loads
+os.environ.setdefault('PYTHONUTF8', '1')
+os.environ.setdefault('PYTHONIOENCODING', 'utf-8')
+
+# Re-wrap stdout/stderr with UTF-8 encoding regardless of terminal settings
+if hasattr(sys.stdout, 'buffer'):
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace', line_buffering=True)
+if hasattr(sys.stderr, 'buffer'):
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace', line_buffering=True)
+
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, JSONResponse
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 import asyncio
 import os
 import time
@@ -24,20 +44,104 @@ from services.gdelt_service import get_gdelt_sentiment_score
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+# Configure logging with UTF-8 handler so unicode in LLM responses never crashes
+_log_handler = logging.StreamHandler(sys.stderr)
+_log_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+logging.basicConfig(level=logging.INFO, handlers=[_log_handler])
 
 logger = logging.getLogger(__name__)
+
+# ── Sentry (optional — only active when SENTRY_DSN is set) ────────────────────
+_SENTRY_DSN = os.getenv("SENTRY_DSN", "")
+if _SENTRY_DSN:
+    import sentry_sdk
+    from sentry_sdk.integrations.fastapi import FastApiIntegration
+    from sentry_sdk.integrations.starlette import StarletteIntegration
+    sentry_sdk.init(
+        dsn=_SENTRY_DSN,
+        integrations=[StarletteIntegration(), FastApiIntegration()],
+        traces_sample_rate=0.1,   # 10% of requests traced
+        send_default_pii=False,
+    )
+    logger.info("Sentry initialised")
+
+# ── API Key auth ───────────────────────────────────────────────────────────────
+_API_KEY = os.getenv("API_KEY", "")  # Set in .env / Render env vars
+
+
+def _check_api_key(request: Request) -> bool:
+    """Return True if the request carries a valid API key (or auth is disabled)."""
+    if not _API_KEY:
+        return True  # Auth not configured — open access (dev mode)
+    return request.headers.get("X-API-Key") == _API_KEY
+
+
+def require_api_key(request: Request):
+    """Dependency that enforces API key on mutation endpoints."""
+    if not _check_api_key(request):
+        raise HTTPException(status_code=401, detail="Invalid or missing API key")
+
+
+# ── Rate limiter ───────────────────────────────────────────────────────────────
+limiter = Limiter(key_func=get_remote_address, default_limits=["120/minute"])
+
+
+async def _prewarm_caches():
+    """Pre-populate slow caches in background so first request is instant."""
+    from services.asx_service import ASXService
+    from services.chokepoint_monitor_service import get_enriched_chokepoint_risks
+    from services.acled_service import ACLEDService
+
+    async def warm(name, fn):
+        try:
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(None, fn)
+            logger.info("Cache pre-warmed: %s", name)
+        except Exception as e:
+            logger.warning("Cache pre-warm failed (%s): %s", name, e)
+
+    asx = ASXService()
+    acled = ACLEDService()
+    await asyncio.gather(
+        warm("ASX prices",   asx.get_current_prices),
+        warm("Chokepoints",  get_enriched_chokepoint_risks),
+        warm("ACLED events", acled.get_events),
+    )
+
+
+async def _hourly_tasks():
+    """Background loop: accuracy checks every hour."""
+    while True:
+        await asyncio.sleep(3600)
+        try:
+            from database import run_accuracy_checks
+            n = await run_accuracy_checks()
+            if n:
+                logger.info("Accuracy check: resolved %d predictions", n)
+        except Exception as e:
+            logger.warning("Hourly accuracy check failed: %s", e)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manage application startup and shutdown."""
-    logger.info("🚀 Market Oracle AI starting...")
+    logger.info("AussieIntel starting...")
+
+    # Initialise SQLite persistence
+    try:
+        from database import init_db
+        await init_db()
+    except Exception as e:
+        logger.warning("DB init failed (non-critical): %s", e)
+
+    # Start AIS WebSocket stream (fallback for when relay isn't up yet)
     start_ais_background_stream()
-    logger.info("✓ Startup complete")
+
+    # Pre-warm caches and start background tasks
+    asyncio.create_task(_prewarm_caches())
+    asyncio.create_task(_hourly_tasks())
+
+    logger.info("Startup complete — cache pre-warm and accuracy checks running in background")
     yield
 
 
@@ -48,10 +152,20 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Configure CORS
+# Attach rate limiter
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
+
+# Configure CORS — restrict to known frontend origins in production
+_FRONTEND_URL = os.environ.get("FRONTEND_URL", "")
+_ALLOWED_ORIGINS = (
+    [_FRONTEND_URL] if _FRONTEND_URL
+    else ["http://localhost:3000", "http://127.0.0.1:3000"]
+)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -61,38 +175,12 @@ app.add_middleware(
 app.include_router(data_router)
 app.include_router(simulate_router)
 
-
-
-@app.get("/")
-def root():
-    return {
-        "name": "Market Oracle AI API",
-        "version": "1.0.0",
-        "status": "operational",
-        "endpoints": {
-            "data": [
-                "/api/data/acled",
-                "/api/data/asx-prices",
-                "/api/data/port-hedland",
-                "/api/data/macro-context",
-                "/api/data/australian-macro",
-                "/api/data/gdelt-sentiment",
-                "/api/data/mineral-deposits",
-                "/api/data/pre-simulation-sentiment"
-            ],
-            "simulation": [
-                "/api/simulate"
-            ],
-            "health": [
-                "/api/health"
-            ]
-        }
-    }
+FRONTEND_BUILD = ROOT_DIR.parent / "frontend" / "build"
 
 
 @app.get("/api/health")
-async def health_check():
-    """Comprehensive health check showing real API connection status for all data sources."""
+async def health_check(request: Request):
+    """Comprehensive health check — no auth required, rate-limited to 30/min."""
     t_start = time.time()
 
     async def check_fred():
@@ -145,14 +233,15 @@ async def health_check():
             return "AISStream", {"status": "ERROR", "error": str(e)}
 
     async def check_acled():
-        acled_key = os.getenv("ACLED_API_KEY")
+        email = os.getenv("ACLED_EMAIL")
+        password = os.getenv("ACLED_PASSWORD")
+        configured = bool(email and password)
         return "ACLED", {
-            "status": "PENDING_KEY" if not acled_key else "OK",
-            "note": "Get free key at acleddata.com/access" if not acled_key else "Key configured",
+            "status": "OK" if configured else "PENDING_KEY",
+            "note": "OAuth credentials configured" if configured else "Set ACLED_EMAIL + ACLED_PASSWORD in .env",
             "source": "acleddata.com"
         }
 
-    # Run all checks concurrently
     results = await asyncio.gather(
         check_fred(), check_marketaux(), check_gdelt(),
         check_yfinance(), check_aisstream(), check_acled()
@@ -169,6 +258,25 @@ async def health_check():
         "demo_ready": live_count >= 3,
         "response_time_ms": round((time.time() - t_start) * 1000, 2),
     }
+
+
+# Serve React frontend — MUST be registered after all API routes
+if FRONTEND_BUILD.exists():
+    app.mount("/static", StaticFiles(directory=str(FRONTEND_BUILD / "static")), name="static")
+
+    @app.get("/australia-states.geojson")
+    def serve_geojson():
+        return FileResponse(str(FRONTEND_BUILD / "australia-states.geojson"), media_type="application/geo+json")
+
+    @app.get("/")
+    def serve_frontend():
+        return FileResponse(str(FRONTEND_BUILD / "index.html"))
+
+    @app.get("/{full_path:path}")
+    def serve_spa(full_path: str):
+        if full_path.startswith("api/"):
+            raise HTTPException(status_code=404, detail="Not found")
+        return FileResponse(str(FRONTEND_BUILD / "index.html"))
 
 
 if __name__ == "__main__":

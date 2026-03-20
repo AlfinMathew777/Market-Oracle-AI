@@ -9,16 +9,19 @@ import requests
 import logging
 import os
 from typing import Dict
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 logger = logging.getLogger(__name__)
 
 # REAL DATA - no mock fallback
 USE_MOCK_DATA = False
 
-# FRED API configuration
-FRED_API_KEY = os.getenv("FRED_API_KEY")
 FRED_BASE = "https://api.stlouisfed.org/fred/series/observations"
+
+# Cache FRED results for 1 hour ? data updates daily at most
+_fred_cache: Dict = {}
+_fred_cache_expiry: datetime | None = None
+_FRED_CACHE_TTL = timedelta(hours=1)
 
 # Australian economic series IDs
 FRED_AUSTRALIAN_SERIES = {
@@ -45,6 +48,13 @@ def get_all_australian_macro() -> Dict:
     Returns:
         Dict with latest values for each indicator
     """
+    global _fred_cache, _fred_cache_expiry
+    now = datetime.now(timezone.utc)
+    if _fred_cache and _fred_cache_expiry and now < _fred_cache_expiry:
+        logger.info("Returning cached FRED data")
+        return _fred_cache
+
+    FRED_API_KEY = os.getenv("FRED_API_KEY")
     if not FRED_API_KEY:
         logger.error("FRED API key not configured")
         return {
@@ -52,9 +62,9 @@ def get_all_australian_macro() -> Dict:
             'message': 'FRED API key not configured. Get free instant key at fred.stlouisfed.org/docs/api (2 minutes)',
             'data': {}
         }
-    
+
     result = {}
-    
+
     for series_id, field_name in FRED_AUSTRALIAN_SERIES.items():
         try:
             params = {
@@ -88,11 +98,14 @@ def get_all_australian_macro() -> Dict:
             logger.error(f"FRED parse error for {series_id}: {parse_error}")
             continue
     
-    return {
+    response = {
         'status': 'success',
         'data': result,
         'fetched_at': datetime.now(timezone.utc).isoformat()
     }
+    _fred_cache = response
+    _fred_cache_expiry = now + _FRED_CACHE_TTL
+    return response
 
 
 def get_commodity_prices() -> Dict:

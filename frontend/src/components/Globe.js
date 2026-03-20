@@ -2,6 +2,18 @@ import React, { useEffect, useRef } from 'react';
 import Globe from 'globe.gl';
 import './Globe.css';
 
+const CHOKEPOINT_MARKERS = [
+  { lat: 26.6,  lng: 56.3,   name: "Hormuz",        risk: 85, color: "#ff2222", mbd: 20.9 },
+  { lat: 2.5,   lng: 101.5,  name: "Malacca",        risk: 72, color: "#ff2222", mbd: 23.2 },
+  { lat: 12.6,  lng: 43.4,   name: "Bab el-Mandeb",  risk: 65, color: "#ff8800", mbd: 4.2  },
+  { lat: 30.5,  lng: 32.3,   name: "Suez",           risk: 58, color: "#ff8800", mbd: 4.9  },
+  { lat: -34.4, lng: 18.5,   name: "Cape of Hope",   risk: 45, color: "#ffcc00", mbd: 9.1  },
+  { lat: 9.1,   lng: -79.7,  name: "Panama",         risk: 35, color: "#ffcc00", mbd: 3.8  },
+  { lat: 41.1,  lng: 29.0,   name: "Bosporus",       risk: 30, color: "#ffcc00", mbd: 2.9  },
+  { lat: -8.7,  lng: 115.7,  name: "Lombok",         risk: 20, color: "#44ff88", mbd: 1.5  },
+  { lat: 55.5,  lng: 12.0,   name: "Danish Straits", risk: 15, color: "#44ff88", mbd: 3.0  },
+];
+
 function GlobeComponent({ events, portHedlandData, onEventClick, isSimulating, correlationArc }) {
   const globeRef = useRef(null);
   const globeInstanceRef = useRef(null);
@@ -87,25 +99,53 @@ function GlobeComponent({ events, portHedlandData, onEventClick, isSimulating, c
     }
   }, [isSimulating]);
 
-  // Port Hedland marker
+  // Port Hedland + chokepoint labels
   useEffect(() => {
-    if (globeInstanceRef.current && portHedlandData) {
-      const portMarker = [{
-        lat: -20.3,
-        lng: 118.6,
-        label: 'Port Hedland'
-      }];
+    if (!globeInstanceRef.current) return;
 
-      globeInstanceRef.current
-        .labelsData(portMarker)
-        .labelLat(d => d.lat)
-        .labelLng(d => d.lng)
-        .labelText(d => d.label)
-        .labelSize(0.8)
-        .labelColor(() => '#4444ff')
-        .labelResolution(2);
-    }
+    const labels = [
+      { lat: -20.3, lng: 118.6, label: '⚓ Port Hedland', color: '#4488ff' },
+      ...CHOKEPOINT_MARKERS.map(cp => ({
+        lat: cp.lat,
+        lng: cp.lng,
+        label: `⬡ ${cp.name}`,
+        color: cp.color,
+      })),
+    ];
+
+    globeInstanceRef.current
+      .labelsData(labels)
+      .labelLat(d => d.lat)
+      .labelLng(d => d.lng)
+      .labelText(d => d.label)
+      .labelSize(d => d.label.startsWith('⚓') ? 0.8 : 0.65)
+      .labelColor(d => d.color)
+      .labelResolution(2)
+      .labelAltitude(0.01);
   }, [portHedlandData]);
+
+  // Chokepoint pulsing rings — permanent, proportional to oil flow
+  useEffect(() => {
+    if (!globeInstanceRef.current) return;
+
+    const rings = CHOKEPOINT_MARKERS.map(cp => ({
+      lat: cp.lat,
+      lng: cp.lng,
+      color: cp.color,
+      maxR: Math.max(1.5, cp.mbd / 8),
+      propagationSpeed: cp.risk > 60 ? 3 : cp.risk > 40 ? 2 : 1,
+      repeatPeriod: cp.risk > 60 ? 700 : cp.risk > 40 ? 1200 : 2000,
+    }));
+
+    globeInstanceRef.current
+      .ringsData(rings)
+      .ringLat(d => d.lat)
+      .ringLng(d => d.lng)
+      .ringColor(d => t => `${d.color}${Math.round((1 - t) * 255).toString(16).padStart(2, '0')}`)
+      .ringMaxRadius(d => d.maxR)
+      .ringPropagationSpeed(d => d.propagationSpeed)
+      .ringRepeatPeriod(d => d.repeatPeriod);
+  }, []);
 
   // Correlation arc overlay
   useEffect(() => {

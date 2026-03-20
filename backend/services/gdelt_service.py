@@ -26,7 +26,7 @@ _gdelt_cache = {}
 CACHE_TTL_SECONDS = 3600  # 1 hour
 
 # Tone score interpretation (GDELT scale: -10 to +10)
-# Most news clusters around -2 to +2; scores beyond ±5 are significant
+# Most news clusters around -2 to +2; scores beyond ?5 are significant
 TONE_THRESHOLDS = {
     "strongly_positive": 5.0,
     "positive": 2.0,

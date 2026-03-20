@@ -8,32 +8,35 @@ const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
 const MacroContext = () => {
   const [macroData, setMacroData] = useState(null);
   const [australianMacro, setAustralianMacro] = useState(null);
+  const [supplyRisk, setSupplyRisk] = useState(null);
+  const [chinaDemand, setChinaDemand] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchAllMacroData(); // Load immediately on mount
-    const interval = setInterval(fetchAllMacroData, 300000); // Refresh every 5 min
+    fetchAllMacroData();
+    const interval = setInterval(fetchAllMacroData, 300000);
     return () => clearInterval(interval);
   }, []);
 
   const fetchAllMacroData = async () => {
     try {
-      // Fetch both macro-context and australian-macro in parallel
-      const [contextResponse, ausResponse] = await Promise.all([
+      const [contextResponse, ausResponse, chokepointResponse, chinaResponse] = await Promise.all([
         fetch(`${BACKEND_URL}/api/data/macro-context`),
-        fetch(`${BACKEND_URL}/api/data/australian-macro`)
+        fetch(`${BACKEND_URL}/api/data/australian-macro`),
+        fetch(`${BACKEND_URL}/api/data/chokepoints?enriched=false`),
+        fetch(`${BACKEND_URL}/api/data/china-demand`),
       ]);
-      
+
       const contextResult = await contextResponse.json();
       const ausResult = await ausResponse.json();
-      
-      if (contextResult.status === 'success') {
-        setMacroData(contextResult.data);
-      }
-      if (ausResult.status === 'success') {
-        setAustralianMacro(ausResult.data);
-      }
-      
+      const cpResult = await chokepointResponse.json();
+      const chinaResult = await chinaResponse.json();
+
+      if (contextResult.status === 'success') setMacroData(contextResult.data);
+      if (ausResult.status === 'success') setAustralianMacro(ausResult.data);
+      if (cpResult.status === 'success') setSupplyRisk(cpResult.data.global_supply_at_risk_pct);
+      if (chinaResult.status === 'success') setChinaDemand(chinaResult.data);
+
       setLoading(false);
     } catch (err) {
       console.error('Error fetching macro data:', err);
@@ -97,22 +100,46 @@ const MacroContext = () => {
 
   // Add Australian macro indicators if available
   if (australianMacro) {
-    // CPI - Above RBA 2-3% target (warning signal)
     indicators.push({
       label: 'CPI',
       value: `${australianMacro.cpi?.toFixed(1)}%` || 'N/A',
-      arrow: 'up', // Above target
+      arrow: 'up',
       tooltip: 'Above RBA 2-3% target — rate hike pressure',
       testId: 'cpi'
     });
-    
-    // GDP Growth - Softening (warning signal)
     indicators.push({
       label: 'GDP',
       value: `${australianMacro.gdp_growth?.toFixed(1)}%` || 'N/A',
-      arrow: 'down', // Softening growth
+      arrow: 'down',
       tooltip: 'Softening from prior year — domestic demand cooling',
       testId: 'gdp-growth'
+    });
+  }
+
+  // Supply Risk badge from chokepoint monitor
+  if (supplyRisk !== null) {
+    const riskColor = supplyRisk > 25 ? '#ff4444' : supplyRisk > 10 ? '#ff8800' : '#44cc88';
+    const riskEmoji = supplyRisk > 25 ? '🔴' : supplyRisk > 10 ? '🟠' : '🟢';
+    indicators.push({
+      label: 'SUPPLY RISK',
+      value: `${supplyRisk}% ${riskEmoji}`,
+      tooltip: `${supplyRisk}% of global oil supply at risk from active maritime chokepoint disruptions. Red >25%, Amber 10-25%, Green <10%.`,
+      testId: 'supply-risk',
+      customColor: riskColor,
+    });
+  }
+
+  // China Demand Signal from GDELT
+  if (chinaDemand) {
+    const demandColor =
+      chinaDemand.color === 'red' ? '#ff4444' :
+      chinaDemand.color === 'green' ? '#44cc88' : '#ff8800';
+    indicators.push({
+      label: 'CHINA DEMAND',
+      value: chinaDemand.sentiment ? chinaDemand.sentiment.toUpperCase() : 'N/A',
+      tooltip: `GDELT China steel/manufacturing sentiment (${chinaDemand.article_count || 0} articles). Green = strong demand, Amber = neutral, Red = weak demand. Affects BHP, RIO, FMG.`,
+      testId: 'china-demand',
+      customColor: demandColor,
     });
   }
 
@@ -146,7 +173,11 @@ const MacroContext = () => {
                   </TooltipContent>
                 </Tooltip>
               ) : (
-                <span className="macro-value" data-testid={`macro-value-${indicator.testId}`}>
+                <span
+                  className="macro-value"
+                  data-testid={`macro-value-${indicator.testId}`}
+                  style={indicator.customColor ? { color: indicator.customColor, fontWeight: 'bold' } : {}}
+                >
                   {indicator.value}
                   {indicator.change !== undefined && indicator.change !== 0 && (
                     <span className={`macro-change ${indicator.change > 0 ? 'positive' : 'negative'}`}>

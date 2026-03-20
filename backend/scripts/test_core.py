@@ -14,6 +14,12 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# Force UTF-8 output on Windows (default cp1252 can't handle emoji/checkmarks)
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+if hasattr(sys.stderr, 'reconfigure'):
+    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+
 import asyncio
 import json
 import uuid
@@ -211,11 +217,11 @@ class Simulation:
                 self.agents.append(agent)
                 agent_id += 1
         
-        print(f"✓ Initialized {len(self.agents)} agents across {len(PERSONAS)} personas")
+        print(f"[OK] Initialized {len(self.agents)} agents across {len(PERSONAS)} personas")
     
     async def run_round(self, round_num: int, event_context: str, ticker: str, event_data: dict, enhanced_context: str = "", previous_summary: str = "") -> Dict[str, Any]:
         """Run one simulation round with all agents."""
-        print(f"\n🔄 Running Round {round_num}...")
+        print(f"\n>> Running Round {round_num}...")
         
         # Agents form opinions in parallel (using boost model for speed)
         tasks = [
@@ -245,14 +251,14 @@ class Simulation:
             'top_down_rationales': down_rationales
         }
         
-        print(f"  Round {round_num} consensus: ↑{up_count} ↓{down_count} ⟷{neutral_count}")
+        print(f"  Round {round_num} consensus: UP{up_count} DOWN{down_count} <->{neutral_count}")
         
         return round_result
     
     async def run_simulation(self, event_data: dict, ticker: str, num_rounds: int = 3) -> Dict[str, Any]:
         """Run complete simulation for an event."""
         print(f"\n{'='*60}")
-        print(f"🚀 SIMULATION START: {self.simulation_id}")
+        print(f">> SIMULATION START: {self.simulation_id}")
         print(f"{'='*60}")
         print(f"Ticker: {ticker}")
         print(f"Event: {event_data.get('country')} - {event_data.get('event_type')}")
@@ -272,7 +278,7 @@ CONFLICT EVENT:
         # Build enhanced context with sector sensitivity and AUD transmission
         enhanced_context = build_enhanced_agent_context(ticker, event_data)
         if enhanced_context:
-            print(f"\n📊 Market Intelligence Injected:")
+            print(f"\n>> Market Intelligence Injected:")
             print(enhanced_context[:200] + "..." if len(enhanced_context) > 200 else enhanced_context)
         
         # Run rounds
@@ -302,8 +308,8 @@ Previous Round {round_num} Consensus:
         # Final consensus (use last round)
         final_consensus = round_results[-1]['consensus']
         
-        print(f"\n✅ Simulation complete")
-        print(f"Final consensus: ↑{final_consensus['up']} ↓{final_consensus['down']} ⟷{final_consensus['neutral']}")
+        print(f"\n[OK] Simulation complete")
+        print(f"Final consensus: UP{final_consensus['up']} DOWN{final_consensus['down']} <->{final_consensus['neutral']}")
         
         return {
             'simulation_id': self.simulation_id,
@@ -315,7 +321,7 @@ Previous Round {round_num} Consensus:
     
     async def generate_prediction_report(self, simulation_results: Dict[str, Any]) -> PredictionCard:
         """Use Claude to generate final structured prediction report."""
-        print(f"\n📊 Generating prediction report with Claude...")
+        print(f"\n>> Generating prediction report with Claude...")
         
         ticker = simulation_results['ticker']
         ticker_info = get_ticker_info(ticker)
@@ -329,36 +335,36 @@ AUSTRALIAN MARKET CONTEXT (CRITICAL - USE THESE TRANSMISSION MECHANISMS):
 
 Template A - AUD Commodity Amplifier:
 When AUD depreciates and commodity prices stay flat or rise:
-• Example: Iron ore $100 USD/t → AUD falls 5% → BHP.AX earns 5% more in AUD terms (85% pass-through)
-• Formula: If commodity export price stable + AUD falls X% → ASX resource stock revenue rises ~0.85X% in AUD terms
-• Application: Always cite this FX tailwind when event weakens AUD AND ticker is BHP.AX, RIO.AX, FMG.AX, LYC.AX
+- Example: Iron ore $100 USD/t -> AUD falls 5% -> BHP.AX earns 5% more in AUD terms (85% pass-through)
+- Formula: If commodity export price stable + AUD falls X% -> ASX resource stock revenue rises ~0.85X% in AUD terms
+- Application: Always cite this FX tailwind when event weakens AUD AND ticker is BHP.AX, RIO.AX, FMG.AX, LYC.AX
 
 Template B - Superannuation Contagion:
 Australian super funds ($3.5T AUM) have 0.65-0.75 correlation with S&P 500:
-• US equity selloff → Super funds mark-to-market losses → domestic equity redemptions
-• Chain: S&P 500 falls 3% → ASX 200 likely falls 2-2.25% within 48 hours via super rebalancing
-• Application: When event originates in US markets (Fed policy, tech selloff), cite super contagion channel
+- US equity selloff -> Super funds mark-to-market losses -> domestic equity redemptions
+- Chain: S&P 500 falls 3% -> ASX 200 likely falls 2-2.25% within 48 hours via super rebalancing
+- Application: When event originates in US markets (Fed policy, tech selloff), cite super contagion channel
 
 Template C - Rate Sensitivity Asymmetry:
 RBA rate hikes create divergent impacts across ASX sectors:
-• Banks (CBA.AX, WBC.AX): Net Interest Margin (NIM) expansion → bullish (sensitivity +1.8)
-• REITs (GPT.AX, VCX.AX): Property discount rates rise + debt costs increase → bearish (sensitivity -2.2)
-• Example causal chain: "RBA hikes 25bps → CBA.AX NIM expands ~8bps → quarterly profit uplift $120M"
-• Application: Always cite NIM mechanics when event is RBA rate decision AND ticker is a bank
+- Banks (CBA.AX, WBC.AX): Net Interest Margin (NIM) expansion -> bullish (sensitivity +1.8)
+- REITs (GPT.AX, VCX.AX): Property discount rates rise + debt costs increase -> bearish (sensitivity -2.2)
+- Example causal chain: "RBA hikes 25bps -> CBA.AX NIM expands ~8bps -> quarterly profit uplift $120M"
+- Application: Always cite NIM mechanics when event is RBA rate decision AND ticker is a bank
 
 Template D - China Concentration Risk:
 80% of Pilbara iron ore exports go to China:
-• Single-country dependency creates binary risk: China policy shift → immediate margin compression
-• Example: China announces 15% import quota cut → BHP.AX, RIO.AX, FMG.AX face revenue loss within 1 quarter
-• Port Hedland congestion metric is a 72-hour leading indicator of export disruption
-• Application: When event involves China trade policy, tariffs, or geopolitical tension, cite 80% dependency
+- Single-country dependency creates binary risk: China policy shift -> immediate margin compression
+- Example: China announces 15% import quota cut -> BHP.AX, RIO.AX, FMG.AX face revenue loss within 1 quarter
+- Port Hedland congestion metric is a 72-hour leading indicator of export disruption
+- Application: When event involves China trade policy, tariffs, or geopolitical tension, cite 80% dependency
 
 Template E - Critical Minerals Premium:
 Rare earth supply chain disruptions boost Australian producers:
-• Taiwan Strait risk OR China export restrictions → LYC.AX premium expands (non-China supply valued)
-• Semiconductor demand inelastic → rare earth price spike passes through quickly
-• Example: China rare earth export ban → LYC.AX sees 15-20% price premium as Japan/US buyers scramble
-• Application: When event disrupts China/Taiwan rare earth or semiconductor supply chain
+- Taiwan Strait risk OR China export restrictions -> LYC.AX premium expands (non-China supply valued)
+- Semiconductor demand inelastic -> rare earth price spike passes through quickly
+- Example: China rare earth export ban -> LYC.AX sees 15-20% price premium as Japan/US buyers scramble
+- Application: When event disrupts China/Taiwan rare earth or semiconductor supply chain
 
 CRITICAL INSTRUCTIONS FOR CAUSAL CHAINS:
 - ALWAYS reference specific transmission mechanisms from Templates A-E when applicable
@@ -445,11 +451,11 @@ Return ONLY the JSON object, no other text."""
             # Validate with Pydantic
             prediction = PredictionCard(**prediction_dict)
             
-            print(f"✅ Prediction report generated successfully")
+            print(f"[OK] Prediction report generated successfully")
             return prediction
             
         except Exception as e:
-            print(f"❌ Error generating prediction report: {str(e)}")
+            print(f"[FAIL] Error generating prediction report: {str(e)}")
             raise
 
 
@@ -470,19 +476,19 @@ async def main():
         'notes': 'Armed naval confrontation near Hormuz, oil tanker route disrupted'
     }
     
-    print("\n📌 Sample Event:")
+    print("\n>> Sample Event:")
     print(f"   {sample_event['country']} - {sample_event['event_type']}")
     print(f"   {sample_event['notes']}")
     
     # Initialize LLM router
-    print("\n🔧 Initializing LLM router...")
+    print("\n>> Initializing LLM router...")
     llm_router = LLMRouter()
     
     # Map event to ticker
-    print("\n🎯 Mapping event to ASX ticker...")
+    print("\n>> Mapping event to ASX ticker...")
     ticker = map_event_to_ticker(sample_event)
     if not ticker:
-        print("❌ No ticker mapping found!")
+        print("[FAIL] No ticker mapping found!")
         return
     
     ticker_info = get_ticker_info(ticker)
@@ -503,49 +509,49 @@ async def main():
     print("\n" + "="*60)
     print("  PREDICTION CARD")
     print("="*60)
-    print(f"\n🎯 Ticker: {prediction.ticker}")
-    print(f"📈 Direction: {prediction.direction.value}")
-    print(f"🎲 Confidence: {prediction.confidence:.1%}")
-    print(f"⏱️  Time Horizon: {prediction.time_horizon.value}")
+    print(f"\n>> Ticker: {prediction.ticker}")
+    print(f">> Direction: {prediction.direction.value}")
+    print(f" Confidence: {prediction.confidence:.1%}")
+    print(f"  Time Horizon: {prediction.time_horizon.value}")
     
-    print(f"\n🔗 Causal Chain:")
+    print(f"\n>> Causal Chain:")
     for step in prediction.causal_chain:
         print(f"   {step.step}. {step.event}")
-        print(f"      → {step.consequence}")
+        print(f"      -> {step.consequence}")
     
-    print(f"\n📊 Agent Consensus:")
-    print(f"   ↑ UP: {prediction.agent_consensus.up} ({prediction.agent_consensus.up_percentage:.1f}%)")
-    print(f"   ↓ DOWN: {prediction.agent_consensus.down} ({prediction.agent_consensus.down_percentage:.1f}%)")
-    print(f"   ⟷ NEUTRAL: {prediction.agent_consensus.neutral}")
+    print(f"\n>> Agent Consensus:")
+    print(f"   UP UP: {prediction.agent_consensus.up} ({prediction.agent_consensus.up_percentage:.1f}%)")
+    print(f"   DOWN DOWN: {prediction.agent_consensus.down} ({prediction.agent_consensus.down_percentage:.1f}%)")
+    print(f"   <-> NEUTRAL: {prediction.agent_consensus.neutral}")
     
-    print(f"\n🔔 Key Signals:")
+    print(f"\n>> Key Signals:")
     for signal in prediction.key_signals:
-        print(f"   • {signal.signal_type.value}: {signal.description}")
+        print(f"   - {signal.signal_type.value}: {signal.description}")
         print(f"     Impact: {signal.impact}, Confidence: {signal.confidence:.1%}")
     
     if prediction.contrarian_view:
-        print(f"\n⚠️  Contrarian View: {prediction.contrarian_view}")
+        print(f"\nWARNING  Contrarian View: {prediction.contrarian_view}")
     
     if prediction.risk_factors:
-        print(f"\n⚠️  Risk Factors:")
+        print(f"\nWARNING  Risk Factors:")
         for risk in prediction.risk_factors:
-            print(f"   • {risk}")
+            print(f"   - {risk}")
     
     # Save to file
     output_file = f"/app/backend/scripts/poc_output_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
     with open(output_file, 'w') as f:
         json.dump(prediction.model_dump(), f, indent=2, default=str)
-    print(f"\n💾 Full prediction saved to: {output_file}")
+    print(f"\n>> Full prediction saved to: {output_file}")
     
     print("\n" + "="*60)
-    print("  ✅ POC TEST COMPLETE")
+    print("  [OK] POC TEST COMPLETE")
     print("="*60)
     print("\nValidation:")
-    print("  ✓ LLM routing works (Claude + Gemini + fallback)")
-    print("  ✓ 50-agent simulation complete")
-    print("  ✓ Structured JSON prediction generated")
-    print("  ✓ Schema validation passed")
-    print("\n🎉 Ready to proceed to Phase 2: Main App Development")
+    print("  [OK] LLM routing works (Claude + Gemini + fallback)")
+    print("  [OK] 50-agent simulation complete")
+    print("  [OK] Structured JSON prediction generated")
+    print("  [OK] Schema validation passed")
+    print("\n Ready to proceed to Phase 2: Main App Development")
 
 
 if __name__ == "__main__":

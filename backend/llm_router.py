@@ -1,211 +1,201 @@
-"""LLM Router with multi-model fallback for Market Oracle AI.
+"""LLM Router — 4-tier fallback chain for zero-downtime free-tier usage.
 
-Primary: Claude Sonnet 4.6 - ReportAgent, knowledge graph, prediction reports
-Secondary: Gemini 2.5 Flash - per-agent simulation reasoning
-Fallback: GPT-4.1 - safety net
+Tier 1: Groq llama-3.3-70b-versatile  (14,400 req/day — primary, fastest)
+Tier 2: Groq llama-3.1-8b-instant      (separate 14,400 req/day quota — fast fallback)
+Tier 3: OpenRouter auto                 (50 req/day free — gap coverage)
+Tier 4: Gemini gemini-2.0-flash         (1,500 req/day — report gen + final fallback)
+
+On 429 from any tier: automatically advance to next tier, no sleep between tiers.
 """
 
 import os
 import json
 import asyncio
-from typing import Dict, Any, Optional, List
-from dotenv import load_dotenv
-from emergentintegrations.llm.chat import LlmChat, UserMessage
 import logging
+from datetime import date
+from typing import Dict, Any, List
+
+from dotenv import load_dotenv
 
 load_dotenv()
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+_GROQ_API_KEY      = os.getenv("GROQ_API_KEY", "")
+_GEMINI_API_KEY    = os.getenv("GEMINI_API_KEY", "")
+_OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
+
+# Configurable agent count (default 30 for quota efficiency; 50 for full demo)
+NUM_AGENTS = int(os.getenv("NUM_AGENTS", "30"))
+
 
 class LLMRouter:
-    """Routes LLM requests to appropriate models with fallback."""
-    
+    """Routes simulation calls through a 4-tier free-tier provider chain."""
+
     def __init__(self):
-        self.api_key = os.getenv('EMERGENT_LLM_KEY')
-        if not self.api_key:
-            raise ValueError("EMERGENT_LLM_KEY not found in environment variables")
-        
-        # Model configuration
-        self.primary_model = os.getenv('LLM_MODEL_NAME', 'claude-sonnet-4-6')
-        self.boost_model = os.getenv('BOOST_LLM_MODEL_NAME', 'gemini-2.5-flash')
-        self.fallback_model = os.getenv('FALLBACK_LLM_MODEL_NAME', 'gpt-4.1')
-        
-        # Provider mapping
-        self.model_to_provider = {
-            'claude-sonnet-4-6': 'anthropic',
-            'claude-opus-4-6': 'anthropic',
-            'claude-4-sonnet-20250514': 'anthropic',
-            'gemini-2.5-flash': 'gemini',
-            'gemini-2.5-pro': 'gemini',
-            'gemini-3-flash-preview': 'gemini',
-            'gpt-4.1': 'openai',
-            'gpt-5.2': 'openai',
-            'gpt-5.1': 'openai'
-        }
-        
-        logger.info(f"LLM Router initialized: Primary={self.primary_model}, Boost={self.boost_model}, Fallback={self.fallback_model}")
-    
-    def _get_provider(self, model: str) -> str:
-        """Get provider for a given model."""
-        return self.model_to_provider.get(model, 'openai')
-    
+        self.providers = [
+            {
+                "name": "groq-70b",
+                "base": "https://api.groq.com/openai/v1",
+                "model": os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile"),
+                "key": _GROQ_API_KEY,
+                "rpm": 30,
+            },
+            {
+                "name": "groq-8b",
+                "base": "https://api.groq.com/openai/v1",
+                "model": "llama-3.1-8b-instant",   # separate daily quota from 70b
+                "key": _GROQ_API_KEY,
+                "rpm": 30,
+            },
+            {
+                "name": "openrouter",
+                "base": "https://openrouter.ai/api/v1",
+                "model": "auto",
+                "key": _OPENROUTER_API_KEY,
+                "rpm": 60,
+            },
+            {
+                "name": "gemini",
+                "base": "https://generativelanguage.googleapis.com/v1beta/openai/",
+                "model": os.getenv("GEMINI_MODEL", "gemini-2.0-flash"),
+                "key": _GEMINI_API_KEY,
+                "rpm": 15,
+            },
+        ]
+
+        # Filter to providers that have keys configured
+        self._active = [p for p in self.providers if p["key"]]
+        if not self._active:
+            raise ValueError("No LLM API keys found. Set at least one of: GROQ_API_KEY, GEMINI_API_KEY, OPENROUTER_API_KEY")
+
+        # Limit concurrent calls to avoid burst rate-limit hits (Groq: 30 RPM)
+        self._semaphore = asyncio.Semaphore(8)
+
+        logger.info(
+            "LLM Router initialized — active providers: %s",
+            ", ".join(p["name"] for p in self._active),
+        )
+
+    # ── Public API ────────────────────────────────────────────────────────────
+
     async def call_primary(self, system_message: str, user_prompt: str, session_id: str = "primary") -> str:
-        """Call primary model (Claude Sonnet 4.6) for structured outputs."""
-        return await self._call_with_fallback(
-            model=self.primary_model,
-            system_message=system_message,
-            user_prompt=user_prompt,
-            session_id=session_id,
-            use_fallback=True
-        )
-    
+        """Report generation: Gemini first (best structure), falls back through chain."""
+        # For primary/report calls prefer Gemini then Groq-70b
+        ordered = sorted(self._active, key=lambda p: ("gemini" not in p["name"], p["name"]))
+        return await self._call_with_fallback(ordered, system_message, user_prompt)
+
     async def call_boost(self, system_message: str, user_prompt: str, session_id: str = "boost") -> str:
-        """Call boost model (Gemini 2.5 Flash) for high-volume agent calls."""
-        return await self._call_with_fallback(
-            model=self.boost_model,
-            system_message=system_message,
-            user_prompt=user_prompt,
-            session_id=session_id,
-            use_fallback=True
-        )
-    
-    async def _call_with_fallback(
-        self,
-        model: str,
-        system_message: str,
-        user_prompt: str,
-        session_id: str,
-        use_fallback: bool = True,
-        max_retries: int = 2
-    ) -> str:
-        """Call LLM with automatic fallback on failure."""
-        provider = self._get_provider(model)
-        
-        for attempt in range(max_retries):
-            try:
-                logger.info(f"Calling {provider}/{model} (attempt {attempt + 1}/{max_retries})")
-                
-                chat = LlmChat(
-                    api_key=self.api_key,
-                    session_id=session_id,
-                    system_message=system_message
-                ).with_model(provider, model)
-                
-                user_message = UserMessage(text=user_prompt)
-                response = await chat.send_message(user_message)
-                
-                logger.info(f"Successfully received response from {provider}/{model}")
-                return response
-                
-            except Exception as e:
-                logger.error(f"Error calling {provider}/{model}: {str(e)}")
-                
-                if attempt < max_retries - 1:
-                    logger.info("Retrying with same model...")
-                    await asyncio.sleep(1)
-                    continue
-                
-                if use_fallback and model != self.fallback_model:
-                    logger.info(f"Falling back to {self.fallback_model}")
-                    return await self._call_with_fallback(
-                        model=self.fallback_model,
-                        system_message=system_message,
-                        user_prompt=user_prompt,
-                        session_id=session_id,
-                        use_fallback=False,
-                        max_retries=2
-                    )
-                else:
-                    raise Exception(f"All LLM attempts failed: {str(e)}")
-    
+        """Agent simulation: Groq-70b first (fastest), falls back through chain."""
+        async with self._semaphore:
+            return await self._call_with_fallback(self._active, system_message, user_prompt)
+
     async def call_batch(self, model_type: str, prompts: List[Dict[str, str]]) -> List[str]:
-        """Call LLM for multiple prompts in parallel (for agent simulation)."""
-        tasks = []
-        for i, prompt in enumerate(prompts):
-            if model_type == "boost":
-                task = self.call_boost(
-                    system_message=prompt['system'],
-                    user_prompt=prompt['user'],
-                    session_id=f"agent_{i}"
-                )
-            else:
-                task = self.call_primary(
-                    system_message=prompt['system'],
-                    user_prompt=prompt['user'],
-                    session_id=f"agent_{i}"
-                )
-            tasks.append(task)
-        
+        """Run many prompts concurrently — used for 50-agent simulation."""
+        tasks = [
+            self.call_boost(p["system"], p["user"], session_id=f"agent_{i}")
+            if model_type == "boost"
+            else self.call_primary(p["system"], p["user"], session_id=f"agent_{i}")
+            for i, p in enumerate(prompts)
+        ]
         return await asyncio.gather(*tasks)
 
+    # ── Internal ──────────────────────────────────────────────────────────────
+
+    async def _call_with_fallback(self, providers: list, system_message: str, user_prompt: str) -> str:
+        """Try each provider in order; advance on 429 / missing key."""
+        last_error = None
+        for provider in providers:
+            if not provider["key"]:
+                continue
+            try:
+                result = await self._call_single(provider, system_message, user_prompt)
+                await self._track_call(provider["name"])
+                return result
+            except Exception as e:
+                msg = str(e)
+                if any(x in msg for x in ("429", "rate", "quota", "overloaded")):
+                    logger.warning("Provider %s rate-limited — trying next tier", provider["name"])
+                    last_error = e
+                    continue
+                raise   # non-rate-limit errors propagate immediately
+        raise Exception(f"All LLM providers exhausted. Last error: {last_error}")
+
+    async def _call_single(self, provider: dict, system_message: str, user_prompt: str) -> str:
+        """OpenAI-compatible chat completion call for all providers."""
+        from openai import AsyncOpenAI
+
+        client = AsyncOpenAI(api_key=provider["key"], base_url=provider["base"])
+        model = provider["model"]
+
+        # OpenRouter requires HTTP-Referer header for free tier
+        extra_headers = {}
+        if provider["name"] == "openrouter":
+            extra_headers = {
+                "HTTP-Referer": "https://aussieintel.app",
+                "X-Title": "AussieIntel",
+            }
+
+        response = await client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": system_message},
+                {"role": "user",   "content": user_prompt},
+            ],
+            temperature=0.7,
+            max_tokens=2048,
+            extra_headers=extra_headers,
+        )
+        return response.choices[0].message.content
+
+    async def _track_call(self, provider_name: str) -> None:
+        """Increment daily call counter in Redis (best-effort, non-blocking)."""
+        try:
+            from services.redis_client import incr
+            today = date.today().isoformat()
+            await incr(f"llm:calls:{provider_name}:{today}")
+        except Exception:
+            pass
+
+
+# ── JSON parsing utility ──────────────────────────────────────────────────────
 
 def parse_json_response(response: str) -> Dict[str, Any]:
-    """Parse JSON from LLM response with error handling and repair."""
-    # Try direct JSON parse
+    """Parse JSON from LLM response, handling markdown code blocks."""
     try:
         return json.loads(response)
     except json.JSONDecodeError:
         pass
-    
-    # Try to extract JSON from markdown code blocks
-    if '```json' in response:
-        start = response.find('```json') + 7
-        end = response.find('```', start)
+
+    if "```json" in response:
+        start = response.find("```json") + 7
+        end = response.find("```", start)
         if end != -1:
-            json_str = response[start:end].strip()
             try:
-                return json.loads(json_str)
+                return json.loads(response[start:end].strip())
             except json.JSONDecodeError:
                 pass
-    
-    # Try to find JSON object in response
-    start_idx = response.find('{')
-    end_idx = response.rfind('}') + 1
+
+    start_idx = response.find("{")
+    end_idx = response.rfind("}") + 1
     if start_idx != -1 and end_idx > start_idx:
         try:
             return json.loads(response[start_idx:end_idx])
         except json.JSONDecodeError:
             pass
-    
-    # Last resort: try to repair common JSON issues
+
     try:
-        # Remove trailing commas
-        cleaned = response.replace(',}', '}').replace(',]', ']')
-        return json.loads(cleaned)
+        return json.loads(response.replace(",}", "}").replace(",]", "]"))
     except json.JSONDecodeError as e:
-        raise ValueError(f"Failed to parse JSON from LLM response: {str(e)}")
+        raise ValueError(f"Failed to parse JSON from LLM response: {e}")
 
 
 if __name__ == "__main__":
-    # Test the router
-    async def test_router():
+    async def test():
         router = LLMRouter()
-        
-        # Test primary (Claude)
-        print("Testing primary model (Claude Sonnet 4.6)...")
-        response = await router.call_primary(
-            system_message="You are a helpful assistant.",
-            user_prompt="Say 'Hello from Claude!' and nothing else."
-        )
-        print(f"Primary response: {response}")
-        
-        # Test boost (Gemini)
-        print("\nTesting boost model (Gemini 2.5 Flash)...")
-        response = await router.call_boost(
-            system_message="You are a helpful assistant.",
-            user_prompt="Say 'Hello from Gemini!' and nothing else."
-        )
-        print(f"Boost response: {response}")
-        
-        # Test JSON parsing
-        print("\nTesting JSON parsing...")
-        json_response = await router.call_primary(
-            system_message="You always respond with valid JSON.",
-            user_prompt='Return this JSON: {"status": "success", "message": "test"}'
-        )
-        parsed = parse_json_response(json_response)
-        print(f"Parsed JSON: {parsed}")
-    
-    asyncio.run(test_router())
+        print("Testing boost (agent simulation)...")
+        r = await router.call_boost("You are a helpful assistant.", "Say: Hello from AussieIntel!")
+        print(f"Response: {r[:100]}")
+
+    asyncio.run(test())

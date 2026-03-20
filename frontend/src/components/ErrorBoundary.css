@@ -1,0 +1,46 @@
+.error-boundary-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  width: 100%;
+  background: rgba(255, 40, 40, 0.05);
+  border: 1px solid rgba(255, 40, 40, 0.2);
+  border-radius: 8px;
+  padding: 24px;
+}
+
+.error-boundary-inner {
+  text-align: center;
+  max-width: 400px;
+}
+
+.error-boundary-inner h2 {
+  color: #ff6b6b;
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  letter-spacing: 0.5px;
+}
+
+.error-boundary-inner p {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 13px;
+  margin-bottom: 16px;
+  line-height: 1.5;
+}
+
+.error-boundary-retry {
+  background: rgba(255, 107, 107, 0.15);
+  border: 1px solid rgba(255, 107, 107, 0.4);
+  color: #ff6b6b;
+  padding: 8px 20px;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.error-boundary-retry:hover {
+  background: rgba(255, 107, 107, 0.25);
+}

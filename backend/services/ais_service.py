@@ -68,7 +68,7 @@ async def _stream_port_hedland():
             async with websockets.connect(uri, ping_interval=30, ping_timeout=10) as websocket:
                 # Send subscription
                 await websocket.send(json.dumps(subscribe_message))
-                logger.info("✓ AISStream connected - monitoring Port Hedland vessels")
+                logger.info("? AISStream connected - monitoring Port Hedland vessels")
                 
                 _vessel_cache["status"] = "connected"
                 _vessel_cache["connected"] = True
@@ -173,7 +173,7 @@ def start_ais_background_stream():
     api_key = os.getenv("AISSTREAM_API_KEY")
     
     if not api_key:
-        logger.warning("⚠️  AISSTREAM_API_KEY not configured - vessel tracking disabled. Get free key at aisstream.io")
+        logger.warning("?  AISSTREAM_API_KEY not configured - vessel tracking disabled. Get free key at aisstream.io")
         _vessel_cache["status"] = "pending_api_key"
         _vessel_cache["connected"] = False
         return  # Early return - app starts without crashing
@@ -190,7 +190,7 @@ def start_ais_background_stream():
     
     thread = threading.Thread(target=run, daemon=True, name="AISStream-Background")
     thread.start()
-    logger.info("✓ AISStream background thread started")
+    logger.info("? AISStream background thread started")
 
 
 def get_port_hedland_status() -> Dict:

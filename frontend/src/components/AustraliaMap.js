@@ -152,10 +152,24 @@ const LOCATIONS = [
   }
 ];
 
+const BACKEND_URL_MAP = process.env.REACT_APP_BACKEND_URL || '';
+
+// State abbreviation to full name mapping
+const STATE_NAME_MAP = {
+  WA: 'Western Australia',
+  QLD: 'Queensland',
+  NSW: 'New South Wales',
+  NT: 'Northern Territory',
+  SA: 'South Australia',
+  VIC: 'Victoria',
+  TAS: 'Tasmania',
+};
+
 const AustraliaMap = ({ portHedlandData, selectedEvent, onEventClick, prediction }) => {
   const svgRef = useRef(null);
   const [geoData, setGeoData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [chokepointStateImpact, setChokepointStateImpact] = useState(null);
   const [stateTooltip, setStateTooltip] = useState(null);
   const [macroData, setMacroData] = useState(null);
   const [sentimentArrow, setSentimentArrow] = useState(null); // { fromLat, fromLon, direction }
@@ -200,30 +214,40 @@ const AustraliaMap = ({ portHedlandData, selectedEvent, onEventClick, prediction
     }
   }, [prediction, selectedEvent]);
 
-  // Helper function to get state fill based on selected event
+  // Helper function to get state fill based on selected event OR live chokepoint data
   const getStateFill = (stateName) => {
-    if (!selectedEvent || !selectedEvent.properties || !selectedEvent.properties.id) {
-      return { color: 'rgba(20, 30, 50, 0.6)', opacity: 1, reason: null };
+    // Priority 1: event-driven coloring when a simulation is active
+    if (selectedEvent && selectedEvent.properties && selectedEvent.properties.id) {
+      const eventId = selectedEvent.properties.id;
+      const eventImpacts = EVENT_STATE_IMPACT[eventId];
+      if (eventImpacts) {
+        const impact = eventImpacts[stateName];
+        if (impact) {
+          return { color: impact.color, opacity: impact.opacity, reason: impact.reason };
+        }
+      }
     }
 
-    const eventId = selectedEvent.properties.id;
-    console.log(`[AustraliaMap] Getting fill for state "${stateName}", event ID: "${eventId}"`);
-    
-    const eventImpacts = EVENT_STATE_IMPACT[eventId];
-    
-    if (!eventImpacts) {
-      console.log(`[AustraliaMap] No impact mapping found for event "${eventId}"`);
-      return { color: 'rgba(20, 30, 50, 0.6)', opacity: 1, reason: null };
-    }
-
-    const impact = eventImpacts[stateName];
-    if (impact) {
-      console.log(`[AustraliaMap] State "${stateName}" impacted: ${impact.color} @ ${impact.opacity}`);
-      return {
-        color: impact.color,
-        opacity: impact.opacity,
-        reason: impact.reason
-      };
+    // Priority 2: live chokepoint heatmap (background always-on layer)
+    if (chokepointStateImpact) {
+      const stateAbbr = Object.keys(STATE_NAME_MAP).find(
+        k => STATE_NAME_MAP[k] === stateName
+      );
+      const score = stateAbbr ? (chokepointStateImpact[stateAbbr] || 0) : 0;
+      if (score > 0) {
+        const intensity = score / 100;
+        const r = Math.round(255 * intensity);
+        const g = Math.round(30 * (1 - intensity));
+        const b = Math.round(30 * (1 - intensity));
+        const reason = score > 70
+          ? `${stateName}: ${score}/100 risk — active chokepoint disruption affecting exports`
+          : `${stateName}: ${score}/100 — chokepoint monitoring active`;
+        return {
+          color: `rgb(${r},${g},${b})`,
+          opacity: 0.15 + intensity * 0.35,
+          reason,
+        };
+      }
     }
 
     return { color: 'rgba(20, 30, 50, 0.6)', opacity: 1, reason: null };
@@ -241,6 +265,37 @@ const AustraliaMap = ({ portHedlandData, selectedEvent, onEventClick, prediction
         console.error('Error loading Australia GeoJSON:', err);
         setLoading(false);
       });
+  }, []);
+
+  // Fetch live chokepoint state impact data
+  useEffect(() => {
+    const fetchChokepointImpact = async () => {
+      try {
+        const res = await fetch(`${BACKEND_URL_MAP}/api/data/chokepoints?enriched=false`);
+        const json = await res.json();
+        if (json.status === 'success') {
+          // Find highest-risk chokepoints and compute state heatmap
+          const chokepoints = json.data.chokepoints;
+          const activeDisrupted = Object.keys(chokepoints).filter(
+            id => chokepoints[id].risk_score > 45
+          );
+          if (activeDisrupted.length > 0) {
+            const impactRes = await fetch(
+              `${BACKEND_URL_MAP}/api/data/chokepoint-impact?chokepoints=${activeDisrupted.join(',')}&duration_days=7`
+            );
+            const impactJson = await impactRes.json();
+            if (impactJson.status === 'success') {
+              setChokepointStateImpact(impactJson.data.state_heatmap);
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Chokepoint impact fetch error:', err);
+      }
+    };
+    fetchChokepointImpact();
+    const interval = setInterval(fetchChokepointImpact, 300000);
+    return () => clearInterval(interval);
   }, []);
 
   // Render map when data is ready or selectedEvent changes

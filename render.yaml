@@ -1,0 +1,117 @@
+services:
+  # ── Main FastAPI Backend ──────────────────────────────────────────────────
+  - type: web
+    name: aussieintel-backend
+    runtime: python
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: cd backend && bash start.sh
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11"
+      - key: PYTHONUTF8
+        value: "1"
+      - key: PYTHONIOENCODING
+        value: "utf-8"
+      - key: NUM_AGENTS
+        value: "30"
+      # Set these in the Render dashboard — do NOT commit real values here
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: ZEP_API_KEY
+        sync: false
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_TOKEN
+        sync: false
+      - key: AISSTREAM_API_KEY
+        sync: false
+      - key: ACLED_EMAIL
+        sync: false
+      - key: ACLED_PASSWORD
+        sync: false
+      - key: FRED_API_KEY
+        sync: false
+      - key: MARKETAUX_API_KEY
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+    disk:
+      name: aussieintel-data
+      mountPath: /data
+      sizeGB: 1
+
+  # ── AIS Relay (Node.js background worker) ─────────────────────────────────
+  - type: worker
+    name: aussieintel-ais-relay
+    runtime: node
+    buildCommand: cd ais-relay && npm install
+    startCommand: node ais-relay/index.js
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: AISSTREAM_API_KEY
+        sync: false
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_TOKEN
+        sync: false
+
+  # ── Seed Cron Jobs ─────────────────────────────────────────────────────────
+  - type: cron
+    name: seed-acled
+    runtime: python
+    schedule: "0 */6 * * *"   # every 6 hours
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: cd backend && python scripts/seed_acled.py
+    envVars:
+      - key: ACLED_EMAIL
+        sync: false
+      - key: ACLED_PASSWORD
+        sync: false
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_TOKEN
+        sync: false
+
+  - type: cron
+    name: seed-asx-prices
+    runtime: python
+    schedule: "*/5 * * * *"   # every 5 minutes (ASX hours only effective)
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: cd backend && python scripts/seed_asx_prices.py
+    envVars:
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_TOKEN
+        sync: false
+
+  - type: cron
+    name: seed-macro
+    runtime: python
+    schedule: "0 * * * *"     # every hour
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: cd backend && python scripts/seed_macro.py
+    envVars:
+      - key: FRED_API_KEY
+        sync: false
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_TOKEN
+        sync: false
+
+  - type: cron
+    name: seed-news
+    runtime: python
+    schedule: "*/15 * * * *"  # every 15 minutes
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: cd backend && python scripts/seed_au_news.py
+    envVars:
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_TOKEN
+        sync: false

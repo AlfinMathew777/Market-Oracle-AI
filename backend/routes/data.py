@@ -1,7 +1,8 @@
-"""API routes for Market Oracle AI data endpoints."""
+"""API routes for AussieIntel data endpoints — Redis-first, service fallback."""
 
 from fastapi import APIRouter, HTTPException
-from typing import Dict, Any
+from typing import Optional
+import asyncio
 import logging
 
 from services.acled_service import ACLEDService
@@ -11,298 +12,286 @@ from services.macro_service import MacroService
 from services.abs_service import ABSService
 from services.gdelt_service import get_gdelt_sentiment_score
 from services.geoscience_service import get_mineral_deposits
+from services.chokepoint_service import get_all_chokepoint_risks, get_asx_oil_risk_prediction
+from services.chokepoint_monitor_service import get_enriched_chokepoint_risks
+from services.australian_impact_engine import predict_australian_impact
+from services.redis_client import cache_get, cache_set, cache_get_meta
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/data", tags=["data"])
 
-# Initialize services
+# Services used as live fallbacks when Redis cache is cold
 acled_service = ACLEDService()
-asx_service = ASXService()
-ais_service = AISService()
+asx_service   = ASXService()
+ais_service   = AISService()
 macro_service = MacroService()
-abs_service = ABSService()
+abs_service   = ABSService()
 
-# Simple in-memory cache (will be replaced with Redis later)
-cache = {}
-CACHE_TTL = {
-    'acled': 1800,  # 30 minutes
-    'asx': 300,     # 5 minutes
-    'ais': 300      # 5 minutes
-}
 
+# ── ACLED ─────────────────────────────────────────────────────────────────────
 
 @router.get("/acled")
 async def get_acled_events():
-    """
-    GET /api/data/acled
-    
-    Fetch latest 50 ACLED conflict events in GeoJSON format.
-    Cache TTL: 1800 seconds (30 minutes)
-    
-    Returns:
-        GeoJSON FeatureCollection with conflict events
-    """
-    try:
-        logger.info("Fetching ACLED events...")
-        
-        # Get events from service (already returns GeoJSON)
-        geojson = acled_service.get_events()
-        
-        return {
-            "status": "success",
-            "data": geojson,
-            "count": geojson.get('count', 0),
-            "cache_ttl": CACHE_TTL['acled']
-        }
-        
-    except Exception as e:
-        logger.error(f"Error in /api/data/acled: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to fetch ACLED data: {str(e)}")
+    """GET /api/data/acled — conflict events GeoJSON, served from Redis cache."""
+    cached = await cache_get("acled:events:v1")
+    if cached:
+        return {"status": "success", "data": cached,
+                "count": cached.get("count", 0), "source": "cache"}
 
+    logger.info("Redis miss — fetching ACLED live")
+    try:
+        geojson = acled_service.get_events()
+        await cache_set("acled:events:v1", geojson, ttl=21600)
+        return {"status": "success", "data": geojson,
+                "count": geojson.get("count", 0), "source": "live"}
+    except Exception as e:
+        logger.error("ACLED live fetch failed: %s", e)
+        raise HTTPException(status_code=503, detail="ACLED data temporarily unavailable")
+
+
+# ── ASX Prices ────────────────────────────────────────────────────────────────
 
 @router.get("/asx-prices")
 async def get_asx_prices():
-    """
-    GET /api/data/asx-prices
-    
-    Fetch current prices for BHP.AX, RIO.AX, FMG.AX, CBA.AX, LYC.AX.
-    Cache TTL: 300 seconds (5 minutes)
-    
-    Returns:
-        List of ticker price data with change percentages
-    """
+    """GET /api/data/asx-prices — current ticker prices, served from Redis cache."""
+    cached = await cache_get("asx:prices:v1")
+    if cached:
+        return {"status": "success", "data": cached,
+                "count": len(cached), "source": "cache"}
+
+    logger.info("Redis miss — fetching ASX prices live")
     try:
-        logger.info("Fetching ASX prices...")
-        
         prices = asx_service.get_current_prices()
-        
         if not prices:
-            # If yfinance fails, return cached or error
             raise HTTPException(status_code=503, detail="Unable to fetch ASX prices")
-        
-        return {
-            "status": "success",
-            "data": prices,
-            "count": len(prices),
-            "cache_ttl": CACHE_TTL['asx']
-        }
-        
+        await cache_set("asx:prices:v1", prices, ttl=300)
+        return {"status": "success", "data": prices,
+                "count": len(prices), "source": "live"}
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error in /api/data/asx-prices: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to fetch ASX prices: {str(e)}")
+        logger.error("ASX prices live fetch failed: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
 
+
+# ── Port Hedland (AIS) ────────────────────────────────────────────────────────
 
 @router.get("/port-hedland")
 async def get_port_hedland_status():
-    """
-    GET /api/data/port-hedland
-    
-    Fetch Port Hedland vessel status and congestion level.
-    Bounding box: lat -20.31 ±1.0, lon 118.58 ±1.5
-    Cache TTL: 300 seconds (5 minutes)
-    
-    Returns:
-        vessel_count, bulk_carrier_count, congestion_level (LOW/MEDIUM/HIGH), avg_wait_time
-    """
-    try:
-        logger.info("Fetching Port Hedland AIS data...")
-        
-        status = ais_service.get_port_hedland_status()
-        
-        return {
-            "status": "success",
-            "data": status,
-            "cache_ttl": CACHE_TTL['ais'],
-            "data_source": status.get('data_source', 'unknown')
-        }
-        
-    except Exception as e:
-        logger.error(f"Error in /api/data/port-hedland: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to fetch Port Hedland data: {str(e)}")
+    """GET /api/data/port-hedland — vessel snapshot from AIS relay via Redis."""
+    cached = await cache_get("ais:port-hedland:v1")
+    if cached:
+        return {"status": "success", "data": cached,
+                "source": "ais_relay", "cache_ttl": 120}
 
+    # Fall back to in-process WebSocket data if relay not up yet
+    status = ais_service.get_port_hedland_status()
+    return {"status": "success", "data": status,
+            "source": status.get("data_source", "in_process"), "cache_ttl": 300}
+
+
+# ── Macro Context ─────────────────────────────────────────────────────────────
 
 @router.get("/macro-context")
 async def get_macro_context():
-    """
-    GET /api/data/macro-context
-    
-    Fetch macro economic indicators for the context strip:
-    - Fed Funds Rate (FRED)
-    - AUD/USD (Yahoo Finance)
-    - Iron Ore Spot (Yahoo Finance with fallback)
-    - RBA Cash Rate (hardcoded)
-    - ASX 200 Index (Yahoo Finance)
-    
-    Returns:
-        Dict with all 5 macro indicators
-    """
-    try:
-        logger.info("Fetching macro context...")
-        
-        context = macro_service.get_macro_context()
-        
-        return {
-            "status": "success",
-            "data": context
-        }
-        
-    except Exception as e:
-        logger.error(f"Error in /api/data/macro-context: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to fetch macro context: {str(e)}")
+    """GET /api/data/macro-context — AUD/USD, iron ore, ASX 200, RBA rate."""
+    cached = await cache_get("macro:context:v1")
+    if cached:
+        return {"status": "success", "data": cached, "source": "cache"}
 
+    logger.info("Redis miss — fetching macro context live")
+    try:
+        context = macro_service.get_macro_context()
+        await cache_set("macro:context:v1", context, ttl=3600)
+        return {"status": "success", "data": context, "source": "live"}
+    except Exception as e:
+        logger.error("Macro context live fetch failed: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── Australian Macro (FRED / ABS) ─────────────────────────────────────────────
 
 @router.get("/australian-macro")
 async def get_australian_macro():
-    """
-    GET /api/data/australian-macro
-    
-    Fetch Australian macroeconomic indicators from ABS and RBA:
-    - CPI (inflation)
-    - RBA Cash Rate
-    - GDP Growth
-    - Unemployment Rate
-    - Household Debt-to-Income Ratio
-    - Household Saving Ratio
-    - Terms of Trade Change
-    - Labor Productivity Change
-    
-    Returns:
-        Dict with 8+ Australian macro indicators
-    """
-    try:
-        logger.info("Fetching Australian macro indicators...")
-        
-        macro_data = abs_service.get_australian_macro()
-        
-        return {
-            "status": "success",
-            "data": macro_data
-        }
-        
-    except Exception as e:
-        logger.error(f"Error in /api/data/australian-macro: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to fetch Australian macro data: {str(e)}")
+    """GET /api/data/australian-macro — CPI, unemployment, GDP, savings ratio."""
+    cached = await cache_get("macro:fred:v1")
+    if cached:
+        return {"status": "success", "data": cached, "source": "cache"}
 
+    logger.info("Redis miss — fetching FRED macro live")
+    try:
+        macro_data = abs_service.get_australian_macro()
+        await cache_set("macro:fred:v1", macro_data, ttl=3600)
+        return {"status": "success", "data": macro_data, "source": "live"}
+    except Exception as e:
+        logger.error("Australian macro live fetch failed: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── GDELT Sentiment ───────────────────────────────────────────────────────────
 
 @router.get("/gdelt-sentiment")
 async def get_gdelt_sentiment(topic: str):
-    """
-    GET /api/data/gdelt-sentiment?topic=China+Australia+iron+ore
-    
-    Query GDELT for news sentiment on a topic in the last 24 hours.
-    Returns average tone score, article count, and sentiment classification.
-    
-    Args:
-        topic: Search keywords (e.g., "China Australia iron ore", "RBA rate decision")
-    
-    Returns:
-        Dict with avgtone, article_count, sentiment, signal_strength, sample articles
-    """
+    """GET /api/data/gdelt-sentiment?topic=China+Australia+iron+ore"""
+    import hashlib
+    cache_key = "gdelt:" + hashlib.md5(topic.encode()).hexdigest()[:12]
+    cached = await cache_get(cache_key)
+    if cached:
+        return {"status": "success", "data": cached, "source": "cache"}
+
     try:
-        logger.info(f"Fetching GDELT sentiment for topic: {topic}")
-        
         sentiment_data = get_gdelt_sentiment_score(topic)
-        
-        return {
-            "status": "success",
-            "data": sentiment_data
-        }
-        
+        await cache_set(cache_key, sentiment_data, ttl=3600)
+        return {"status": "success", "data": sentiment_data, "source": "live"}
     except Exception as e:
-        logger.error(f"Error in /api/data/gdelt-sentiment: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to fetch GDELT sentiment: {str(e)}")
+        logger.error("GDELT sentiment failed: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/mineral-deposits")
-async def get_geo_mineral_deposits(mineral: str = "Lithium"):
-    """
-    GET /api/data/mineral-deposits?mineral=Lithium
-    
-    Query Geoscience Australia for major mineral deposit locations.
-    
-    Args:
-        mineral: Commodity type (Lithium, Iron, Rare Earths, Gold, etc.)
-    
-    Returns:
-        List of deposits with name, lat, lon, endowment
-    """
-    try:
-        logger.info(f"Fetching Geoscience Australia deposits for: {mineral}")
-        
-        deposits = get_mineral_deposits(mineral)
-        
-        return {
-            "status": "success",
-            "data": {
-                "mineral": mineral,
-                "count": len(deposits),
-                "deposits": deposits
-            }
-        }
-        
-    except Exception as e:
-        logger.error(f"Error in /api/data/mineral-deposits: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to fetch mineral deposits: {str(e)}")
+# ── News ──────────────────────────────────────────────────────────────────────
 
+@router.get("/news")
+async def get_news(query: Optional[str] = None, limit: int = 20):
+    """GET /api/data/news?query=China+iron+ore&limit=20 — Australian + global news."""
+    articles = await cache_get("news:australia:v1") or []
 
-@router.get("/health")
-async def data_health_check():
-    """Health check for data endpoints."""
+    if query:
+        keywords = [k.lower() for k in query.split()]
+        def score(a):
+            text = (a.get("title", "") + " " + a.get("summary", "")).lower()
+            return sum(1 for k in keywords if k in text)
+        articles = sorted(articles, key=score, reverse=True)
+
     return {
-        "status": "healthy",
-        "endpoints": [
-            "/api/data/acled",
-            "/api/data/asx-prices",
-            "/api/data/port-hedland",
-            "/api/data/macro-context",
-            "/api/data/australian-macro",
-            "/api/data/gdelt-sentiment",
-            "/api/data/mineral-deposits",
-            "/api/data/pre-simulation-sentiment"
-        ]
+        "status": "success",
+        "data": articles[:limit],
+        "count": len(articles),
+        "query": query,
     }
 
 
+# ── Mineral Deposits ──────────────────────────────────────────────────────────
+
+@router.get("/mineral-deposits")
+async def get_geo_mineral_deposits(mineral: str = "Lithium"):
+    """GET /api/data/mineral-deposits?mineral=Lithium"""
+    cache_key = f"geo:mineral:{mineral.lower()}"
+    cached = await cache_get(cache_key)
+    if cached:
+        return {"status": "success", "data": cached, "source": "cache"}
+
+    try:
+        deposits = get_mineral_deposits(mineral)
+        data = {"mineral": mineral, "count": len(deposits), "deposits": deposits}
+        await cache_set(cache_key, data, ttl=86400)
+        return {"status": "success", "data": data, "source": "live"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── Chokepoints ───────────────────────────────────────────────────────────────
+
+@router.get("/chokepoints")
+async def get_chokepoints(enriched: bool = True):
+    """GET /api/data/chokepoints — maritime chokepoint risk scores."""
+    cache_key = "chokepoints:enriched:v1" if enriched else "chokepoints:base:v1"
+    cached = await cache_get(cache_key)
+    if cached:
+        return {"status": "success", "data": cached, "source": "cache"}
+
+    try:
+        data = get_enriched_chokepoint_risks() if enriched else get_all_chokepoint_risks()
+        await cache_set(cache_key, data, ttl=3600)
+        return {"status": "success", "data": data, "source": "live"}
+    except Exception as e:
+        logger.error("Chokepoints failed: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/chokepoint-impact")
+async def get_chokepoint_impact(chokepoints: str, duration_days: int = 7):
+    """GET /api/data/chokepoint-impact?chokepoints=hormuz,malacca&duration_days=7"""
+    try:
+        cp_list = [c.strip() for c in chokepoints.split(",") if c.strip()]
+        impact   = predict_australian_impact(cp_list, duration_days)
+        oil_risk = get_asx_oil_risk_prediction(cp_list)
+        return {"status": "success", "data": {**impact, "oil_risk": oil_risk}}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── Pre-simulation sentiment ──────────────────────────────────────────────────
+
 @router.get("/pre-simulation-sentiment")
 async def get_pre_simulation_sentiment(tickers: str, topic: str):
-    """
-    GET /api/data/pre-simulation-sentiment?tickers=BHP.AX,RIO.AX&topic=China+iron+ore+ban
-    
-    Generate combined pre-simulation context by merging:
-    - GDELT geopolitical sentiment
-    - MarketAux ticker-specific news sentiment
-    - Current commodity prices (Brent, Gold) and ticker sensitivity
-    
-    This is the 'powerful signal' that combines multiple data sources before
-    the 50-agent simulation runs.
-    
-    Args:
-        tickers: Comma-separated ASX tickers (e.g., "BHP.AX,RIO.AX,FMG.AX")
-        topic: Event topic/description for GDELT query
-    
-    Returns:
-        Dict with combined sentiment, individual signals, and commodity context
-    """
+    """GET /api/data/pre-simulation-sentiment?tickers=BHP.AX,RIO.AX&topic=China+ban"""
     try:
-        # Parse tickers
-        ticker_list = [t.strip() for t in tickers.split(',')]
-        
-        logger.info(f"Generating pre-simulation context for {len(ticker_list)} tickers, topic: '{topic}'")
-        
-        # Import and call the pre-simulation context generator
+        ticker_list = [t.strip() for t in tickers.split(",")]
         from services.market_intelligence import get_pre_simulation_context
-        
         context = get_pre_simulation_context(ticker_list, topic)
-        
-        return {
-            "status": "success",
-            "data": context
-        }
-        
+        return {"status": "success", "data": context}
     except Exception as e:
-        logger.error(f"Error in /api/data/pre-simulation-sentiment: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to generate pre-simulation context: {str(e)}")
+        logger.error("Pre-simulation sentiment failed: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
 
+
+# ── RBA ───────────────────────────────────────────────────────────────────────
+
+@router.get("/rba")
+async def get_rba_status():
+    """GET /api/data/rba — RBA meeting calendar, last decision, meeting-today flag."""
+    from services.rba_service import get_rba_status
+    cached = await cache_get("rba:status:v1")
+    if cached:
+        return {"status": "success", "data": cached, "source": "cache"}
+    data = get_rba_status()
+    await cache_set("rba:status:v1", data, ttl=3600)
+    return {"status": "success", "data": data, "source": "live"}
+
+
+@router.get("/china-demand")
+async def get_china_demand_signal():
+    """GET /api/data/china-demand — GDELT-based China steel/manufacturing demand signal."""
+    cached = await cache_get("signal:china:steel")
+    if cached:
+        return {"status": "success", "data": cached, "source": "cache"}
+    from services.china_demand_service import get_china_demand_signal
+    loop = asyncio.get_event_loop()
+    data = await loop.run_in_executor(None, get_china_demand_signal)
+    if data.get("status") == "success":
+        await cache_set("signal:china:steel", data, ttl=3600)
+    return {"status": "success", "data": data, "source": "live"}
+
+
+# ── Data-layer health ─────────────────────────────────────────────────────────
+
+@router.get("/health")
+async def data_health_check():
+    """Health check showing Redis cache freshness for all data sources."""
+    import time
+    keys = {
+        "acled":      ("acled:events:v1",       6 * 60),
+        "asx_prices": ("asx:prices:v1",          10),
+        "macro":      ("macro:context:v1",        70),
+        "fred":       ("macro:fred:v1",           70),
+        "news":       ("news:australia:v1",       20),
+        "ais":        ("ais:port-hedland:v1",     5),
+        "ais_relay":  ("ais:relay:heartbeat",     10),
+    }
+    now_ms = int(time.time() * 1000)
+    results = {}
+    for name, (key, max_stale_min) in keys.items():
+        meta = await cache_get_meta(key)
+        if meta and meta.get("fetchedAt"):
+            age_min = (now_ms - meta["fetchedAt"]) / 60000
+            results[name] = {
+                "status": "OK" if age_min <= max_stale_min else "STALE",
+                "age_minutes": round(age_min, 1),
+                "max_stale_minutes": max_stale_min,
+            }
+        else:
+            results[name] = {"status": "COLD", "age_minutes": None}
+
+    overall = "healthy" if all(r["status"] == "OK" for r in results.values()) else "degraded"
+    return {"status": overall, "caches": results}

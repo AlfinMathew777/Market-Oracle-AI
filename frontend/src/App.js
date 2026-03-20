@@ -9,6 +9,8 @@ import SectorHeatmap from './components/SectorHeatmap';
 import PredictionHistory from './components/PredictionHistory';
 import MacroContext from './components/MacroContext';
 import AustralianEconomicContext from './components/AustralianEconomicContext';
+import ChokepointRiskPanel from './components/ChokepointRiskPanel';
+import ErrorBoundary from './components/ErrorBoundary';
 import { Globe as GlobeIcon, Map as MapIcon } from 'lucide-react';
 import './App.css';
 
@@ -137,8 +139,10 @@ function App() {
 
   return (
     <div className="app">
-      <MacroContext />
-      
+      <ErrorBoundary>
+        <MacroContext />
+      </ErrorBoundary>
+
       <header className="app-header">
         <div className="logo">
           <h1>Market Oracle AI</h1>
@@ -157,11 +161,13 @@ function App() {
 
       <div className="main-container">
         <div className="globe-section">
-          <EventSidebar
-            events={acledEvents}
-            onEventSelect={handleEventClick}
-            isSimulating={isSimulating}
-          />
+          <ErrorBoundary>
+            <EventSidebar
+              events={acledEvents}
+              onEventSelect={handleEventClick}
+              isSimulating={isSimulating}
+            />
+          </ErrorBoundary>
 
           <div 
             className="map-view-container" 
@@ -219,10 +225,14 @@ function App() {
         </div>
 
         <div className="sidebar">
-          <TickerStrip tickers={asxPrices} />
-          
-          <PredictionHistory latestPrediction={prediction} />
-          
+          <ErrorBoundary>
+            <TickerStrip tickers={asxPrices} />
+          </ErrorBoundary>
+
+          <ErrorBoundary>
+            <PredictionHistory latestPrediction={prediction} />
+          </ErrorBoundary>
+
           {error && (
             <div className="error-message">
               <strong>Error:</strong> {error}
@@ -230,7 +240,9 @@ function App() {
           )}
 
           {prediction && !isSimulating && (
-            <PredictionCard prediction={prediction} />
+            <ErrorBoundary>
+              <PredictionCard prediction={prediction} />
+            </ErrorBoundary>
           )}
 
           {!prediction && !isSimulating && !error && (
@@ -251,13 +263,30 @@ function App() {
               </div>
             </div>
           )}
-          
-          {/* Australian Economic Context Panel - Always visible */}
-          <AustralianEconomicContext />
+
+          <ErrorBoundary>
+            <AustralianEconomicContext />
+          </ErrorBoundary>
+
+          <ErrorBoundary>
+            <ChokepointRiskPanel
+              onSimulateChokepoint={(result) => {
+                if (result?.prediction) {
+                  setPrediction({
+                    ...result.prediction,
+                    source: 'chokepoint',
+                    chokepoint_name: result.chokepoint_name,
+                  });
+                }
+              }}
+            />
+          </ErrorBoundary>
         </div>
       </div>
 
-      <SectorHeatmap />
+      <ErrorBoundary>
+        <SectorHeatmap />
+      </ErrorBoundary>
 
       <footer className="app-footer">
         <p>Market Oracle AI - Australian Market Intelligence Platform - Geopolitical Events to ASX Impact</p>

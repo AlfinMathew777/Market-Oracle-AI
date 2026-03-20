@@ -1,3 +1,7 @@
+aiosqlite>=0.20.0
+zep-cloud>=2.0.0
+slowapi==0.1.9
+sentry-sdk[fastapi]>=2.0.0
 aiohappyeyeballs==2.6.1
 aiohttp==3.13.3
 aiosignal==1.4.0

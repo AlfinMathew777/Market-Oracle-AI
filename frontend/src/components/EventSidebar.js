@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { TrendingUp, TrendingDown, AlertCircle, Activity } from 'lucide-react';
+import { TrendingUp, TrendingDown, AlertCircle, Activity, Newspaper } from 'lucide-react';
 import './EventSidebar.css';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
@@ -7,15 +7,19 @@ const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
 function EventSidebar({ events, onEventSelect, isSimulating, selectedEvent }) {
   const [preSimContext, setPreSimContext] = useState(null);
   const [loadingContext, setLoadingContext] = useState(false);
+  const [relatedNews, setRelatedNews] = useState([]);
+  const [loadingNews, setLoadingNews] = useState(false);
 
-  // Fetch pre-simulation context when an event is selected
+  // Fetch pre-simulation context + related news when an event is selected
   useEffect(() => {
     if (!selectedEvent) {
       setPreSimContext(null);
+      setRelatedNews([]);
       return;
     }
 
     fetchPreSimulationContext(selectedEvent);
+    fetchRelatedNews(selectedEvent);
   }, [selectedEvent]);
 
   const fetchPreSimulationContext = async (event) => {
@@ -39,6 +43,25 @@ function EventSidebar({ events, onEventSelect, isSimulating, selectedEvent }) {
       console.error('Error fetching pre-simulation context:', err);
     } finally {
       setLoadingContext(false);
+    }
+  };
+
+  const fetchRelatedNews = async (event) => {
+    setLoadingNews(true);
+    setRelatedNews([]);
+    try {
+      const country = event.properties.country || '';
+      const eventType = event.properties.event_type || '';
+      const query = encodeURIComponent(`${country} ${eventType}`);
+      const res = await fetch(`${BACKEND_URL}/api/data/news?query=${query}&limit=4`);
+      const result = await res.json();
+      if (result.status === 'success' && Array.isArray(result.data)) {
+        setRelatedNews(result.data.slice(0, 4));
+      }
+    } catch (err) {
+      console.error('Error fetching related news:', err);
+    } finally {
+      setLoadingNews(false);
     }
   };
 
@@ -138,6 +161,41 @@ function EventSidebar({ events, onEventSelect, isSimulating, selectedEvent }) {
     );
   };
 
+  const renderRelatedNews = () => {
+    if (!selectedEvent) return null;
+
+    return (
+      <div className="related-news" data-testid="related-news">
+        <div className="related-news-header">
+          <Newspaper size={13} />
+          <span>RELATED NEWS</span>
+        </div>
+        {loadingNews ? (
+          <div className="related-news-loading">Loading articles...</div>
+        ) : relatedNews.length === 0 ? (
+          <div className="related-news-empty">No recent articles found</div>
+        ) : (
+          <ul className="related-news-list">
+            {relatedNews.map((article, i) => (
+              <li key={i} className="related-news-item">
+                {article.url ? (
+                  <a href={article.url} target="_blank" rel="noopener noreferrer" className="related-news-link">
+                    {article.title}
+                  </a>
+                ) : (
+                  <span>{article.title}</span>
+                )}
+                {article.source && (
+                  <span className="related-news-source">{article.source}</span>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    );
+  };
+
   if (!events || events.length === 0) {
     return (
       <div className="event-sidebar">
@@ -159,7 +217,9 @@ function EventSidebar({ events, onEventSelect, isSimulating, selectedEvent }) {
       <div className="sidebar-subtitle">{events.length} Global Events Affecting ASX</div>
       
       {renderPreSimulationSignal()}
-      
+
+      {renderRelatedNews()}
+
       <div className="events-list">
         {events.map((event) => (
           <div

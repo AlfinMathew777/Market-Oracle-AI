@@ -76,84 +76,107 @@ def map_event_to_ticker(event_data: dict, macro_context: Optional[dict] = None) 
     
     logger.info(f"Mapping event: country={country}, type={event_type}, fatalities={fatalities}")
     
-    # Rule 0: Australian RBA monetary policy → Banks (CBA)
+    # Rule 0: Australian RBA monetary policy ? Banks (CBA)
     if _is_australia(country, location):
         if 'monetary' in event_type or 'rate' in event_type or 'rba' in notes or 'cash rate' in notes or 'interest rate' in notes:
-            logger.info("Australian RBA monetary policy detected → CBA.AX (major bank)")
+            logger.info("Australian RBA monetary policy detected ? CBA.AX (major bank)")
             return 'CBA.AX'
-        # Australian property/banking crisis → CBA
+        # Australian property/banking crisis ? CBA
         if 'property' in notes or 'banking' in notes or 'developer' in notes:
-            logger.info("Australian property/banking crisis detected → CBA.AX")
+            logger.info("Australian property/banking crisis detected ? CBA.AX")
             return 'CBA.AX'
     
-    # Rule 1: Middle East conflict → Resources stocks (commodity risk premium)
+    # Rule 1: Middle East conflict ? Resources stocks (commodity risk premium)
     if _is_middle_east(country, location):
         if fatalities >= 5 or 'battle' in event_type or 'violence' in event_type or 'conflict' in event_type or 'armed' in event_type:
-            logger.info("Middle East conflict detected → BHP.AX (major diversified miner)")
+            logger.info("Middle East conflict detected ? BHP.AX (major diversified miner)")
             return 'BHP.AX'
     
-    # Rule 2: China economic/political events → Resources stocks
+    # Rule 2: China economic/political events ? Resources stocks
     if _is_china(country, location):
         if 'protest' in event_type or 'riot' in event_type:
-            logger.info("China unrest detected → FMG.AX (pure iron ore play)")
+            logger.info("China unrest detected ? FMG.AX (pure iron ore play)")
             return 'FMG.AX'
-        # China trade restrictions/tariffs → Iron ore stocks
+        # China trade restrictions/tariffs ? Iron ore stocks
         if 'trade' in event_type or 'tariff' in notes or 'import ban' in notes or 'quota' in notes:
-            logger.info("China trade policy detected → FMG.AX (iron ore)")
+            logger.info("China trade policy detected ? FMG.AX (iron ore)")
             return 'FMG.AX'
     
-    # Rule 3: US trade policy → Diversified miners
+    # Rule 3: US trade policy ? Diversified miners
     if country == 'united states':
         if 'tariff' in notes or 'trade policy' in event_type or 'liberation day' in notes:
-            logger.info("US trade policy detected → BHP.AX (diversified exports)")
+            logger.info("US trade policy detected ? BHP.AX (diversified exports)")
             return 'BHP.AX'
     
-    # Rule 4: Rare earth supply disruption keywords → LYC
+    # Rule 4: Rare earth supply disruption keywords ? LYC
     if _has_rare_earth_keywords(notes, event_type, location):
-        logger.info("Rare earth supply risk detected → LYC.AX")
+        logger.info("Rare earth supply risk detected ? LYC.AX")
         return 'LYC.AX'
     
-    # Rule 5: Port Hedland / Australian shipping disruption → Resources
+    # Rule 5: Port Hedland / Australian shipping disruption ? Resources
     if macro_context and 'port_hedland_disruption' in macro_context:
-        logger.info("Port Hedland disruption detected → RIO.AX")
+        logger.info("Port Hedland disruption detected ? RIO.AX")
         return 'RIO.AX'
     
-    # Rule 6: Interest rate shock (from FRED) → CBA
+    # Rule 6: Interest rate shock (from FRED) ? CBA
     if macro_context and 'interest_rate_shock' in macro_context:
-        logger.info("Interest rate shock detected → CBA.AX (banking)")
+        logger.info("Interest rate shock detected ? CBA.AX (banking)")
         return 'CBA.AX'
     
-    # Rule 7: Africa mining regions → Diversified miners
+    # Rule 7: Africa mining regions ? Diversified miners
     if _is_africa_mining_region(country, location):
         if fatalities >= 3:
-            logger.info("Africa mining region conflict → RIO.AX")
+            logger.info("Africa mining region conflict ? RIO.AX")
             return 'RIO.AX'
-    
-    # Rule 8: Southeast Asia disruption → Supply chain impact on resources
+
+    # Rule 8: Southeast Asia disruption ? Supply chain impact on resources
     if _is_southeast_asia(country, location):
         if 'shipping' in notes or 'port' in notes or 'strait' in notes:
-            logger.info("Southeast Asia shipping disruption → BHP.AX")
+            logger.info("Southeast Asia shipping disruption ? BHP.AX")
             return 'BHP.AX'
-    
-    # Rule 9: Singapore/ASEAN trade agreements → Rare earths
+
+    # Rule 9: Singapore/ASEAN trade agreements ? Rare earths
     if 'singapore' in country or 'asean' in notes:
         if 'trade' in event_type or 'partnership' in notes:
-            logger.info("ASEAN trade agreement → LYC.AX (critical minerals competition)")
+            logger.info("ASEAN trade agreement ? LYC.AX (critical minerals competition)")
             return 'LYC.AX'
-    
-    # Rule 10: Taiwan semiconductor/tech → Rare earths
+
+    # Rule 10: Taiwan semiconductor/tech ? Rare earths
     if 'taiwan' in country or 'taiwan' in location:
-        if 'semiconductor' in notes or 'chip' in notes or 'export control' in notes:
-            logger.info("Taiwan tech supply chain → LYC.AX (rare earth beneficiary)")
-            return 'LYC.AX'
-    
-    # Default: High fatality events in key regions → BHP (safest default)
-    if fatalities >= 10:
-        logger.info(f"High fatality event (>10) → BHP.AX (default major)")
+        logger.info("Taiwan supply chain risk ? LYC.AX (rare earth beneficiary)")
+        return 'LYC.AX'
+
+    # Rule 11: Papua New Guinea / Pacific ? BHP (Ok Tedi copper mine)
+    if 'papua' in country or 'papua' in location or 'png' in country:
+        logger.info("PNG conflict ? BHP.AX (Ok Tedi copper mine)")
         return 'BHP.AX'
-    
-    logger.info("No clear ticker mapping found")
-    return None
+
+    # Rule 12: Russia/Ukraine/Eastern Europe ? BHP (energy/commodity shock)
+    if _is_eastern_europe(country, location):
+        logger.info("Eastern Europe conflict ? BHP.AX (commodity/energy shock)")
+        return 'BHP.AX'
+
+    # Rule 13: LNG / gas / energy keywords anywhere ? BHP (diversified energy exposure)
+    if 'lng' in notes or 'liquefied natural gas' in notes or 'gas pipeline' in notes or \
+       'woodside' in notes or 'santos' in notes or 'lng' in event_type:
+        logger.info("LNG/energy keyword ? BHP.AX (energy exposure)")
+        return 'BHP.AX'
+
+    # Rule 14: Copper / mine / ore keywords ? BHP or RIO
+    if 'copper' in notes or 'copper mine' in location or 'iron ore' in notes:
+        logger.info("Copper/ore keyword ? BHP.AX")
+        return 'BHP.AX'
+
+    # Rule 15: Any conflict/violence with casualties ? BHP (commodity risk premium)
+    if fatalities >= 1 and ('battle' in event_type or 'violence' in event_type or
+                            'conflict' in event_type or 'armed' in event_type or
+                            'explosion' in event_type or 'attack' in event_type):
+        logger.info(f"Armed conflict with casualties ? BHP.AX (default)")
+        return 'BHP.AX'
+
+    # Default fallback: always return BHP as the largest ASX company
+    logger.info(f"No specific rule matched ? BHP.AX (default fallback)")
+    return 'BHP.AX'
 
 
 def _is_australia(country: str, location: str) -> bool:
@@ -181,7 +204,9 @@ def _is_china(country: str, location: str) -> bool:
 
 def _is_africa_mining_region(country: str, location: str) -> bool:
     """Check if event is in key African mining regions."""
-    mining_countries = ['south africa', 'guinea', 'congo', 'mozambique', 'zambia']
+    # Use exact/prefix matches to avoid 'guinea' matching 'papua new guinea'
+    mining_countries = ['south africa', 'guinea-bissau', 'guinea conakry', 'dr congo',
+                        'democratic republic', 'mozambique', 'zambia', 'mali', 'burkina faso']
     return any(c in country for c in mining_countries)
 
 
@@ -191,11 +216,18 @@ def _is_southeast_asia(country: str, location: str) -> bool:
     return any(c in country or c in location for c in sea_countries)
 
 
+def _is_eastern_europe(country: str, location: str) -> bool:
+    """Check if event is in Eastern Europe / Former Soviet states."""
+    eastern_europe = ['russia', 'ukraine', 'poland', 'belarus', 'moldova',
+                      'georgia', 'armenia', 'azerbaijan', 'kazakhstan']
+    return any(c in country or c in location for c in eastern_europe)
+
+
 def _has_rare_earth_keywords(notes: str, event_type: str, location: str) -> bool:
     """Check for rare earth supply disruption keywords."""
     keywords = [
         'rare earth', 'rare-earth', 'neodymium', 'praseodymium',
-        'mining facility', 'mine', 'mineral', 'lynas'
+        'rare earth mine', 'lynas', 'critical mineral'
     ]
     text = f"{notes} {event_type} {location}"
     return any(keyword in text for keyword in keywords)

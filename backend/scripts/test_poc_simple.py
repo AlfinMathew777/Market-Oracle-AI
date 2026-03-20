@@ -50,11 +50,11 @@ async def run_simplified_simulation():
     ticker = map_event_to_ticker(event)
     ticker_info = get_ticker_info(ticker)
     
-    print(f"\n📌 Event: {event['country']} - {event['event_type']}")
-    print(f"🎯 Mapped Ticker: {ticker} ({ticker_info['name']})")
+    print(f"\n? Event: {event['country']} - {event['event_type']}")
+    print(f"? Mapped Ticker: {ticker} ({ticker_info['name']})")
     
     # Create 10 agents
-    print(f"\n🤖 Creating 10 agents...")
+    print(f"\n? Creating 10 agents...")
     agents = []
     agent_id = 1
     for persona, data in PERSONAS_SIMPLE.items():
@@ -63,7 +63,7 @@ async def run_simplified_simulation():
             agent_id += 1
     
     # Run 2 rounds
-    print(f"\n🔄 Running 2 simulation rounds...")
+    print(f"\n? Running 2 simulation rounds...")
     votes = {'UP': 0, 'DOWN': 0, 'NEUTRAL': 0}
     rationales = []
     
@@ -92,13 +92,13 @@ Respond with ONLY one word: UP, DOWN, or NEUTRAL."""
         votes[vote] += 1
         rationales.append(f"Agent {i+1} ({agents[i]['persona']}): {vote}")
     
-    print(f"\n📊 Results:")
-    print(f"  ↑ UP: {votes['UP']}/10")
-    print(f"  ↓ DOWN: {votes['DOWN']}/10")
-    print(f"  ⟷ NEUTRAL: {votes['NEUTRAL']}/10")
+    print(f"\n? Results:")
+    print(f"  ? UP: {votes['UP']}/10")
+    print(f"  ? DOWN: {votes['DOWN']}/10")
+    print(f"  ? NEUTRAL: {votes['NEUTRAL']}/10")
     
     # Generate final prediction with Claude
-    print(f"\n📝 Generating prediction report with Claude...")
+    print(f"\n? Generating prediction report with Claude...")
     
     direction = max(votes, key=votes.get)
     confidence = votes[direction] / 10.0
@@ -150,7 +150,7 @@ Fill in realistic causal chain steps."""
     
     prediction = PredictionCard(**prediction_dict)
     
-    print(f"\n✅ Prediction Generated:")
+    print(f"\n? Prediction Generated:")
     print(f"   Ticker: {prediction.ticker}")
     print(f"   Direction: {prediction.direction.value}")
     print(f"   Confidence: {prediction.confidence:.1%}")
@@ -160,17 +160,17 @@ Fill in realistic causal chain steps."""
     output_file = f"/app/backend/scripts/poc_simple_output.json"
     with open(output_file, 'w') as f:
         json.dump(prediction.model_dump(), f, indent=2, default=str)
-    print(f"\n💾 Saved to: {output_file}")
+    print(f"\n? Saved to: {output_file}")
     
     print("\n" + "="*60)
-    print("  ✅ SIMPLIFIED POC COMPLETE")
+    print("  ? SIMPLIFIED POC COMPLETE")
     print("="*60)
     print("\nValidation:")
-    print("  ✓ Event mapped to ticker")
-    print("  ✓ 10 agents voted (Gemini Flash)")
-    print("  ✓ Consensus aggregated")
-    print("  ✓ Claude generated structured JSON")
-    print("  ✓ Schema validation passed")
+    print("  ? Event mapped to ticker")
+    print("  ? 10 agents voted (Gemini Flash)")
+    print("  ? Consensus aggregated")
+    print("  ? Claude generated structured JSON")
+    print("  ? Schema validation passed")
     
     return True
 
@@ -178,4 +178,4 @@ Fill in realistic causal chain steps."""
 if __name__ == "__main__":
     result = asyncio.run(run_simplified_simulation())
     if result:
-        print("\n🎉 Ready to scale to 50 agents and build main app!")
+        print("\n? Ready to scale to 50 agents and build main app!")
