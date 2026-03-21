@@ -215,7 +215,7 @@ async def run_reflection(ticker_filter: Optional[str] = None, limit: int = 20) -
     Main reflection loop.
     Returns number of predictions successfully reflected.
     """
-    from database import get_unresolved_predictions, update_prediction_reflection, init_db
+    from database import get_unresolved_predictions, update_prediction_resolution, init_db
     await init_db()
 
     logger.info("=== REFLECTION RUN STARTED %s ===", datetime.now(timezone.utc).isoformat())
@@ -283,14 +283,17 @@ async def run_reflection(ticker_filter: Optional[str] = None, limit: int = 20) -
         lesson         = str(reflection.get("lesson", ""))[:1000]
 
         # Step 6: Write back to prediction_log
-        await update_prediction_reflection(
+        await update_prediction_resolution(
             prediction_id            = pred_id,
             actual_direction         = actual_dir,
+            actual_close_price       = price_data.get("current_price", 0),
             actual_price_change_pct  = change_pct,
             prediction_correct       = correct,
             actual_driver            = actual_driver,
             reason_matched           = reason_matched,
             lesson                   = lesson,
+            resolved_at              = datetime.now(timezone.utc).isoformat(),
+            resolution_notes         = f"Price {price_data.get('prev_close')} → {price_data.get('current_price')} ({change_pct:+.2f}%)",
         )
 
         logger.info(

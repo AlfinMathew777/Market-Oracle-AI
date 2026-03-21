@@ -34,6 +34,7 @@ from pathlib import Path
 # Import routes
 from routes.data import router as data_router
 from routes.simulate import router as simulate_router
+from routes.predictions import router as predictions_router
 
 # Import services
 from services.ais_service import start_ais_background_stream, get_port_hedland_status
@@ -174,6 +175,7 @@ app.add_middleware(
 # Include routers
 app.include_router(data_router)
 app.include_router(simulate_router)
+app.include_router(predictions_router)
 
 FRONTEND_BUILD = ROOT_DIR.parent / "frontend" / "build"
 

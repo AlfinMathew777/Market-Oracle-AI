@@ -308,29 +308,39 @@ async def _persist_simulation(simulation_id, ticker, prediction, event_data, exe
         logger.warning("Simulation persistence failed (non-critical): %s", e)
 
     try:
-        from scripts.test_core import save_to_prediction_log
+        from database import save_prediction_log
         p = prediction if isinstance(prediction, dict) else prediction.model_dump()
-        # Build a minimal market_ctx dict from prediction fields
-        market_ctx = {
-            "iron_ore_price": p.get("iron_ore_price"),
-            "audusd_rate":    p.get("audusd_rate"),
-            "brent_price":    p.get("brent_price"),
-            "ticker_price":   p.get("ticker_price"),
-        }
-        # primary_reason: first causal chain consequence or trigger_event
         causal = p.get("causal_chain") or []
         primary_reason = (
             p.get("trigger_event")
-            or (causal[0].get("consequence") if causal else "")
+            or (causal[0].get("consequence") if causal and isinstance(causal[0], dict) else "")
             or ""
         )
-        await save_to_prediction_log(
+        consensus = p.get("agent_consensus") or {}
+        if hasattr(consensus, "up"):
+            bull, bear, neut = consensus.up, consensus.down, consensus.neutral
+        elif isinstance(consensus, dict):
+            bull = consensus.get("up", 0)
+            bear = consensus.get("down", 0)
+            neut = consensus.get("neutral", 0)
+        else:
+            bull = bear = neut = 0
+        await save_prediction_log(
             simulation_id=simulation_id,
             ticker=ticker,
             direction=p.get("direction", "NEUTRAL"),
-            confidence=p.get("confidence", 0.0),
+            confidence=float(p.get("confidence", 0.0)),
             primary_reason=primary_reason,
-            market_ctx=market_ctx,
+            market_ctx={
+                "iron_ore_price": p.get("iron_ore_price"),
+                "audusd_rate":    p.get("audusd_rate"),
+                "brent_price":    p.get("brent_price"),
+                "ticker_price":   p.get("ticker_price"),
+            },
+            agent_bullish=bull,
+            agent_bearish=bear,
+            agent_neutral=neut,
+            trend_label=p.get("trend_label"),
         )
     except Exception as e:
         logger.warning("prediction_log save failed (non-critical): %s", e)

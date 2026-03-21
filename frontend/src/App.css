@@ -35,6 +35,39 @@ body {
   margin-top: 36px; /* Reserve space for fixed macro context strip at top */
 }
 
+/* ── Tab navigation ─────────────────────────────────────────────── */
+.app-tab-nav {
+  display: flex;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  padding: 4px;
+}
+
+.app-tab-btn {
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 6px 18px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  letter-spacing: 0.3px;
+}
+
+.app-tab-btn:hover {
+  background: rgba(51, 102, 255, 0.15);
+  color: #fff;
+}
+
+.app-tab-btn.active {
+  background: rgba(51, 102, 255, 0.3);
+  color: #fff;
+  font-weight: 600;
+}
+
 .logo h1 {
   font-size: 24px;
   font-weight: 700;
@@ -230,6 +263,26 @@ body {
 
 .sidebar::-webkit-scrollbar-thumb:hover {
   background: rgba(51, 102, 255, 0.7);
+}
+
+.view-prediction-btn {
+  width: 100%;
+  padding: 14px 20px;
+  background: linear-gradient(135deg, rgba(51,102,255,0.15), rgba(51,102,255,0.08));
+  border: 1px solid rgba(51, 102, 255, 0.5);
+  border-radius: 10px;
+  color: #7799ff;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: background 0.2s, box-shadow 0.2s;
+  text-align: center;
+}
+.view-prediction-btn:hover {
+  background: linear-gradient(135deg, rgba(51,102,255,0.25), rgba(51,102,255,0.15));
+  box-shadow: 0 0 20px rgba(51,102,255,0.2);
+  color: #aac4ff;
 }
 
 .error-message {

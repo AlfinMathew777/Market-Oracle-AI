@@ -10,6 +10,7 @@ import PredictionHistory from './components/PredictionHistory';
 import MacroContext from './components/MacroContext';
 import AustralianEconomicContext from './components/AustralianEconomicContext';
 import ChokepointRiskPanel from './components/ChokepointRiskPanel';
+import TrackRecord from './components/TrackRecord';
 import ErrorBoundary from './components/ErrorBoundary';
 import { Globe as GlobeIcon, Map as MapIcon } from 'lucide-react';
 import './App.css';
@@ -23,11 +24,29 @@ function App() {
   const [prediction, setPrediction] = useState(null);
   const [isSimulating, setIsSimulating] = useState(false);
   const [simulationStartTime, setSimulationStartTime] = useState(null);
+  const [simMinimized, setSimMinimized] = useState(false);
+  const [predictionOpen, setPredictionOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [error, setError] = useState(null);
   const [correlationArc, setCorrelationArc] = useState({ show: false, eventLat: 0, eventLng: 0 });
   const [viewMode, setViewMode] = useState('australia'); // 'australia' or 'global'
+  const [activeTab, setActiveTab] = useState('main'); // 'main' or 'track-record'
   const arcTimeoutRef = useRef(null);
+
+  // Sync activeTab with URL hash
+  useEffect(() => {
+    const handleHashChange = () => {
+      setActiveTab(window.location.hash === '#/track-record' ? 'track-record' : 'main');
+    };
+    handleHashChange();
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
+  const navigateTo = (tab) => {
+    window.location.hash = tab === 'track-record' ? '#/track-record' : '#/';
+    setActiveTab(tab);
+  };
 
   // Cleanup arc timeout on unmount
   useEffect(() => {
@@ -79,6 +98,7 @@ function App() {
     setError(null);
     setIsSimulating(true);
     setSimulationStartTime(Date.now());
+    setSimMinimized(false);
 
     try {
       const requestBody = {
@@ -110,6 +130,7 @@ function App() {
 
       if (result.status === 'completed' && result.prediction) {
         setPrediction(result.prediction);
+        setPredictionOpen(true);
         
         // Trigger correlation arc overlay
         setCorrelationArc({
@@ -148,6 +169,20 @@ function App() {
           <h1>Market Oracle AI</h1>
           <p className="tagline">Australian Market Intelligence - Geopolitics to ASX in Real-Time</p>
         </div>
+        <nav className="app-tab-nav">
+          <button
+            className={`app-tab-btn${activeTab === 'main' ? ' active' : ''}`}
+            onClick={() => navigateTo('main')}
+          >
+            Predictions
+          </button>
+          <button
+            className={`app-tab-btn${activeTab === 'track-record' ? ' active' : ''}`}
+            onClick={() => navigateTo('track-record')}
+          >
+            Track Record
+          </button>
+        </nav>
         {portHedlandData && (
           <div className="port-hedland-badge">
             <span className="port-label">Port Hedland</span>
@@ -159,7 +194,13 @@ function App() {
         )}
       </header>
 
-      <div className="main-container">
+      {activeTab === 'track-record' && (
+        <ErrorBoundary>
+          <TrackRecord />
+        </ErrorBoundary>
+      )}
+
+      <div className="main-container" style={{ display: activeTab === 'track-record' ? 'none' : undefined }}>
         <div className="globe-section">
           <ErrorBoundary>
             <EventSidebar
@@ -220,7 +261,13 @@ function App() {
           </div>
 
           {isSimulating && simulationStartTime && (
-            <SimulationProgress startTime={simulationStartTime} />
+            <SimulationProgress
+              startTime={simulationStartTime}
+              ticker={prediction?.ticker || 'BHP.AX'}
+              minimized={simMinimized}
+              onMinimize={() => setSimMinimized(true)}
+              onExpand={() => setSimMinimized(false)}
+            />
           )}
         </div>
 
@@ -240,9 +287,9 @@ function App() {
           )}
 
           {prediction && !isSimulating && (
-            <ErrorBoundary>
-              <PredictionCard prediction={prediction} />
-            </ErrorBoundary>
+            <button className="view-prediction-btn" onClick={() => setPredictionOpen(true)}>
+              View Prediction — {prediction.ticker} {prediction.direction === 'UP' ? '▲' : prediction.direction === 'DOWN' ? '▼' : '—'}
+            </button>
           )}
 
           {!prediction && !isSimulating && !error && (
@@ -284,13 +331,21 @@ function App() {
         </div>
       </div>
 
-      <ErrorBoundary>
-        <SectorHeatmap />
-      </ErrorBoundary>
+      {activeTab !== 'track-record' && (
+        <ErrorBoundary>
+          <SectorHeatmap />
+        </ErrorBoundary>
+      )}
 
       <footer className="app-footer">
         <p>Market Oracle AI - Australian Market Intelligence Platform - Geopolitical Events to ASX Impact</p>
       </footer>
+
+      {prediction && predictionOpen && (
+        <ErrorBoundary>
+          <PredictionCard prediction={prediction} onClose={() => setPredictionOpen(false)} />
+        </ErrorBoundary>
+      )}
     </div>
   );
 }
