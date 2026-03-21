@@ -183,10 +183,8 @@ async def run_simulation(request: Request, body: SimulationRequest):
             
             execution_time = (datetime.now() - start_time).total_seconds()
 
-            # Persist to SQLite (non-blocking — doesn't slow the response)
-            asyncio.create_task(
-                _persist_simulation(simulation_id, ticker, prediction, event_data, execution_time)
-            )
+            # Persist to SQLite before responding
+            await _persist_simulation(simulation_id, ticker, prediction, event_data, execution_time)
 
             # Update simulation status
             active_simulations[simulation_id] = {
@@ -300,12 +298,13 @@ async def get_prediction_accuracy(ticker: str = None):
 # ── Internal helpers ──────────────────────────────────────────────────────────
 
 async def _persist_simulation(simulation_id, ticker, prediction, event_data, execution_time):
-    """Background task: save simulation result to SQLite (simulations + prediction_log)."""
+    """Save simulation result to SQLite (simulations + prediction_log)."""
     try:
         from database import save_simulation
         await save_simulation(simulation_id, ticker, prediction, event_data, execution_time)
+        logger.info("Saved simulation %s to DB", simulation_id)
     except Exception as e:
-        logger.warning("Simulation persistence failed (non-critical): %s", e)
+        logger.error("save_simulation failed for %s: %s", simulation_id, e, exc_info=True)
 
     try:
         from database import save_prediction_log
@@ -325,10 +324,15 @@ async def _persist_simulation(simulation_id, ticker, prediction, event_data, exe
             neut = consensus.get("neutral", 0)
         else:
             bull = bear = neut = 0
+
+        # direction from prediction may be an enum — normalise to string
+        raw_dir = p.get("direction", "NEUTRAL")
+        direction_str = raw_dir.value if hasattr(raw_dir, "value") else str(raw_dir)
+
         await save_prediction_log(
             simulation_id=simulation_id,
             ticker=ticker,
-            direction=p.get("direction", "NEUTRAL"),
+            direction=direction_str,
             confidence=float(p.get("confidence", 0.0)),
             primary_reason=primary_reason,
             market_ctx={
@@ -342,5 +346,6 @@ async def _persist_simulation(simulation_id, ticker, prediction, event_data, exe
             agent_neutral=neut,
             trend_label=p.get("trend_label"),
         )
+        logger.info("Saved prediction_log for %s (%s)", simulation_id, ticker)
     except Exception as e:
-        logger.warning("prediction_log save failed (non-critical): %s", e)
+        logger.error("save_prediction_log failed for %s: %s", simulation_id, e, exc_info=True)
