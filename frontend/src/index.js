@@ -1,7 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import "@/index.css";
-import App from "@/App";
+import "./index.css";
+import App from "./App";
 
 // Sentry — only initialises when REACT_APP_SENTRY_DSN is set
 const SENTRY_DSN = process.env.REACT_APP_SENTRY_DSN;
