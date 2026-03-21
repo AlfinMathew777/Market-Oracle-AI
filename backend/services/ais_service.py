@@ -52,8 +52,8 @@ async def _stream_port_hedland():
     subscribe_message = {
         "APIKey": api_key,
         "BoundingBoxes": [[
-            [PORT_HEDLAND_BBOX["min_lon"], PORT_HEDLAND_BBOX["min_lat"]],
-            [PORT_HEDLAND_BBOX["max_lon"], PORT_HEDLAND_BBOX["max_lat"]]
+            [PORT_HEDLAND_BBOX["min_lat"], PORT_HEDLAND_BBOX["min_lon"]],  # [lat, lon] — AISStream standard
+            [PORT_HEDLAND_BBOX["max_lat"], PORT_HEDLAND_BBOX["max_lon"]]
         ]],
         "FilterMessageTypes": ["PositionReport"]
     }
