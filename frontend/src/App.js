@@ -195,9 +195,11 @@ function App() {
       </header>
 
       {activeTab === 'track-record' && (
-        <ErrorBoundary>
-          <TrackRecord />
-        </ErrorBoundary>
+        <div style={{ flex: 1, overflowY: 'auto', background: '#05050f' }}>
+          <ErrorBoundary>
+            <TrackRecord />
+          </ErrorBoundary>
+        </div>
       )}
 
       <div className="main-container" style={{ display: activeTab === 'track-record' ? 'none' : undefined }}>
