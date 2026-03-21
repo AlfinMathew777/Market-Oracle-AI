@@ -67,6 +67,10 @@ class SimulationRequest(BaseModel):
         return v
 
 
+def _get_limiter_decorator():
+    from server import limiter
+    return limiter.limit("5/minute")
+
 @router.post("/simulate")
 async def run_simulation(request: Request, body: SimulationRequest):
     """
@@ -78,10 +82,6 @@ async def run_simulation(request: Request, body: SimulationRequest):
     # Enforce API key (no-op when API_KEY env var is not set)
     from server import require_api_key
     require_api_key(request)
-
-    # Rate limit: 5 simulations per minute per IP (expensive LLM calls)
-    from server import limiter
-    await limiter._check_request_limit(request, "5/minute")  # type: ignore[attr-defined]
 
     simulation_id = f"sim_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
 
@@ -300,9 +300,37 @@ async def get_prediction_accuracy(ticker: str = None):
 # ── Internal helpers ──────────────────────────────────────────────────────────
 
 async def _persist_simulation(simulation_id, ticker, prediction, event_data, execution_time):
-    """Background task: save simulation result to SQLite."""
+    """Background task: save simulation result to SQLite (simulations + prediction_log)."""
     try:
         from database import save_simulation
         await save_simulation(simulation_id, ticker, prediction, event_data, execution_time)
     except Exception as e:
         logger.warning("Simulation persistence failed (non-critical): %s", e)
+
+    try:
+        from scripts.test_core import save_to_prediction_log
+        p = prediction if isinstance(prediction, dict) else prediction.model_dump()
+        # Build a minimal market_ctx dict from prediction fields
+        market_ctx = {
+            "iron_ore_price": p.get("iron_ore_price"),
+            "audusd_rate":    p.get("audusd_rate"),
+            "brent_price":    p.get("brent_price"),
+            "ticker_price":   p.get("ticker_price"),
+        }
+        # primary_reason: first causal chain consequence or trigger_event
+        causal = p.get("causal_chain") or []
+        primary_reason = (
+            p.get("trigger_event")
+            or (causal[0].get("consequence") if causal else "")
+            or ""
+        )
+        await save_to_prediction_log(
+            simulation_id=simulation_id,
+            ticker=ticker,
+            direction=p.get("direction", "NEUTRAL"),
+            confidence=p.get("confidence", 0.0),
+            primary_reason=primary_reason,
+            market_ctx=market_ctx,
+        )
+    except Exception as e:
+        logger.warning("prediction_log save failed (non-critical): %s", e)

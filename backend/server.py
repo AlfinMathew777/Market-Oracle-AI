@@ -161,7 +161,7 @@ app.add_middleware(SlowAPIMiddleware)
 _FRONTEND_URL = os.environ.get("FRONTEND_URL", "")
 _ALLOWED_ORIGINS = (
     [_FRONTEND_URL] if _FRONTEND_URL
-    else ["http://localhost:3000", "http://127.0.0.1:3000"]
+    else ["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:3001", "http://127.0.0.1:3001"]
 )
 app.add_middleware(
     CORSMiddleware,

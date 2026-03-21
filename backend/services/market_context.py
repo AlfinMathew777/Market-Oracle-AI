@@ -1,0 +1,968 @@
+"""Live market context fetcher — injected into every agent prompt before simulation.
+
+Fetches (in parallel):
+  - Iron Ore 62% Fe futures (yfinance TIO=F → Alpha Vantage fallback)
+  - AUD/USD exchange rate   (Alpha Vantage → yfinance fallback)
+  - Brent Crude             (yfinance BZ=F → FRED fallback)
+  - Ticker price + RSI + MACD (yfinance + Alpha Vantage)
+  - Recent news with recency decay weights (MarketAux, last 24h only)
+
+All fetches have try/except with graceful STALE fallback — never blocks simulation.
+"""
+
+import os
+import time
+import asyncio
+import logging
+from datetime import datetime, timezone, timedelta
+from typing import Optional, Dict, Any, List
+
+import httpx
+from dotenv import load_dotenv
+
+load_dotenv()
+
+logger = logging.getLogger(__name__)
+
+_ALPHA_VANTAGE_KEY = os.getenv("ALPHA_VANTAGE_API_KEY", "")
+_FRED_API_KEY      = os.getenv("FRED_API_KEY", "")
+_MARKETAUX_KEY     = os.getenv("MARKETAUX_API_KEY", "")
+
+STALE = "STALE"
+
+
+# ── Intraday market data cache (4-minute TTL) ─────────────────────────────────
+
+class MarketDataCache:
+    """
+    Short-lived in-process cache for intraday market data.
+    Forces fresh fetch every 4 minutes — prevents stale volume/price data
+    accumulating across simulations in a long-running Railway process.
+    """
+    def __init__(self, ttl_seconds: int = 240):  # 4 minutes
+        self._cache: dict = {}
+        self._timestamps: dict = {}
+        self.ttl = ttl_seconds
+
+    def get(self, key: str) -> Optional[dict]:
+        if key not in self._cache:
+            return None
+        age = time.time() - self._timestamps[key]
+        if age > self.ttl:
+            logger.info("[CACHE] Expired: %s (%.0fs old > %ds TTL) — forcing fresh fetch",
+                        key, age, self.ttl)
+            del self._cache[key]
+            del self._timestamps[key]
+            return None
+        logger.info("[CACHE] Hit: %s (%.0fs old, TTL %ds) — using cached data",
+                    key, age, self.ttl)
+        return self._cache[key]
+
+    def set(self, key: str, value: dict) -> None:
+        self._cache[key] = value
+        self._timestamps[key] = time.time()
+        logger.info("[CACHE] Stored: %s (expires in %ds)", key, self.ttl)
+
+    def invalidate(self, key: str) -> None:
+        self._cache.pop(key, None)
+        self._timestamps.pop(key, None)
+
+
+# Single module-level instance — shared across all simulation runs in the process
+market_cache = MarketDataCache(ttl_seconds=240)
+
+
+# ── News relevance weighting ───────────────────────────────────────────────────
+
+def news_weight(
+    hours_old: float,
+    category: str = "",
+    headline: str = "",
+    ticker: str = "BHP",
+) -> float:
+    """
+    Calculates relevance weight for a news item before injecting into agent prompts.
+    Company-specific news never fully decays. Geopolitical noise decays faster.
+    """
+    # Step 1: Base time decay
+    if hours_old > 72:
+        base = 0.05
+    elif hours_old > 48:
+        base = 0.2
+    elif hours_old > 24:
+        base = 0.4
+    elif hours_old > 6:
+        base = 0.75
+    else:
+        base = 1.0
+
+    # Step 2: Category multipliers (applied before boosts)
+    category_upper = category.upper()
+
+    # Geopolitical violence = noise for commodity stocks
+    if any(k in category_upper for k in ["EXPLOSIONS", "REMOTE VIOLENCE", "BATTLES", "RIOTS"]):
+        base *= 0.65
+
+    # Strategic/economic developments stay highly relevant
+    if "STRATEGIC" in category_upper or "ECONOMIC" in category_upper:
+        base = max(base, 0.75)
+
+    # Step 3: Supply chain events stay relevant regardless of age
+    supply_keywords = [
+        "port", "canal", "suez", "strait", "shipping", "tanker",
+        "freight", "logistics", "ban", "sanctions",
+    ]
+    if any(k in headline.lower() for k in supply_keywords):
+        base = max(base, 0.80)
+
+    # Step 4: Company-specific boost — headline directly mentions ticker (recent only)
+    # Applied LAST so it overrides geopolitical decay for fresh company news
+    ticker_clean = ticker.replace(".AX", "").upper()
+    if ticker_clean in headline.upper() and hours_old <= 48:
+        base = max(base, 0.85)
+
+    return round(min(base, 1.0), 3)
+
+
+def weight_to_label(w: float) -> str:
+    """Signal strength label for agent prompts."""
+    if w >= 0.85:
+        return "CRITICAL"
+    elif w >= 0.70:
+        return "HIGH"
+    elif w >= 0.45:
+        return "MEDIUM"
+    else:
+        return "LOW — treat as background noise only"
+
+
+# ── Alpha Vantage helper ───────────────────────────────────────────────────────
+
+async def _av(function: str, params: dict, timeout: float = 8.0) -> Optional[dict]:
+    if not _ALPHA_VANTAGE_KEY:
+        return None
+    url = "https://www.alphavantage.co/query"
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            r = await client.get(url, params={"apikey": _ALPHA_VANTAGE_KEY, "function": function, **params})
+            r.raise_for_status()
+            return r.json()
+    except Exception as e:
+        logger.warning("Alpha Vantage %s error: %s", function, e)
+        return None
+
+
+# ── Individual fetchers ────────────────────────────────────────────────────────
+
+async def _fetch_iron_ore() -> Dict[str, Any]:
+    """Iron Ore 62% Fe — SGX TIO=F via yfinance, Alpha Vantage fallback."""
+    try:
+        import yfinance as yf
+        t = yf.Ticker("TIO=F")
+        info = t.fast_info
+        price = getattr(info, "last_price", None)
+        prev  = getattr(info, "previous_close", price)
+        if price and prev and prev > 0:
+            return {"price": round(float(price), 2), "change_pct": round((price - prev) / prev * 100, 2), "status": "live"}
+    except Exception as e:
+        logger.warning("Iron ore yfinance: %s", e)
+
+    data = await _av("IRON_ORE", {})
+    if data and "data" in data and len(data["data"]) >= 2:
+        try:
+            p0 = float(data["data"][0]["value"])
+            p1 = float(data["data"][1]["value"])
+            return {"price": round(p0, 2), "change_pct": round((p0 - p1) / p1 * 100, 2), "status": "live"}
+        except Exception:
+            pass
+
+    return {"price": 97.5, "change_pct": 0.0, "status": STALE}
+
+
+async def _fetch_audusd() -> Dict[str, Any]:
+    """AUD/USD — Alpha Vantage realtime rate, yfinance fallback."""
+    if _ALPHA_VANTAGE_KEY:
+        try:
+            data = await _av("CURRENCY_EXCHANGE_RATE", {"from_currency": "AUD", "to_currency": "USD"})
+            if data and "Realtime Currency Exchange Rate" in data:
+                rate = float(data["Realtime Currency Exchange Rate"]["5. Exchange Rate"])
+                import yfinance as yf
+                info = yf.Ticker("AUDUSD=X").fast_info
+                prev = getattr(info, "previous_close", rate)
+                chg  = round((rate - prev) / prev * 100, 2) if prev > 0 else 0.0
+                return {"rate": round(rate, 4), "change_pct": chg, "status": "live"}
+        except Exception as e:
+            logger.warning("AUD/USD AV: %s", e)
+
+    try:
+        import yfinance as yf
+        info = yf.Ticker("AUDUSD=X").fast_info
+        rate = getattr(info, "last_price", None)
+        prev = getattr(info, "previous_close", rate)
+        if rate and prev and prev > 0:
+            return {"rate": round(float(rate), 4), "change_pct": round((rate - prev) / prev * 100, 2), "status": "live"}
+    except Exception as e:
+        logger.warning("AUD/USD yfinance: %s", e)
+
+    return {"rate": 0.6500, "change_pct": 0.0, "status": STALE}
+
+
+async def _fetch_brent() -> Dict[str, Any]:
+    """Brent Crude — yfinance BZ=F, FRED DCOILBRENTEU fallback."""
+    try:
+        import yfinance as yf
+        info = yf.Ticker("BZ=F").fast_info
+        price = getattr(info, "last_price", None)
+        prev  = getattr(info, "previous_close", price)
+        if price and prev and prev > 0:
+            return {"price": round(float(price), 2), "change_pct": round((price - prev) / prev * 100, 2), "status": "live"}
+    except Exception as e:
+        logger.warning("Brent yfinance: %s", e)
+
+    if _FRED_API_KEY:
+        try:
+            async with httpx.AsyncClient(timeout=8.0) as client:
+                r = await client.get(
+                    "https://api.stlouisfed.org/fred/series/observations",
+                    params={"series_id": "DCOILBRENTEU", "api_key": _FRED_API_KEY,
+                            "file_type": "json", "sort_order": "desc", "limit": 2}
+                )
+                r.raise_for_status()
+                obs = r.json().get("observations", [])
+                if len(obs) >= 2:
+                    p0 = float(obs[0]["value"])
+                    p1 = float(obs[1]["value"])
+                    return {"price": round(p0, 2), "change_pct": round((p0 - p1) / p1 * 100, 2), "status": "live"}
+        except Exception as e:
+            logger.warning("Brent FRED: %s", e)
+
+    return {"price": 82.5, "change_pct": 0.0, "status": STALE}
+
+
+async def _fetch_ticker_technicals(ticker: str) -> Dict[str, Any]:
+    """Ticker price, intraday price change %, volume ratio, RSI(14), MACD signal."""
+    result: Dict[str, Any] = {
+        "price": 47.0, "price_change_pct": None, "volume_vs_avg": 1.0,
+        "rsi": None, "macd_signal": "NEUTRAL", "status": STALE
+    }
+
+    # Price + volume + intraday change via yfinance
+    try:
+        import yfinance as yf
+        t    = yf.Ticker(ticker)
+        info = t.fast_info
+        price = float(getattr(info, "last_price", 47.0))
+        prev  = float(getattr(info, "previous_close", price))
+        result["price"]  = round(price, 2)
+        result["status"] = "live"
+        if prev > 0:
+            result["price_change_pct"] = round((price - prev) / prev * 100, 2)
+
+        # Intraday volume via fast_info — updates live during market hours.
+        # fast_info.regular_market_volume = current session's accumulated volume.
+        # three_month_average_volume      = rolling 3-month daily avg (baseline).
+        # This avoids the daily-history bug where hist[-1] stays frozen at the
+        # previous close's volume until the current session data arrives via history().
+        intraday_vol = getattr(info, "regular_market_volume", None)
+        avg_3m       = getattr(info, "three_month_average_volume", None)
+        if intraday_vol and avg_3m and avg_3m > 0:
+            result["volume_vs_avg"] = round(float(intraday_vol) / float(avg_3m), 2)
+            logger.info("[VOLUME] %s intraday=%s avg3m=%s ratio=%.2f",
+                        ticker, intraday_vol, avg_3m, result["volume_vs_avg"])
+        else:
+            # Fallback to daily history only when fast_info fields unavailable
+            hist = t.history(period="31d")
+            if not hist.empty and len(hist) > 1:
+                avg_vol = hist["Volume"].iloc[:-1].mean()
+                today   = hist["Volume"].iloc[-1]
+                if avg_vol > 0:
+                    result["volume_vs_avg"] = round(today / avg_vol, 2)
+                    logger.info("[VOLUME] %s daily fallback ratio=%.2f", ticker, result["volume_vs_avg"])
+    except Exception as e:
+        logger.warning("Ticker price yfinance (%s): %s", ticker, e)
+
+    # Intraday price change % via Alpha Vantage GLOBAL_QUOTE (more reliable than yfinance fast_info)
+    if _ALPHA_VANTAGE_KEY and result["price_change_pct"] is None:
+        try:
+            data = await _av("GLOBAL_QUOTE", {"symbol": ticker})
+            if data and "Global Quote" in data:
+                raw = data["Global Quote"].get("10. change percent", "")
+                if raw:
+                    result["price_change_pct"] = round(float(raw.replace("%", "").strip()), 2)
+        except Exception as e:
+            logger.warning("Ticker GLOBAL_QUOTE AV (%s): %s", ticker, e)
+
+    # RSI via Alpha Vantage
+    if _ALPHA_VANTAGE_KEY:
+        try:
+            data = await _av("RSI", {"symbol": ticker, "interval": "daily", "time_period": 14, "series_type": "close"})
+            if data and "Technical Analysis: RSI" in data:
+                latest = sorted(data["Technical Analysis: RSI"].keys())[-1]
+                result["rsi"] = round(float(data["Technical Analysis: RSI"][latest]["RSI"]), 1)
+        except Exception as e:
+            logger.warning("RSI AV: %s", e)
+
+        # MACD signal via Alpha Vantage
+        try:
+            data = await _av("MACD", {"symbol": ticker, "interval": "daily", "series_type": "close"})
+            if data and "Technical Analysis: MACD" in data:
+                latest   = sorted(data["Technical Analysis: MACD"].keys())[-1]
+                macd_val = float(data["Technical Analysis: MACD"][latest]["MACD"])
+                sig_val  = float(data["Technical Analysis: MACD"][latest]["MACD_Signal"])
+                if macd_val > sig_val:
+                    result["macd_signal"] = "BULLISH_CROSS"
+                elif macd_val < sig_val:
+                    result["macd_signal"] = "BEARISH_CROSS"
+                else:
+                    result["macd_signal"] = "NEUTRAL"
+        except Exception as e:
+            logger.warning("MACD AV: %s", e)
+
+    return result
+
+
+def log_news_date_range(news_items: list, label: str = "NEWS") -> None:
+    """Logs the date range of a news item list. Call before and after filtering."""
+    if not news_items:
+        logger.info("[%s] No news items", label)
+        return
+    dates = []
+    for item in news_items:
+        raw = (item.get("published_at") or item.get("event_date")
+               or item.get("date") or item.get("timestamp"))
+        if raw:
+            dates.append(str(raw))
+    if dates:
+        dates.sort()
+        logger.info("[%s] %d items | oldest: %s | newest: %s",
+                    label, len(news_items), dates[0], dates[-1])
+    else:
+        logger.info("[%s] %d items (no parseable dates)", label, len(news_items))
+
+
+def filter_stale_news(
+    news_items: list,
+    max_age_days: int = 7,
+    ticker: str = "BHP",
+) -> tuple:
+    """
+    Hard date filter — drops any news item older than max_age_days.
+    Company-specific news (mentioning ticker) gets a 14-day window.
+    Returns (fresh_items, dropped_items) for transparency logging.
+    Prevents 2025-dated events appearing in 2026 predictions.
+    """
+    now         = datetime.now(timezone.utc)
+    ticker_clean = ticker.replace(".AX", "").upper()
+    fresh:   list = []
+    dropped: list = []
+
+    for item in news_items:
+        raw_date = (
+            item.get("event_date") or item.get("date")
+            or item.get("published_at") or item.get("timestamp")
+            or item.get("created_at")
+        )
+        if not raw_date:
+            item["date_verified"] = False
+            fresh.append(item)
+            continue
+        try:
+            raw_str = str(raw_date).strip()
+            if "T" in raw_str or " " in raw_str:
+                dt = datetime.fromisoformat(raw_str.replace("Z", "+00:00"))
+            else:
+                dt = datetime.strptime(raw_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+
+            age_days = (now - dt).days
+
+            # Company-specific news stays relevant longer
+            headline         = (item.get("headline", "") or item.get("title", ""))
+            is_company_news  = ticker_clean in headline.upper()
+            cutoff           = 14 if is_company_news else max_age_days
+
+            if age_days <= cutoff:
+                item["hours_old"]     = age_days * 24
+                item["date_verified"] = True
+                fresh.append(item)
+            else:
+                dropped.append({
+                    "headline": headline[:80],
+                    "date":     raw_str,
+                    "age_days": age_days,
+                    "reason":   f"older than {cutoff} days",
+                })
+        except (ValueError, TypeError) as e:
+            item["date_verified"] = False
+            fresh.append(item)
+            logger.warning("[NEWS FILTER] Could not parse date '%s': %s", raw_date, e)
+
+    if dropped:
+        logger.info("[NEWS FILTER] Dropped %d stale items:", len(dropped))
+        for d in dropped:
+            logger.info("  - %s | %s | %dd old", d["headline"], d["date"], d["age_days"])
+
+    return fresh, dropped
+
+
+async def _fetch_news(ticker: str, max_items: int = 8) -> List[Dict[str, Any]]:
+    """
+    Recent news with relevance weights (company-specific + supply chain boosted).
+    Cutoff extended to 72h so company-specific articles are never excluded by age alone.
+    Filter threshold lowered to 0.25 so company-specific news at 72h (base=0.2 → boosted 0.85) passes.
+    """
+    items: List[Dict[str, Any]] = []
+    if not _MARKETAUX_KEY:
+        return items
+    try:
+        symbol  = ticker.replace(".AX", "")
+        cutoff  = (datetime.now(timezone.utc) - timedelta(hours=72)).strftime("%Y-%m-%dT%H:%M:%S")
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            r = await client.get(
+                "https://api.marketaux.com/v1/news/all",
+                params={"symbols": symbol, "published_after": cutoff,
+                        "api_token": _MARKETAUX_KEY, "limit": max_items}
+            )
+            r.raise_for_status()
+            for article in r.json().get("data", []):
+                pub = article.get("published_at", "")
+                try:
+                    pub_dt    = datetime.fromisoformat(pub.replace("Z", "+00:00"))
+                    hours_old = (datetime.now(timezone.utc) - pub_dt).total_seconds() / 3600
+                except Exception:
+                    hours_old = 72.0
+                # Extract category from MarketAux categories list if available
+                cats     = article.get("categories") or []
+                category = cats[0].get("name", "") if cats and isinstance(cats[0], dict) else str(cats[0]) if cats else ""
+                headline = article.get("title", "")
+                w = news_weight(
+                    hours_old=hours_old,
+                    category=category,
+                    headline=headline,
+                    ticker=ticker,
+                )
+                if w > 0.25:
+                    items.append({
+                        "title":           headline,
+                        "summary":         (article.get("description") or "")[:200],
+                        "hours_old":       round(hours_old, 1),
+                        "weight":          w,
+                        "category":        category,
+                        "signal_strength": weight_to_label(w),
+                        "published_at":    pub,   # kept for filter_stale_news
+                    })
+    except Exception as e:
+        logger.warning("MarketAux news: %s", e)
+
+    log_news_date_range(items, "MARKETAUX_RAW")
+    fresh, dropped = filter_stale_news(items, max_age_days=7, ticker=ticker)
+    log_news_date_range(fresh, "MARKETAUX_FILTERED")
+    # Attach dropped count to each fresh item so fetch_market_context can total it
+    for item in fresh:
+        item.setdefault("_stale_dropped", len(dropped))
+    return fresh[:max_items]
+
+
+# ── Fetch lessons from prediction_log ─────────────────────────────────────────
+
+async def _fetch_lessons(ticker: str, limit: int = 5) -> List[str]:
+    """Fetch the last N reflection lessons for the given ticker from prediction_log."""
+    try:
+        from database import get_db, init_db
+        await init_db()
+        async with get_db() as db:
+            db.row_factory = lambda c, r: dict(zip([col[0] for col in c.description], r))
+            async with db.execute(
+                "SELECT lesson FROM prediction_log WHERE ticker=? AND lesson IS NOT NULL "
+                "ORDER BY predicted_at DESC LIMIT ?",
+                (ticker, limit)
+            ) as cur:
+                rows = await cur.fetchall()
+        return [r["lesson"] for r in rows if r.get("lesson")]
+    except Exception as e:
+        logger.warning("Could not fetch lessons: %s", e)
+        return []
+
+
+# ── Broad market session fetcher ──────────────────────────────────────────────
+
+async def _fetch_broad_market() -> Dict[str, Any]:
+    """
+    Fetches ASX 200 (^AXJO) and S&P 500 (^GSPC) intraday % change via Alpha Vantage.
+    Classifies session type. Falls back gracefully — never blocks pipeline.
+    """
+    result: Dict[str, Any] = {
+        "axjo_change_pct": None,
+        "spx_change_pct":  None,
+        "market_session":  "UNKNOWN",
+    }
+
+    if not _ALPHA_VANTAGE_KEY:
+        return result
+
+    async def _quote(symbol: str) -> Optional[float]:
+        try:
+            data = await _av("GLOBAL_QUOTE", {"symbol": symbol})
+            if data and "Global Quote" in data:
+                raw = data["Global Quote"].get("09. change percent", "")
+                return round(float(raw.replace("%", "").strip()), 2)
+        except Exception as e:
+            logger.warning("Broad market quote %s: %s", symbol, e)
+        return None
+
+    axjo, spx = await asyncio.gather(_quote("^AXJO"), _quote("^GSPC"))
+    result["axjo_change_pct"] = axjo
+    result["spx_change_pct"]  = spx
+
+    # Classify session
+    if axjo is not None and spx is not None:
+        if axjo <= -1.0 and spx <= -1.0:
+            result["market_session"] = "BROAD_SELLOFF"
+        elif axjo >= 1.0 and spx >= 1.0:
+            result["market_session"] = "BROAD_RALLY"
+        elif axjo <= -0.5 or spx <= -0.5:
+            result["market_session"] = "MILD_RISK_OFF"
+        elif axjo >= 0.5 or spx >= 0.5:
+            result["market_session"] = "MILD_RISK_ON"
+        else:
+            result["market_session"] = "FLAT"
+    elif axjo is not None:
+        if axjo <= -1.0:
+            result["market_session"] = "BROAD_SELLOFF"
+        elif axjo >= 1.0:
+            result["market_session"] = "BROAD_RALLY"
+
+    return result
+
+
+# ── Trend momentum fetcher ────────────────────────────────────────────────────
+
+def _fetch_daily_prices(ticker: str, days: int = 25) -> Optional[list]:
+    """
+    Fetch daily closing prices for the last `days` calendar days via yfinance.
+    Returns a list of floats (oldest → newest), or None on failure.
+    """
+    try:
+        import yfinance as yf
+        t = yf.Ticker(ticker)
+        hist = t.history(period=f"{days}d")
+        if hist.empty or len(hist) < 2:
+            return None
+        return list(hist["Close"].dropna())
+    except Exception as e:
+        logger.warning("[TREND] _fetch_daily_prices failed for %s: %s", ticker, e)
+        return None
+
+
+async def fetch_trend_context(ticker: str) -> Dict[str, Any]:
+    """
+    Calculate multi-day momentum metrics from daily closing prices.
+
+    Returns:
+      trend_label         : "STRONG_DOWNTREND" | "DOWNTREND" | "NEUTRAL" | "UPTREND" | "STRONG_UPTREND"
+      day_1_change        : float % (1-day return)
+      day_5_change        : float % (5-day return)
+      day_20_change       : float % (20-day return)
+      consecutive_down_days : int (how many consecutive sessions closed lower)
+      dist_from_52w_high_pct: float % (how far below the 52-week high, negative = below)
+      trend_block         : str (pre-formatted block for agent prompts)
+    """
+    _default = {
+        "trend_label": "NEUTRAL",
+        "day_1_change": None,
+        "day_5_change": None,
+        "day_20_change": None,
+        "consecutive_down_days": 0,
+        "dist_from_52w_high_pct": None,
+        "trend_block": "=== TREND MOMENTUM ===\nTrend data unavailable.\n=== END TREND ===",
+    }
+
+    try:
+        # Run in executor to avoid blocking asyncio event loop
+        loop = asyncio.get_event_loop()
+        prices = await loop.run_in_executor(None, _fetch_daily_prices, ticker, 25)
+        if prices is None or len(prices) < 6:
+            return _default
+
+        current = prices[-1]
+
+        # Returns
+        day_1  = round((prices[-1] / prices[-2] - 1) * 100, 2) if len(prices) >= 2 else None
+        day_5  = round((prices[-1] / prices[-6] - 1) * 100, 2) if len(prices) >= 6 else None
+        day_20 = round((prices[-1] / prices[0]  - 1) * 100, 2) if len(prices) >= 20 else None
+
+        # Consecutive down days (from most recent session backwards)
+        consec_down = 0
+        for i in range(len(prices) - 1, 0, -1):
+            if prices[i] < prices[i - 1]:
+                consec_down += 1
+            else:
+                break
+
+        # Distance from 52-week high (use the 25 days we have as proxy if <252 days)
+        # Attempt a longer fetch for the 52w high
+        try:
+            import yfinance as yf
+            t52 = yf.Ticker(ticker)
+            hist52 = await loop.run_in_executor(None, lambda: t52.history(period="252d"))
+            if not hist52.empty:
+                high_52w = float(hist52["Close"].max())
+            else:
+                high_52w = max(prices)
+        except Exception:
+            high_52w = max(prices)
+
+        dist_52w = round((current / high_52w - 1) * 100, 2)  # negative if below
+
+        # Classify trend label
+        bearish_score = 0
+        if day_5  is not None and day_5  < -3:  bearish_score += 1
+        if day_20 is not None and day_20 < -5:  bearish_score += 1
+        if consec_down >= 3:                     bearish_score += 1
+        if dist_52w < -10:                       bearish_score += 1
+
+        bullish_score = 0
+        if day_5  is not None and day_5  > 3:   bullish_score += 1
+        if day_20 is not None and day_20 > 5:   bullish_score += 1
+        if consec_down == 0 and day_5 is not None and day_5 > 0:  bullish_score += 1
+        if dist_52w > -3:                        bullish_score += 1
+
+        if bearish_score >= 3:
+            trend_label = "STRONG_DOWNTREND"
+        elif bearish_score == 2:
+            trend_label = "DOWNTREND"
+        elif bullish_score >= 3:
+            trend_label = "STRONG_UPTREND"
+        elif bullish_score == 2:
+            trend_label = "UPTREND"
+        else:
+            trend_label = "NEUTRAL"
+
+        # Build human-readable trend block
+        d1_str  = f"{day_1:+.2f}%"  if day_1  is not None else "N/A"
+        d5_str  = f"{day_5:+.2f}%"  if day_5  is not None else "N/A"
+        d20_str = f"{day_20:+.2f}%" if day_20 is not None else "N/A"
+        d52_str = f"{dist_52w:+.2f}% from 52w high"
+
+        trend_block = (
+            f"=== TREND MOMENTUM ===\n"
+            f"Trend label: {trend_label}\n"
+            f"1-day return: {d1_str} | 5-day: {d5_str} | 20-day: {d20_str}\n"
+            f"Consecutive down sessions: {consec_down}\n"
+            f"Distance from 52-week high: {d52_str}\n"
+            f"=== END TREND ==="
+        )
+
+        logger.info(
+            "[TREND] %s label=%s 1d=%s 5d=%s 20d=%s consec_down=%d dist52w=%s",
+            ticker, trend_label, d1_str, d5_str, d20_str, consec_down, d52_str,
+        )
+
+        return {
+            "trend_label":            trend_label,
+            "day_1_change":           day_1,
+            "day_5_change":           day_5,
+            "day_20_change":          day_20,
+            "consecutive_down_days":  consec_down,
+            "dist_from_52w_high_pct": dist_52w,
+            "trend_block":            trend_block,
+        }
+
+    except Exception as e:
+        logger.warning("[TREND] fetch_trend_context failed for %s: %s", ticker, e)
+        return _default
+
+
+# ── Market session confidence modifier ────────────────────────────────────────
+
+def apply_market_session_modifier(
+    confidence: float,
+    direction: str,
+    market_session: str,
+) -> tuple:
+    """
+    Reduces confidence when prediction goes against the broad market.
+    direction must be 'bullish' | 'bearish' | 'neutral'.
+    Returns (adjusted_confidence, warning_str_or_None).
+    """
+    contrarian_cases = {
+        ("bullish", "BROAD_SELLOFF"):  (0.65, "CONTRARIAN: Bullish call on a broad selloff day — confidence reduced"),
+        ("bearish", "BROAD_RALLY"):    (0.70, "CONTRARIAN: Bearish call on a broad rally day — confidence reduced"),
+        ("bullish", "MILD_RISK_OFF"):  (0.85, "Mild risk-off session — slight confidence reduction"),
+        ("bearish", "MILD_RISK_ON"):   (0.85, "Mild risk-on session — slight confidence reduction"),
+    }
+    key = (direction.lower(), market_session)
+    if key in contrarian_cases:
+        multiplier, warning = contrarian_cases[key]
+        return round(confidence * multiplier, 3), warning
+    return confidence, None
+
+
+# ── Volume interpretation ──────────────────────────────────────────────────────
+
+def interpret_volume(
+    volume_vs_avg: Optional[float],
+    price_change_pct: Optional[float] = None,
+) -> str:
+    """
+    Interprets volume paired with intraday price direction.
+    Volume alone is ambiguous — direction determines whether it is accumulation or distribution.
+    """
+    if volume_vs_avg is None:
+        return "Volume: UNAVAILABLE"
+
+    if volume_vs_avg >= 3.0:
+        vol_level = "EXTREME"
+    elif volume_vs_avg >= 2.0:
+        vol_level = "HIGH"
+    elif volume_vs_avg >= 1.3:
+        vol_level = "ELEVATED"
+    else:
+        vol_level = "NORMAL"
+
+    if vol_level == "NORMAL":
+        return f"Volume: {volume_vs_avg:.2f}x avg -> NORMAL — no unusual activity"
+
+    if price_change_pct is not None:
+        if price_change_pct <= -0.5 and vol_level in ("EXTREME", "HIGH"):
+            return (
+                f"Volume: {volume_vs_avg:.2f}x avg -> {vol_level} SELLOFF "
+                f"(price {price_change_pct:+.2f}% on high volume = "
+                f"institutional DISTRIBUTION — STRONGLY BEARISH)"
+            )
+        elif price_change_pct >= 0.5 and vol_level in ("EXTREME", "HIGH"):
+            return (
+                f"Volume: {volume_vs_avg:.2f}x avg -> {vol_level} RALLY "
+                f"(price {price_change_pct:+.2f}% on high volume = "
+                f"institutional ACCUMULATION — STRONGLY BULLISH)"
+            )
+        elif abs(price_change_pct) < 0.5 and vol_level in ("EXTREME", "HIGH"):
+            return (
+                f"Volume: {volume_vs_avg:.2f}x avg -> {vol_level} INDECISION "
+                f"(price flat {price_change_pct:+.2f}% on high volume = "
+                f"contested session — NEUTRAL)"
+            )
+        # ELEVATED level with price direction
+        if price_change_pct < -0.5:
+            return f"Volume: {volume_vs_avg:.2f}x avg -> {vol_level} (price {price_change_pct:+.2f}% — moderate selling pressure)"
+        elif price_change_pct > 0.5:
+            return f"Volume: {volume_vs_avg:.2f}x avg -> {vol_level} (price {price_change_pct:+.2f}% — moderate buying pressure)"
+        return f"Volume: {volume_vs_avg:.2f}x avg -> {vol_level} (price flat — indecision)"
+
+    # No price direction available
+    return (
+        f"Volume: {volume_vs_avg:.2f}x avg -> {vol_level} "
+        f"(direction unknown — DO NOT assume bullish or bearish. "
+        f"Wait for price confirmation before voting directionally.)"
+    )
+
+
+# ── Data quality checker ───────────────────────────────────────────────────────
+
+def check_data_quality(market_data: dict) -> dict:
+    """
+    Audits fetched market data and flags stale/missing fields.
+    Returns a quality report injected into the API response.
+    """
+    issues: List[str] = []
+    stale_fields: List[str] = []
+
+    required_fields = {
+        "iron_ore_price":      (50, 200),
+        "audusd_rate":         (0.50, 0.90),
+        "brent_price":         (40, 150),
+        "ticker_price":        (5, 500),
+        "ticker_volume_vs_avg": (0, 20),
+        "ticker_rsi":          (1, 99),   # None already caught by RSI fix
+    }
+
+    for field, (min_val, max_val) in required_fields.items():
+        val = market_data.get(field)
+        if val is None:
+            stale_fields.append(field)
+            issues.append(f"{field}: MISSING")
+        elif not (min_val <= float(val) <= max_val):
+            stale_fields.append(field)
+            issues.append(f"{field}: OUT OF RANGE ({val})")
+
+    data_quality = "GOOD" if not issues else ("PARTIAL" if len(issues) == 1 else "POOR")
+
+    return {
+        "data_quality":      data_quality,
+        "stale_fields":      stale_fields,
+        "data_issues":       issues,
+        "show_data_warning": data_quality == "POOR",
+    }
+
+
+# ── Main entry point ───────────────────────────────────────────────────────────
+
+async def fetch_market_context(ticker: str) -> Dict[str, Any]:
+    """
+    Fetch all live market data for the given ticker in parallel.
+
+    Results are cached for 4 minutes (MarketDataCache TTL=240s) to avoid
+    redundant API calls, while ensuring volume/price data refreshes frequently
+    enough to differ across simulations run minutes apart.
+
+    Returns a dict with:
+      - individual numeric fields (iron_ore_price, audusd_rate, etc.)
+      - context_block: pre-formatted string to inject into every agent prompt
+      - lessons: list of reflection lessons from prediction_log
+      - fetched_at: ISO timestamp string
+    """
+    cache_key = f"market_context_{ticker}"
+    cached = market_cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    fetch_start = datetime.now(timezone.utc)
+    logger.info("[MARKET] Fresh fetch starting for %s ...", ticker)
+
+    results = await asyncio.gather(
+        _fetch_iron_ore(),
+        _fetch_audusd(),
+        _fetch_brent(),
+        _fetch_ticker_technicals(ticker),
+        _fetch_news(ticker),
+        _fetch_lessons(ticker),
+        _fetch_broad_market(),
+        fetch_trend_context(ticker),
+        return_exceptions=True,
+    )
+
+    def safe(r, fallback):
+        return fallback if isinstance(r, Exception) else r
+
+    iron    = safe(results[0], {"price": 97.5,  "change_pct": 0.0, "status": STALE})
+    audusd  = safe(results[1], {"rate":  0.6500, "change_pct": 0.0, "status": STALE})
+    brent   = safe(results[2], {"price": 82.5,  "change_pct": 0.0, "status": STALE})
+    tech    = safe(results[3], {"price": 47.0,  "volume_vs_avg": 1.0, "rsi": None, "macd_signal": "NEUTRAL", "status": STALE})
+    news    = safe(results[4], [])
+    lessons = safe(results[5], [])
+    broad   = safe(results[6], {"axjo_change_pct": None, "spx_change_pct": None, "market_session": "UNKNOWN"})
+    trend   = safe(results[7], {"trend_label": "NEUTRAL", "day_1_change": None, "day_5_change": None,
+                                 "day_20_change": None, "consecutive_down_days": 0,
+                                 "dist_from_52w_high_pct": None,
+                                 "trend_block": "=== TREND MOMENTUM ===\nTrend data unavailable.\n=== END TREND ==="})
+
+    fetch_ts = fetch_start.strftime("%Y-%m-%d %H:%M UTC")
+
+    # ── Bug Fix 1: RSI interpretation — never expose raw 50.0 to agents ────────
+    raw_rsi = tech.get("rsi")
+    if raw_rsi is None or float(raw_rsi) == 50.0:
+        ticker_rsi = None
+        rsi_label  = f"{ticker} RSI: UNAVAILABLE — skip RSI in technical analysis, use volume and MACD only"
+    else:
+        ticker_rsi = float(raw_rsi)
+        if ticker_rsi >= 70:
+            rsi_signal = "OVERBOUGHT"
+        elif ticker_rsi <= 30:
+            rsi_signal = "OVERSOLD"
+        else:
+            rsi_signal = "NEUTRAL"
+        rsi_label = f"{ticker} RSI(14)={ticker_rsi} -> {rsi_signal}"
+
+    # ── Bug Fix 3: Volume interpretation — direction-aware ────────────────────
+    volume_label = interpret_volume(
+        volume_vs_avg=tech.get("volume_vs_avg"),
+        price_change_pct=tech.get("price_change_pct"),
+    )
+
+    def _chg(v: float) -> str:
+        return f"{'+' if v >= 0 else ''}{v}%"
+
+    def _stale(d: dict) -> str:
+        return " [STALE—use with caution]" if d.get("status") == STALE else ""
+
+    # Broad market session block
+    axjo_str = f"{broad['axjo_change_pct']:+.2f}%" if broad["axjo_change_pct"] is not None else "N/A"
+    spx_str  = f"{broad['spx_change_pct']:+.2f}%"  if broad["spx_change_pct"]  is not None else "N/A"
+    market_session = broad["market_session"]
+    broad_block = (
+        f"=== BROAD MARKET SESSION ===\n"
+        f"ASX 200 today: {axjo_str} | S&P 500 today: {spx_str}\n"
+        f"Session type: {market_session}\n"
+        f"=== END BROAD MARKET ==="
+    )
+
+    news_block = "\n".join(
+        f"[{n['signal_strength']}] {n['title']} ({n['hours_old']}h ago)"
+        for n in news
+    ) if news else "No recent news within 24h threshold."
+
+    lessons_block = (
+        "\n".join(f"- {l}" for l in lessons)
+        if lessons else "No past lessons available yet."
+    )
+
+    context_block = f"""{trend['trend_block']}
+=== LIVE MARKET CONTEXT (fetched {fetch_ts}) ===
+Iron Ore 62% Fe: ${iron['price']}/t | Change: {_chg(iron['change_pct'])}{_stale(iron)}
+AUD/USD: {audusd['rate']} | Change: {_chg(audusd['change_pct'])}{_stale(audusd)}
+Brent Crude: ${brent['price']}/bbl | Change: {_chg(brent['change_pct'])}{_stale(brent)}
+{ticker} Price: ${tech['price']}{_stale(tech)} | {volume_label}
+{rsi_label} | MACD Signal: {tech['macd_signal']}
+=== END MARKET CONTEXT ===
+{broad_block}
+=== NEWS SIGNALS (recency + relevance weighted) ===
+{news_block}
+=== END NEWS ===
+=== LESSONS FROM PAST PREDICTIONS ===
+{lessons_block}
+=== END LESSONS ==="""
+
+    # ── Bug Fix 5: Data quality audit ──────────────────────────────────────────
+    quality_report = check_data_quality({
+        "iron_ore_price":      iron["price"],
+        "audusd_rate":         audusd["rate"],
+        "brent_price":         brent["price"],
+        "ticker_price":        tech["price"],
+        "ticker_volume_vs_avg": tech.get("volume_vs_avg"),
+        "ticker_rsi":          ticker_rsi,
+    })
+
+    result = {
+        "iron_ore_price":      iron["price"],
+        "iron_ore_change_pct": iron["change_pct"],
+        "audusd_rate":         audusd["rate"],
+        "audusd_change_pct":   audusd["change_pct"],
+        "brent_price":             brent["price"],
+        "brent_change_pct":        brent["change_pct"],
+        "ticker_price":            tech["price"],
+        "ticker_price_change_pct": tech.get("price_change_pct"),
+        "ticker_volume_vs_avg":    tech.get("volume_vs_avg"),
+        "ticker_rsi":              ticker_rsi,
+        "ticker_macd_signal":  tech["macd_signal"],
+        "news_items":          news,
+        "lessons":             lessons,
+        "context_block":       context_block,
+        "fetched_at":          fetch_ts,
+        "data_freshness":      fetch_ts,
+        # Bug Fix 5: quality fields propagated to API response
+        "data_quality":        quality_report["data_quality"],
+        "data_issues":         quality_report["data_issues"],
+        "show_data_warning":   quality_report["show_data_warning"],
+        # Fix 2: broad market session
+        "axjo_change_pct":     broad["axjo_change_pct"],
+        "spx_change_pct":      broad["spx_change_pct"],
+        "market_session":      market_session,
+        # Fix 3: stale news count (taken from first item if any, else 0)
+        "stale_news_dropped":  news[0].get("_stale_dropped", 0) if news else 0,
+        # Trend Momentum fields
+        "trend_label":            trend["trend_label"],
+        "day_1_change":           trend.get("day_1_change"),
+        "day_5_change":           trend.get("day_5_change"),
+        "day_20_change":          trend.get("day_20_change"),
+        "consecutive_down_days":  trend.get("consecutive_down_days", 0),
+        "dist_from_52w_high_pct": trend.get("dist_from_52w_high_pct"),
+    }
+
+    logger.info("[MARKET] Fetch complete for %s: volume_vs_avg=%.2f price_chg=%s fetched_at=%s",
+                ticker,
+                result["ticker_volume_vs_avg"] or 0.0,
+                result.get("ticker_price_change_pct"),
+                fetch_ts)
+    market_cache.set(cache_key, result)
+    return result
