@@ -1,7 +1,7 @@
-"""Global Chokepoint Risk Monitor ? all 9 critical maritime chokepoints.
+"""Global Chokepoint Risk Monitor — all 9 critical maritime chokepoints.
 
 Monitors real-time shipping risk and generates ASX oil/energy predictions.
-No API key required ? uses static data + GDELT + ACLED enrichment.
+No API key required — uses static data + GDELT + ACLED enrichment.
 """
 
 import time
@@ -17,10 +17,10 @@ CHOKEPOINTS = {
         "pct_global_maritime": 25,
         "pct_global_supply": 20,
         "risk_level": "CRITICAL",
-        "alternative_route": "None ? no viable alternative",
+        "alternative_route": "None — no viable alternative",
         "current_threat": "US-Iran tensions, vessel traffic near halt March 2026",
         "asx_tickers_affected": ["WDS.AX", "STO.AX", "BHP.AX", "RIO.AX", "FMG.AX"],
-        "asx_impact": "Oil price spike ? WDS/STO revenue surge. Shipping cost rise ? BHP/RIO margin pressure",
+        "asx_impact": "Oil price spike — WDS/STO revenue surge. Shipping cost rise — BHP/RIO margin pressure",
         "impact_multiplier": 2.5,
         "cargo_types": ["crude_oil", "LPG", "LNG"],
         "width_km": 39,
@@ -36,7 +36,7 @@ CHOKEPOINTS = {
         "alternative_route": "Lombok Strait or Sunda Strait (+3-5 days)",
         "current_threat": "Piracy risk, China-ASEAN tensions",
         "asx_tickers_affected": ["BHP.AX", "RIO.AX", "FMG.AX", "WDS.AX", "STO.AX"],
-        "asx_impact": "Primary route for Australian iron ore to China. Disruption ? FMG/BHP export delay ? bearish",
+        "asx_impact": "Primary route for Australian iron ore to China. Disruption — FMG/BHP export delay — bearish",
         "impact_multiplier": 2.8,
         "cargo_types": ["crude_oil", "iron_ore", "LNG", "coal"],
         "width_km": 65,
@@ -50,7 +50,7 @@ CHOKEPOINTS = {
         "pct_global_supply": 4,
         "risk_level": "HIGH",
         "alternative_route": "Cape of Good Hope (+10-15 days, +$1M per voyage)",
-        "current_threat": "Houthi attacks ongoing since late 2023 ? traffic down 55% from peak",
+        "current_threat": "Houthi attacks ongoing since late 2023 — traffic down 55% from peak",
         "asx_tickers_affected": ["WDS.AX", "STO.AX", "WES.AX"],
         "asx_impact": "Rerouting via Cape adds 15 days shipping. Australian LNG exports to Europe affected",
         "impact_multiplier": 1.6,
@@ -66,9 +66,9 @@ CHOKEPOINTS = {
         "pct_global_supply": 5,
         "risk_level": "HIGH",
         "alternative_route": "Cape of Good Hope (+10-15 days)",
-        "current_threat": "Red Sea Houthi disruption ? many vessels already rerouted",
-        "asx_tickers_affected": ["WDS.AX", "STO.AX", "BHP.AX"],
-        "asx_impact": "12% of global trade. Australian LNG to Europe route. Closure = freight cost spike",
+        "current_threat": "Red Sea Houthi disruption — many vessels already rerouted via Cape",
+        "asx_tickers_affected": ["WDS.AX", "STO.AX"],
+        "asx_impact": "Australian LNG to Europe route. Closure = freight cost spike +$800K–1.5M/voyage. Iron ore unaffected — travels east via Malacca.",
         "impact_multiplier": 1.5,
         "cargo_types": ["crude_oil", "LNG", "container_goods", "grain"],
         "width_km": 193,
@@ -81,10 +81,10 @@ CHOKEPOINTS = {
         "pct_global_maritime": 11,
         "pct_global_supply": 9,
         "risk_level": "MEDIUM",
-        "alternative_route": "This IS the alternative ? no substitute",
+        "alternative_route": "This IS the alternative — no substitute",
         "current_threat": "Weather risks, piracy off West Africa, volume surge straining capacity",
         "asx_tickers_affected": ["WDS.AX", "STO.AX", "BHP.AX", "RIO.AX"],
-        "asx_impact": "Rerouting hub ? disruption here when Red Sea also blocked = full supply chain crisis",
+        "asx_impact": "Rerouting hub — disruption here when Red Sea also blocked = full supply chain crisis",
         "impact_multiplier": 1.8,
         "cargo_types": ["crude_oil", "LNG", "dry_bulk", "container_goods"],
         "width_km": None,
@@ -100,7 +100,7 @@ CHOKEPOINTS = {
         "alternative_route": "Cape Horn (+30 days) or US land bridge",
         "current_threat": "Drought-reduced water levels limiting transits (2024-2025 crisis)",
         "asx_tickers_affected": ["BHP.AX", "RIO.AX"],
-        "asx_impact": "Less direct ASX impact ? affects US-Asia LNG trade and copper exports",
+        "asx_impact": "Less direct ASX impact — affects US-Asia LNG trade and copper exports",
         "impact_multiplier": 0.8,
         "cargo_types": ["crude_oil", "LNG", "grain", "container_goods"],
         "width_km": 80,
@@ -116,7 +116,7 @@ CHOKEPOINTS = {
         "alternative_route": "BTC Pipeline (limited capacity)",
         "current_threat": "Russia-Ukraine war impact on Black Sea oil exports",
         "asx_tickers_affected": ["BHP.AX", "RIO.AX"],
-        "asx_impact": "Russian oil sanctions ? indirect commodity price effect on ASX miners",
+        "asx_impact": "Russian oil sanctions — indirect commodity price effect on ASX miners",
         "impact_multiplier": 0.7,
         "cargo_types": ["crude_oil", "refined_products"],
         "width_km": 1,
@@ -130,9 +130,9 @@ CHOKEPOINTS = {
         "pct_global_supply": 1,
         "risk_level": "LOW",
         "alternative_route": "Malacca Strait (if Lombok blocked, ships reroute back)",
-        "current_threat": "Low current threat ? monitoring for contingency",
+        "current_threat": "Low current threat — monitoring for contingency",
         "asx_tickers_affected": ["BHP.AX", "FMG.AX", "RIO.AX"],
-        "asx_impact": "KEY FOR ASX ? alternative to Malacca for Australian iron ore to China. Adds 3-5 days if disrupted.",
+        "asx_impact": "KEY FOR ASX — alternative to Malacca for Australian iron ore to China. Adds 3-5 days if disrupted.",
         "impact_multiplier": 1.9,
         "cargo_types": ["iron_ore", "coal", "LNG", "crude_oil"],
         "width_km": 40,
@@ -148,7 +148,7 @@ CHOKEPOINTS = {
         "alternative_route": "None for Baltic Sea access",
         "current_threat": "NATO-Russia tensions, Baltic Sea cable sabotage incidents",
         "asx_tickers_affected": [],
-        "asx_impact": "Minimal direct ASX impact ? global energy price signal only",
+        "asx_impact": "Minimal direct ASX impact — global energy price signal only",
         "impact_multiplier": 0.3,
         "cargo_types": ["crude_oil", "refined_products"],
         "width_km": 3,
@@ -236,9 +236,9 @@ def get_asx_oil_risk_prediction(chokepoint_ids: list = None) -> dict:
         "asx_signal": "BULLISH_ENERGY" if total_pct > 15 else "BEARISH_SHIPPING",
         "affected_tickers": list(all_affected),
         "primary_impact": (
-            "Oil price spike expected ? WDS.AX and STO.AX bullish"
+            "Oil price spike expected — WDS.AX and STO.AX bullish"
             if total_pct > 15
-            else "Shipping cost pressure ? mining margins squeezed"
+            else "Shipping cost pressure — mining margins squeezed"
         ),
         "active_chokepoints": [d["name"] for d in active],
         "simulation_seed": (
@@ -255,12 +255,12 @@ def get_chokepoint_simulation_context() -> str:
     high = [cp for cp in risks["chokepoints"].values() if 45 < cp["risk_score"] <= 70]
 
     critical_lines = "\n".join(
-        f"- {cp['name']}: {cp['oil_flow_mbd']}mb/d ({cp['pct_global_supply']}% global supply) ? {cp['current_threat']}"
+        f"- {cp['name']}: {cp['oil_flow_mbd']}mb/d ({cp['pct_global_supply']}% global supply) — {cp['current_threat']}"
         for cp in critical
     ) or "None"
 
     high_lines = "\n".join(
-        f"- {cp['name']}: {cp['oil_flow_mbd']}mb/d ? {cp['current_threat']}"
+        f"- {cp['name']}: {cp['oil_flow_mbd']}mb/d — {cp['current_threat']}"
         for cp in high
     ) or "None"
 
@@ -275,8 +275,8 @@ HIGH RISK ({len(high)}):
 {high_lines}
 
 ASX DIRECT IMPACT:
-- Hormuz/Malacca disruption ? oil price spike ? WDS.AX STO.AX BULLISH
-- Malacca disruption ? Australian iron ore export delay ? BHP.AX FMG.AX RIO.AX BEARISH
-- Cape of Good Hope congestion ? freight cost surge ? all exporters margin squeeze
-- Lombok disruption ? adds 3-5 days to Australia-China iron ore route ? FMG.AX BEARISH
+- Hormuz/Malacca disruption — oil price spike — WDS.AX STO.AX BULLISH
+- Malacca disruption — Australian iron ore export delay — BHP.AX FMG.AX RIO.AX BEARISH
+- Cape of Good Hope congestion — freight cost surge — all exporters margin squeeze
+- Lombok disruption — adds 3-5 days to Australia-China iron ore route — FMG.AX BEARISH
 """
