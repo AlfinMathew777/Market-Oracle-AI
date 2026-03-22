@@ -467,15 +467,36 @@ def apply_minimum_confidence_guard(
     bullish: int,
     bearish: int,
     neutral: int,
+    chain_override_active: bool = False,
 ) -> Tuple[str, float, Optional[str]]:
     """
     Prevents directional predictions when confidence is too low to be meaningful.
     confidence must be in 0–100 percentage scale.
     direction must be 'bullish' | 'bearish' | 'neutral'.
     Returns (direction, confidence, signal_note_or_None).
+
+    When chain_override_active=True the causal chain audit already contradicted
+    and overrode the agent majority.  In that case we trust the logic and keep
+    the direction — only attaching a low-confidence warning rather than
+    silencing the direction entirely.
     """
     total         = bullish + bearish + neutral
     neutral_ratio = neutral / total if total > 0 else 1.0
+
+    # Chain-override bypass: causal logic already spoke — keep direction,
+    # only warn if confidence is very low.
+    if chain_override_active and direction != "neutral":
+        if confidence < 15.0:
+            return (
+                direction,
+                confidence,
+                f"LOW_CONFIDENCE_CHAIN_OVERRIDE: causal chain analysis "
+                f"suggests {direction} despite low agent consensus "
+                f"({bullish}B/{bearish}Be/{neutral}N) — "
+                f"logic applied, direction preserved",
+            )
+        # Confidence is acceptable — no note needed
+        return direction, confidence, None
 
     # Rule 1: Hard zero confidence — no direction possible
     if confidence < 3.0:
@@ -990,6 +1011,12 @@ class Simulation:
             logger.info("Market session modifier applied: %s", market_warning)
 
         # ── Fix 1: Minimum confidence guard ──────────────────────────────────
+        # chain_override_active=True when the chain audit contradicted agents
+        # and changed the direction — guard must not undo that logic override.
+        chain_override_active = (
+            chain_override_flag is not None
+            and chain_override_flag.startswith("CHAIN_OVERRIDE:")
+        )
         confidence_pct = round(final_confidence * 100, 3)
         direction_raw, confidence_pct, signal_note = apply_minimum_confidence_guard(
             direction=direction_raw,
@@ -997,6 +1024,7 @@ class Simulation:
             bullish=n_bull,
             bearish=n_bear,
             neutral=n_neut,
+            chain_override_active=chain_override_active,
         )
         direction       = {"bullish": "UP", "bearish": "DOWN", "neutral": "NEUTRAL"}[direction_raw]
         final_confidence = round(confidence_pct / 100, 5)
