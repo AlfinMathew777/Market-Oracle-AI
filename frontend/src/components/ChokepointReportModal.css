@@ -1,0 +1,612 @@
+/* ── Overlay ── */
+.cp-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 10, 0.85);
+  backdrop-filter: blur(6px);
+  z-index: 1600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  animation: cpFadeIn 0.2s ease-out;
+}
+
+@keyframes cpFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.cp-modal {
+  background: linear-gradient(160deg, #080810 0%, #0b0b1a 100%);
+  border: 1px solid rgba(255, 136, 0, 0.35);
+  border-radius: 14px;
+  width: 900px;
+  max-width: 96vw;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 0 60px rgba(255, 100, 0, 0.12);
+  animation: cpSlideUp 0.22s ease-out;
+}
+
+@keyframes cpSlideUp {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Header ── */
+.cp-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 24px;
+  border-bottom: 1px solid rgba(255, 136, 0, 0.2);
+  background: rgba(255, 136, 0, 0.04);
+  flex-shrink: 0;
+}
+
+.cp-modal-header-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.cp-modal-anchor {
+  font-size: 28px;
+  line-height: 1;
+}
+
+.cp-modal-title {
+  font-size: 18px;
+  font-weight: 800;
+  color: #ff9933;
+  letter-spacing: 1px;
+}
+
+.cp-modal-subtitle {
+  font-size: 10px;
+  color: #555;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  margin-top: 2px;
+}
+
+.cp-close-btn {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 6px;
+  color: #666;
+  font-size: 14px;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+.cp-close-btn:hover { background: rgba(255,50,50,0.15); color: #ff5555; }
+
+/* ── Body ── */
+.cp-modal-body {
+  overflow-y: auto;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.cp-modal-body::-webkit-scrollbar { width: 6px; }
+.cp-modal-body::-webkit-scrollbar-thumb { background: rgba(255,136,0,0.25); border-radius: 3px; }
+
+/* ── Hero ── */
+.cp-hero {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.cp-hero-item {
+  flex: 1;
+  min-width: 120px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 8px;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cp-hero-label {
+  font-size: 9px;
+  color: #555;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
+
+.cp-hero-value {
+  font-size: 18px;
+  font-weight: 800;
+  font-family: 'Courier New', monospace;
+  letter-spacing: 0.5px;
+}
+
+/* ── Section ── */
+.cp-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.cp-section-title {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: #555;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+/* ── Insight ── */
+.cp-insight {
+  border-left: 3px solid #ff8800;
+  padding-left: 14px;
+}
+
+.cp-insight-text {
+  font-size: 13px;
+  color: #dda;
+  line-height: 1.6;
+  margin: 0;
+  font-style: italic;
+}
+
+/* ── Details grid ── */
+.cp-details-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.cp-detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cp-detail-label {
+  font-size: 9px;
+  color: #555;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.cp-detail-value {
+  font-size: 11px;
+  color: #aaa;
+  line-height: 1.4;
+}
+
+.cp-tag-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.cp-tag {
+  background: rgba(255,136,0,0.1);
+  border: 1px solid rgba(255,136,0,0.25);
+  color: #cc7700;
+  font-size: 9px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  letter-spacing: 0.5px;
+}
+
+/* ── GDP banner ── */
+.cp-gdp-banner {
+  background: rgba(255,100,0,0.08);
+  border: 1px solid rgba(255,100,0,0.2);
+  border-radius: 6px;
+  padding: 10px 14px;
+  font-size: 11px;
+  color: #cc8844;
+  line-height: 1.5;
+}
+
+.cp-gdp-label {
+  font-weight: 700;
+  color: #ff8800;
+  letter-spacing: 1px;
+  margin-right: 8px;
+  font-size: 9px;
+}
+
+/* ── Two-col ── */
+.cp-two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+/* ── Ticker list ── */
+.cp-ticker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cp-ticker-row {
+  padding: 10px 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,0.06);
+  background: rgba(255,255,255,0.02);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.cp-ticker-left {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cp-ticker-name {
+  font-size: 13px;
+  font-weight: 800;
+  color: #fff;
+  font-family: 'Courier New', monospace;
+}
+
+.cp-ticker-dir {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.cp-order-badge {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  border: 1px solid;
+  opacity: 0.85;
+}
+
+.cp-ticker-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cp-conf-bar-wrap {
+  position: relative;
+  width: 60px;
+  height: 4px;
+  background: rgba(255,255,255,0.07);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.cp-conf-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.8s ease-out;
+}
+
+/* Cap marker — vertical tick on the confidence bar */
+.cp-conf-cap-line {
+  position: absolute;
+  top: 0;
+  width: 1px;
+  height: 100%;
+  background: rgba(255,255,255,0.25);
+}
+
+.cp-conf-pct {
+  font-size: 10px;
+  font-weight: 700;
+  font-family: monospace;
+  min-width: 28px;
+  text-align: right;
+}
+
+.cp-ticker-reason {
+  flex-basis: 100%;
+  font-size: 11px;
+  color: #777;
+  line-height: 1.4;
+  margin-top: 2px;
+}
+
+/* ── Sector list ── */
+.cp-sector-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.cp-sector-item {
+  padding: 10px 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,0.06);
+  background: rgba(255,255,255,0.02);
+}
+
+.cp-sector-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 5px;
+}
+
+.cp-sector-name {
+  font-size: 10px;
+  font-weight: 700;
+  color: #ccc;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.cp-sector-dir {
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.cp-sector-mag {
+  font-size: 9px;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: rgba(255,255,255,0.05);
+  margin-left: auto;
+}
+
+.cp-sector-reason {
+  font-size: 11px;
+  color: #888;
+  line-height: 1.5;
+  margin: 0 0 4px;
+}
+
+.cp-sector-price {
+  font-size: 10px;
+  color: #ff8800;
+  font-family: monospace;
+}
+
+.cp-sector-time {
+  font-size: 10px;
+  color: #666;
+  margin-top: 2px;
+}
+
+.cp-sector-mag-num {
+  font-size: 11px;
+  font-weight: 700;
+  font-family: monospace;
+  margin-left: auto;
+}
+
+.cp-sector-mag-bar-track {
+  height: 5px;
+  background: rgba(255,255,255,0.05);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-top: 4px;
+}
+
+.cp-sector-mag-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.9s ease-out;
+}
+
+/* ── Regions ── */
+.cp-region-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.cp-region-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.cp-region-dot {
+  font-size: 8px;
+  margin-top: 3px;
+  flex-shrink: 0;
+}
+
+.cp-region-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.cp-region-name {
+  font-size: 11px;
+  color: #ccc;
+  font-weight: 600;
+}
+
+.cp-region-sev {
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+/* ── State heatmap ── */
+.cp-state-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cp-state-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cp-state-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #aaa;
+  width: 32px;
+  flex-shrink: 0;
+  font-family: 'Courier New', monospace;
+}
+
+.cp-state-track {
+  flex: 1;
+  height: 8px;
+  background: rgba(255,255,255,0.05);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.cp-state-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 1s ease-out;
+}
+
+.cp-state-pct {
+  font-size: 10px;
+  font-weight: 700;
+  font-family: monospace;
+  width: 32px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* ── Companies by State ── */
+.cp-states-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.cp-state-card {
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cp-state-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cp-state-icon { font-size: 16px; flex-shrink: 0; }
+
+.cp-state-card-info {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.cp-state-card-name {
+  font-size: 11px;
+  font-weight: 700;
+  color: #ddd;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cp-state-card-industry {
+  font-size: 9px;
+  color: #555;
+  letter-spacing: 0.3px;
+  margin-top: 1px;
+}
+
+.cp-state-card-score {
+  font-size: 14px;
+  font-weight: 800;
+  font-family: monospace;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid;
+  flex-shrink: 0;
+}
+
+.cp-state-company-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cp-state-group-label {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  padding: 2px 0;
+}
+
+.cp-winners-label { color: #00bb66; }
+.cp-losers-label  { color: #cc2244; }
+
+.cp-state-company {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+}
+
+.cp-state-winner { background: rgba(0,255,136,0.05); border: 1px solid rgba(0,255,136,0.12); }
+.cp-state-loser  { background: rgba(255,51,102,0.05); border: 1px solid rgba(255,51,102,0.12); }
+
+.cp-state-co-ticker {
+  font-weight: 800;
+  font-family: 'Courier New', monospace;
+  color: #fff;
+  min-width: 28px;
+}
+
+.cp-state-co-name {
+  flex: 1;
+  color: #888;
+  font-size: 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cp-state-co-conf {
+  font-size: 10px;
+  font-weight: 700;
+  font-family: monospace;
+  flex-shrink: 0;
+}
+
+/* ── Misc ── */
+.cp-empty {
+  font-size: 11px;
+  color: #555;
+  font-style: italic;
+}
+
+.cp-disclaimer {
+  font-size: 10px;
+  color: #333;
+  text-align: center;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255,255,255,0.04);
+}

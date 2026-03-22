@@ -304,6 +304,20 @@
 .pred-freshness-warn  { color: #f0a500; font-weight: 600; }
 .pred-freshness-vol   { color: #888; }
 
+.pred-trend { padding: 6px 0; border-top: 1px solid rgba(255,255,255,0.06); margin-top: 6px; }
+.pred-trend-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 4px; font-size: 12px; }
+.pred-trend-secondary { color: #888; font-size: 11px; margin-top: 2px; }
+.pred-trend-label { font-weight: 700; font-size: 11px; padding: 2px 6px; border-radius: 3px; letter-spacing: 0.5px; }
+.pred-trend-label.pred-trend-strong-downtrend { background: rgba(220,53,69,0.25); color: #ff6b81; }
+.pred-trend-label.pred-trend-downtrend        { background: rgba(220,53,69,0.12); color: #ff8c99; }
+.pred-trend-label.pred-trend-sideways         { background: rgba(255,193,7,0.12);  color: #ffc107; }
+.pred-trend-label.pred-trend-uptrend          { background: rgba(40,167,69,0.12);  color: #6fcf97; }
+.pred-trend-label.pred-trend-strong-uptrend   { background: rgba(40,167,69,0.25);  color: #27ae60; }
+.pred-trend-stat  { color: #aaa; font-size: 11px; font-family: monospace; }
+.pred-trend-warning { font-size: 10px; margin-top: 3px; padding: 2px 6px; border-radius: 3px; display: inline-block; }
+.pred-trend-emergency { background: rgba(220,53,69,0.18); color: #ff6b81; }
+.pred-trend-cache     { background: rgba(100,100,120,0.2); color: #999; }
+
 .pred-disclaimer {
   font-size: 11px;
   color: #333;

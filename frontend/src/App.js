@@ -3,6 +3,7 @@ import Globe from './components/Globe';
 import AustraliaMap from './components/AustraliaMap';
 import EventSidebar from './components/EventSidebar';
 import PredictionCard from './components/PredictionCard';
+import ChokepointReportModal from './components/ChokepointReportModal';
 import TickerStrip from './components/TickerStrip';
 import SimulationProgress from './components/SimulationProgress';
 import SectorHeatmap from './components/SectorHeatmap';
@@ -31,6 +32,8 @@ function App() {
   const [correlationArc, setCorrelationArc] = useState({ show: false, eventLat: 0, eventLng: 0 });
   const [viewMode, setViewMode] = useState('australia'); // 'australia' or 'global'
   const [activeTab, setActiveTab] = useState('main'); // 'main' or 'track-record'
+  const [chokepointReport, setChokepointReport] = useState(null);  // full chokepoint sim result
+  const [lastSimScores, setLastSimScores] = useState({});           // cpId → {topPredictions, generatedAt}
   const arcTimeoutRef = useRef(null);
 
   // Sync activeTab with URL hash
@@ -59,6 +62,9 @@ function App() {
 
   useEffect(() => {
     fetchInitialData();
+    // Refresh events every 6 hours (ACLED cache TTL is 1 hour on backend)
+    const refreshInterval = setInterval(fetchInitialData, 6 * 60 * 60 * 1000);
+    return () => clearInterval(refreshInterval);
   }, []);
 
   const fetchInitialData = async () => {
@@ -114,15 +120,27 @@ function App() {
 
       console.log('Starting simulation for:', requestBody);
 
-      const response = await fetch(`${BACKEND_URL}/api/simulate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody),
-      });
+      // Retry once if the backend is cold-starting (Render free tier)
+      let response;
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        try {
+          response = await fetch(`${BACKEND_URL}/api/simulate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(requestBody),
+          });
+          break;
+        } catch (fetchErr) {
+          if (attempt === 2) throw fetchErr;
+          console.warn('Simulation fetch failed, retrying after 10s (backend may be waking)…');
+          await new Promise(r => setTimeout(r, 10000));
+        }
+      }
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Simulation failed');
+        let detail = 'Simulation failed';
+        try { detail = (await response.json()).detail || detail; } catch (_) {}
+        throw new Error(detail);
       }
 
       const result = await response.json();
@@ -155,6 +173,30 @@ function App() {
     } finally {
       setIsSimulating(false);
       setSimulationStartTime(null);
+    }
+  };
+
+  const handleChokepointSimulate = async (cpId) => {
+    try {
+      const res = await fetch(
+        `${BACKEND_URL}/api/simulate/chokepoint?chokepoint_id=${cpId}&duration_days=7`,
+        { method: 'POST' }
+      );
+      const result = await res.json();
+      if (result.status === 'completed') {
+        setChokepointReport(result);
+        // Store condensed scores for globe display
+        const preds = result.impact?.asx_predictions || [];
+        setLastSimScores(prev => ({
+          ...prev,
+          [cpId]: {
+            topPredictions: preds.slice(0, 3),
+            generatedAt: new Date().toISOString(),
+          },
+        }));
+      }
+    } catch (err) {
+      console.error('Chokepoint simulation error:', err);
     }
   };
 
@@ -258,6 +300,8 @@ function App() {
                 onEventClick={handleEventClick}
                 isSimulating={isSimulating}
                 correlationArc={correlationArc}
+                onChokepointSimulate={handleChokepointSimulate}
+                lastSimScores={lastSimScores}
               />
             )}
           </div>
@@ -320,12 +364,16 @@ function App() {
           <ErrorBoundary>
             <ChokepointRiskPanel
               onSimulateChokepoint={(result) => {
-                if (result?.prediction) {
-                  setPrediction({
-                    ...result.prediction,
-                    source: 'chokepoint',
-                    chokepoint_name: result.chokepoint_name,
-                  });
+                setChokepointReport(result);
+                const preds = result?.impact?.asx_predictions || [];
+                if (result?.chokepoint_id) {
+                  setLastSimScores(prev => ({
+                    ...prev,
+                    [result.chokepoint_id]: {
+                      topPredictions: preds.slice(0, 3),
+                      generatedAt: new Date().toISOString(),
+                    },
+                  }));
                 }
               }}
             />
@@ -346,6 +394,15 @@ function App() {
       {prediction && predictionOpen && (
         <ErrorBoundary>
           <PredictionCard prediction={prediction} onClose={() => setPredictionOpen(false)} />
+        </ErrorBoundary>
+      )}
+
+      {chokepointReport && (
+        <ErrorBoundary>
+          <ChokepointReportModal
+            result={chokepointReport}
+            onClose={() => setChokepointReport(null)}
+          />
         </ErrorBoundary>
       )}
     </div>

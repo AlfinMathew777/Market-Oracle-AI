@@ -168,6 +168,11 @@ class PredictionCard(BaseModel):
     dist_from_52w_high_pct:  Optional[float] = None  # % distance from 52-week high (negative = below)
     ticker_volume_vs_avg:    Optional[float] = None  # intraday volume / 3-month avg volume
 
+    # Trend data provenance — shown in UI when data is not freshly fetched
+    trend_from_cache:        Optional[bool]  = None  # True when trend came from cache (not live fetch)
+    trend_emergency:         Optional[bool]  = None  # True when hardcoded emergency fallback was used
+    trend_cache_age_hours:   Optional[float] = None  # How old the cache entry was (hours)
+
     # Anti-bias transparency
     persona_distribution:    Optional[str]   = None  # e.g. "Bear-weighted: strong downtrend confirmed"
 

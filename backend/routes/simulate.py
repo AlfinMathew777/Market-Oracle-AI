@@ -241,20 +241,29 @@ async def simulate_chokepoint_disruption(chokepoint_id: str, duration_days: int 
         raise HTTPException(status_code=400, detail=f"Unknown chokepoint: {chokepoint_id}")
 
     try:
+        from services.australian_impact_engine import CHOKEPOINT_AUSTRALIA_MATRIX
         impact = predict_australian_impact([chokepoint_id], duration_days)
         cp = CHOKEPOINTS[chokepoint_id]
+        matrix_entry = CHOKEPOINT_AUSTRALIA_MATRIX.get(chokepoint_id, {})
         return {
             "status": "completed",
             "chokepoint_id": chokepoint_id,
             "chokepoint_name": cp["name"],
-            "impact": impact,
-            "prediction": {
-                "direction": impact["asx_predictions"][0]["direction"] if impact["asx_predictions"] else "NEUTRAL",
-                "key_insight": impact["key_insight"],
-                "export_value_at_risk_aud_bn": impact["export_value_at_risk_aud_bn"],
-                "top_tickers": [p["ticker"] for p in impact["asx_predictions"][:5]],
-                "simulation_seed": impact["simulation_seed"],
+            # Chokepoint static details
+            "chokepoint_details": {
+                "oil_flow_mbd": cp.get("oil_flow_mbd"),
+                "pct_global_supply": cp.get("pct_global_supply"),
+                "risk_level": cp.get("risk_level"),
+                "alternative_route": cp.get("alternative_route"),
+                "current_threat": cp.get("current_threat"),
+                "cargo_types": cp.get("cargo_types", []),
+                "countries_controlling": cp.get("countries_controlling", []),
             },
+            # Sector-level impact breakdown
+            "sector_impacts": matrix_entry.get("australian_impact", {}),
+            "gdp_impact_estimate": matrix_entry.get("gdp_impact_estimate"),
+            # Full impact engine output
+            "impact": impact,
         }
     except Exception as e:
         logger.error(f"Chokepoint simulation error: {e}")

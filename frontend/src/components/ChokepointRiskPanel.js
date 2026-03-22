@@ -6,6 +6,7 @@ const ChokepointRiskPanel = ({ onSimulateChokepoint }) => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(null);
+  const [simulating, setSimulating] = useState(null);   // chokepoint_id currently running
 
   useEffect(() => {
     fetchChokepoints();
@@ -26,7 +27,7 @@ const ChokepointRiskPanel = ({ onSimulateChokepoint }) => {
   };
 
   const handleSimulate = async (cpId) => {
-    if (!onSimulateChokepoint) return;
+    setSimulating(cpId);
     try {
       const res = await fetch(
         `${BACKEND_URL}/api/simulate/chokepoint?chokepoint_id=${cpId}&duration_days=7`,
@@ -34,10 +35,12 @@ const ChokepointRiskPanel = ({ onSimulateChokepoint }) => {
       );
       const result = await res.json();
       if (result.status === 'completed') {
-        onSimulateChokepoint(result);
+        if (onSimulateChokepoint) onSimulateChokepoint(result);
       }
     } catch (err) {
       console.error('Chokepoint simulation error:', err);
+    } finally {
+      setSimulating(null);
     }
   };
 
@@ -133,10 +136,15 @@ const ChokepointRiskPanel = ({ onSimulateChokepoint }) => {
                   </div>
                 )}
                 <button
-                  style={styles.simBtn}
-                  onClick={() => handleSimulate(cp.chokepoint_id)}
+                  style={{
+                    ...styles.simBtn,
+                    opacity: simulating === cp.chokepoint_id ? 0.6 : 1,
+                    cursor: simulating === cp.chokepoint_id ? 'not-allowed' : 'pointer',
+                  }}
+                  onClick={() => simulating ? null : handleSimulate(cp.chokepoint_id)}
+                  disabled={!!simulating}
                 >
-                  ▶ Simulate ASX Impact
+                  {simulating === cp.chokepoint_id ? '⟳ Simulating...' : '▶ Simulate ASX Impact'}
                 </button>
               </div>
             )}

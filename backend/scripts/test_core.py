@@ -48,6 +48,7 @@ from models.prediction import (
     KeySignal, SignalType, AgentConsensus, CausalChainStep
 )
 from event_ticker_mapping import map_event_to_ticker, get_ticker_info
+from services.ticker_profiles import build_ticker_context_block
 
 logger = logging.getLogger(__name__)
 
@@ -136,6 +137,43 @@ _TREND_MOMENTUM_RULE = (
     "treat as structural selling pressure until a confirmed reversal session appears.\n"
 )
 
+_RSI_RULE = (
+    "RSI INTERPRETATION RULES (mandatory — apply before any other signal):\n"
+    "RSI < 25 (DEEPLY OVERSOLD):\n"
+    "  Even in STRONG_DOWNTREND, flag a potential technical bounce.\n"
+    "  Vote: NEUTRAL (not bearish) unless there is a CRITICAL fundamental bearish catalyst TODAY.\n"
+    "  State in reasoning: 'RSI [value] — deeply oversold, technical bounce possible within 1-5 sessions'\n"
+    "RSI 25-35 (OVERSOLD):\n"
+    "  In downtrend: vote bearish but note oversold condition in reasoning.\n"
+    "  In uptrend: vote bullish (oversold in uptrend = buy signal).\n"
+    "RSI 35-65 (NEUTRAL RANGE):\n"
+    "  No RSI bias — use other signals (MACD, volume, trend).\n"
+    "RSI 65-75 (OVERBOUGHT):\n"
+    "  In uptrend: vote bullish but note overbought condition in reasoning.\n"
+    "  In downtrend: vote bearish (overbought in downtrend = distribution / sell signal).\n"
+    "RSI > 75 (DEEPLY OVERBOUGHT):\n"
+    "  Even in STRONG_UPTREND, flag potential pullback.\n"
+    "  Vote: NEUTRAL unless there is a strong fundamental bullish catalyst confirmed today.\n"
+    "  State in reasoning: 'RSI [value] — deeply overbought, pullback risk within 1-5 sessions'\n"
+    "If RSI is UNAVAILABLE: skip all RSI rules and rely on MACD + volume + trend.\n"
+)
+
+_RSI_CONFLICT_RULE = (
+    "RSI CONFLICT RESOLUTION (mandatory — check before finalising verdict):\n"
+    "If RSI < 25 AND trend_label = STRONG_DOWNTREND:\n"
+    "  This is a CONTESTED signal — extreme oversold vs confirmed downtrend.\n"
+    "  REQUIRED: return LOGIC_CONFIDENCE: medium (never high).\n"
+    "  REQUIRED: return LOGIC_VERDICT: neutral.\n"
+    "  State in REASONING: 'Oversold bounce likely but trend remains bearish. "
+    "Short-term: neutral/bounce. Medium-term: bearish.'\n"
+    "If RSI > 75 AND trend_label = STRONG_UPTREND:\n"
+    "  This is a CONTESTED signal — extreme overbought vs confirmed uptrend.\n"
+    "  REQUIRED: return LOGIC_CONFIDENCE: medium (never high).\n"
+    "  REQUIRED: return LOGIC_VERDICT: neutral.\n"
+    "  State in REASONING: 'Overbought pullback likely but trend remains bullish. "
+    "Short-term: neutral/pullback. Medium-term: bullish.'\n"
+)
+
 _AUDUSD_RULE = (
     "AUD/USD INTERPRETATION RULE (mandatory):\n"
     "AUD/USD weakness is NOT automatically bullish for ASX miners.\n"
@@ -152,6 +190,7 @@ _AUDUSD_RULE = (
 
 def _macro_bull_prompt(ticker: str) -> str:
     return (
+        f"{build_ticker_context_block(ticker)}\n\n"
         f"You are a bullish macro analyst. Your ONLY job is to find reasons why {ticker} might go UP "
         f"in the next 24 hours. Look for: China stimulus signals, infrastructure demand, supply shortages, "
         f"positive earnings revisions, AUD weakness (which boosts USD-denominated revenue), "
@@ -168,6 +207,7 @@ def _macro_bull_prompt(ticker: str) -> str:
 
 def _geo_bear_prompt(ticker: str) -> str:
     return (
+        f"{build_ticker_context_block(ticker)}\n\n"
         f"You are a bearish geopolitical risk analyst. Your ONLY job is to find reasons why {ticker} might go DOWN "
         f"in the next 24 hours. Look for: conflict escalation, shipping disruptions, sanctions, "
         f"risk-off sentiment in Asian markets, commodity demand destruction, "
@@ -184,6 +224,7 @@ def _geo_bear_prompt(ticker: str) -> str:
 
 def _quant_prompt(ticker: str) -> str:
     return (
+        f"{build_ticker_context_block(ticker)}\n\n"
         f"You are a quantitative technical analyst. You IGNORE all news, geopolitics, and macroeconomics. "
         f"You only analyse price action and technical indicators for {ticker}. "
         f"Based on the provided RSI, MACD signal, volume trend, and 20-day moving average data in the market context, "
@@ -195,6 +236,7 @@ def _quant_prompt(ticker: str) -> str:
         f"- If Volume label contains 'ELEVATED': neutral is allowed only if RSI is between 45-55 AND MACD is flat.\n"
         f"- If Volume label contains 'NORMAL' or 'UNAVAILABLE': neutral is always acceptable.\n"
         f"- If RSI is marked UNAVAILABLE: rely entirely on MACD signal and volume for your vote.\n\n"
+        f"{_RSI_RULE}\n"
         f"{_TREND_MOMENTUM_RULE}\n"
         f"{_AUDUSD_RULE}\n"
         f"{_BROAD_MARKET_RULE}\n"
@@ -244,6 +286,7 @@ def get_neutral_agent_bias_instruction(trend_label: str) -> str:
 def _neutral_fund_prompt(ticker: str, trend_label: str = "NEUTRAL") -> str:
     bias_instruction = get_neutral_agent_bias_instruction(trend_label)
     return (
+        f"{build_ticker_context_block(ticker)}\n\n"
         f"You are a fundamental analyst focused on {ticker}'s core business. "
         f"Analyse the provided commodity prices, currency rates, and recent company news "
         f"to determine fair value direction over the next 24 hours.\n\n"
@@ -274,6 +317,7 @@ def _blind_judge_prompt(ticker: str, lessons_block: str) -> str:
         f"that is a LOGIC FAILURE. Flag it.\n"
         f"4. Which CRITICAL-rated news items exist and which side do they support? "
         f"CRITICAL signals must dominate the verdict.\n\n"
+        f"{_RSI_CONFLICT_RULE}\n"
         f"Return EXACTLY these five lines (no JSON, no markdown):\n"
         f"LOGIC_VERDICT: [bullish/bearish/neutral]\n"
         f"LOGIC_CONFIDENCE: [high/medium/low]\n"
@@ -1231,13 +1275,16 @@ class Simulation:
             "reconciler_reasoning":    simulation_results.get("reconciler_reasoning"),
             # Fix 3: stale news dropped count
             "stale_news_dropped":      market_ctx.get("stale_news_dropped", 0),
-            # Trend Momentum fields
+            # Trend Momentum fields (includes provenance flags for UI)
             "trend_label":             market_ctx.get("trend_label"),
             "day_1_change":            market_ctx.get("day_1_change"),
             "day_5_change":            market_ctx.get("day_5_change"),
             "day_20_change":           market_ctx.get("day_20_change"),
             "consecutive_down_days":   market_ctx.get("consecutive_down_days"),
             "dist_from_52w_high_pct":  market_ctx.get("dist_from_52w_high_pct"),
+            "trend_from_cache":        market_ctx.get("trend_from_cache", False),
+            "trend_emergency":         market_ctx.get("trend_emergency", False),
+            "trend_cache_age_hours":   market_ctx.get("trend_cache_age_hours"),
             "ticker_volume_vs_avg":    market_ctx.get("ticker_volume_vs_avg"),
             # Anti-bias: persona distribution used
             "persona_distribution":    simulation_results.get("persona_distribution"),

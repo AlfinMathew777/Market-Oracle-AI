@@ -25,6 +25,12 @@ function PredictionCard({ prediction, onClose }) {
   const confidencePercent = Math.round(prediction.confidence * 100);
   const dirColor = getDirectionColor(prediction.direction);
 
+  // Neutral predictions with <5% confidence look like bugs when shown as "0%".
+  // Show a plain-language label instead.
+  const isNoSignal = prediction.direction === 'NEUTRAL' && confidencePercent < 5;
+  const confidenceDisplay = isNoSignal ? 'No clear signal' : `${confidencePercent}%`;
+  const confidenceColor   = isNoSignal ? '#666666' : dirColor;
+
   return (
     <div className="prediction-modal-overlay" onClick={onClose}>
       <div className="prediction-modal" onClick={e => e.stopPropagation()}>
@@ -60,30 +66,34 @@ function PredictionCard({ prediction, onClose }) {
           <div className="pred-section">
             <div className="pred-section-title">
               Confidence
-              <span className="pred-conf-pct" style={{ color: dirColor }}>{confidencePercent}%</span>
+              <span className="pred-conf-pct" style={{ color: confidenceColor }}>{confidenceDisplay}</span>
             </div>
-            <div className="pred-conf-bar">
-              <div className="pred-conf-fill" style={{ width: `${confidencePercent}%`, background: dirColor }} />
-            </div>
+            {!isNoSignal && (
+              <div className="pred-conf-bar">
+                <div className="pred-conf-fill" style={{ width: `${confidencePercent}%`, background: confidenceColor }} />
+              </div>
+            )}
           </div>
 
           {/* Agent consensus */}
+          {prediction.agent_consensus && (
           <div className="pred-section">
             <div className="pred-section-title">
-              Agent Consensus — {prediction.agent_consensus.up + prediction.agent_consensus.down + prediction.agent_consensus.neutral} agents
+              Agent Consensus — {(prediction.agent_consensus.up ?? 0) + (prediction.agent_consensus.down ?? 0) + (prediction.agent_consensus.neutral ?? 0)} agents
             </div>
             <div className="pred-consensus-row">
               <div className="pred-consensus-item pred-up">
-                <span>▲</span><span className="pred-cons-n">{prediction.agent_consensus.up}</span><span>Bullish</span>
+                <span>▲</span><span className="pred-cons-n">{prediction.agent_consensus.up ?? 0}</span><span>Bullish</span>
               </div>
               <div className="pred-consensus-item pred-down">
-                <span>▼</span><span className="pred-cons-n">{prediction.agent_consensus.down}</span><span>Bearish</span>
+                <span>▼</span><span className="pred-cons-n">{prediction.agent_consensus.down ?? 0}</span><span>Bearish</span>
               </div>
               <div className="pred-consensus-item pred-neutral">
-                <span>—</span><span className="pred-cons-n">{prediction.agent_consensus.neutral}</span><span>Neutral</span>
+                <span>—</span><span className="pred-cons-n">{prediction.agent_consensus.neutral ?? 0}</span><span>Neutral</span>
               </div>
             </div>
           </div>
+          )}
 
           {/* Two-column layout for the rest */}
           <div className="pred-two-col">
@@ -112,6 +122,45 @@ function PredictionCard({ prediction, onClose }) {
                       <p>{signal.description}</p>
                     </div>
                   ))}
+                </div>
+              )}
+
+              {/* Trend context */}
+              {prediction.trend_label && (
+                <div className="pred-section pred-trend">
+                  <div className="pred-section-title">Trend</div>
+                  <div className="pred-trend-row">
+                    <span className={`pred-trend-label pred-trend-${(prediction.trend_label || '').toLowerCase().replace('_', '-')}`}>
+                      {prediction.trend_label}
+                    </span>
+                    {prediction.day_1_change != null && (
+                      <span className="pred-trend-stat">Day1: {prediction.day_1_change > 0 ? '+' : ''}{prediction.day_1_change}%</span>
+                    )}
+                    {prediction.day_5_change != null && (
+                      <span className="pred-trend-stat">Day5: {prediction.day_5_change > 0 ? '+' : ''}{prediction.day_5_change}%</span>
+                    )}
+                    {prediction.day_20_change != null && (
+                      <span className="pred-trend-stat">Day20: {prediction.day_20_change > 0 ? '+' : ''}{prediction.day_20_change}%</span>
+                    )}
+                  </div>
+                  {(prediction.consecutive_down_days != null || prediction.dist_from_52w_high_pct != null) && (
+                    <div className="pred-trend-row pred-trend-secondary">
+                      {prediction.consecutive_down_days != null && (
+                        <span>Consecutive down days: {prediction.consecutive_down_days}</span>
+                      )}
+                      {prediction.dist_from_52w_high_pct != null && (
+                        <span>Distance from 52w high: {prediction.dist_from_52w_high_pct}%</span>
+                      )}
+                    </div>
+                  )}
+                  {prediction.trend_emergency && (
+                    <div className="pred-trend-warning pred-trend-emergency">⚠ Emergency fallback — live price history unavailable</div>
+                  )}
+                  {!prediction.trend_emergency && prediction.trend_from_cache && (
+                    <div className="pred-trend-warning pred-trend-cache">
+                      from cache{prediction.trend_cache_age_hours != null ? ` · ${prediction.trend_cache_age_hours}h ago` : ''}
+                    </div>
+                  )}
                 </div>
               )}
 

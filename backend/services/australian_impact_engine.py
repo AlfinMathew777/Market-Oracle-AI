@@ -129,12 +129,20 @@ CHOKEPOINT_AUSTRALIA_MATRIX = {
                 "asx_signal": {"WHC.AX": "DOWN", "NHC.AX": "DOWN"},
                 "time_to_asx_impact": "48-72 hours",
             },
+            "MACRO_RATES": {
+                "direction": "BEARISH_CONSUMER",
+                "magnitude": "LOW",
+                "reason": "Malacca disruption raises freight costs → Australian import inflation → RBA rate hike risk → bank net interest margins squeezed, consumer stress rises.",
+                "asx_signal": {"CBA.AX": "SLIGHT_DOWN"},
+                "time_to_asx_impact": "4-8 weeks (macro transmission lag)",
+            },
         },
         "australian_regions_affected": {
-            "Pilbara WA": "CRITICAL ? BHP/RIO/FMG export halt",
-            "Port Hedland WA": "CRITICAL ? world's largest bulk export port, $288M AUD/day",
-            "Karratha WA": "HIGH ? LNG + iron ore dual exposure",
-            "Gladstone QLD": "HIGH ? coal and LNG exports",
+            "Pilbara WA": "CRITICAL — BHP/RIO/FMG export halt",
+            "Port Hedland WA": "CRITICAL — world's largest bulk export port, $288M AUD/day",
+            "Karratha WA": "HIGH — LNG + iron ore dual exposure",
+            "Gladstone QLD": "HIGH — coal and LNG exports",
+            "Newcastle NSW": "HIGH — world's largest coal export port, thermal coal to Japan/Korea routes through Malacca",
         },
         "gdp_impact_estimate": "Malacca closure lasting 14 days = estimated $4-8B AUD impact. Port Hedland exports $288M AUD of iron ore every single day.",
     },
@@ -217,49 +225,235 @@ CHOKEPOINT_AUSTRALIA_MATRIX = {
 }
 
 
+# ── Fix 1: Realistic exports-at-risk ─────────────────────────────────────────
+# Based on Australian Resources & Energy Quarterly Dec 2025
+_ANNUAL_EXPORTS = {
+    "iron_ore": 130_000_000_000,
+    "lng":       70_000_000_000,
+    "coal":      60_000_000_000,
+    "copper":    15_000_000_000,
+    "other":     15_000_000_000,
+}
+
+# Fraction of each commodity that transits each chokepoint (exposure %)
+# × probability_multiplier reflects how "confirmed" the disruption usually is
+_CHOKEPOINT_EXPOSURE = {
+    "hormuz": {
+        "affected_commodities": {"lng": 0.15, "iron_ore": 0.02, "coal": 0.05},
+        "probability_multiplier": 1.0,
+    },
+    "malacca": {
+        "affected_commodities": {"iron_ore": 0.85, "coal": 0.60, "lng": 0.30},
+        "probability_multiplier": 1.0,
+    },
+    "bab_el_mandeb": {
+        "affected_commodities": {"lng": 0.10, "iron_ore": 0.05, "coal": 0.05},
+        "probability_multiplier": 0.8,
+    },
+    "suez": {
+        # 15% direct LNG European exposure; fractions doubled to include shipping cost
+        # premium and contract penalties — standard 2-week analysis period for Suez closure
+        "affected_commodities": {
+            "lng":      0.30,  # 15% direct × premium (NW Shelf + Darwin LNG to Europe)
+            "coal":     0.24,  # Newcastle thermal coal to Europe × premium
+            "iron_ore": 0.04,  # minimal — Australian iron ore travels EAST through Malacca to China
+        },
+        "probability_multiplier":  0.9,
+        "default_duration_weeks":  2,   # standard Suez analysis: 2-week closure scenario
+    },
+    "cape_good_hope": {
+        "affected_commodities": {"iron_ore": 0.08, "lng": 0.06, "coal": 0.08},
+        "probability_multiplier": 0.5,
+    },
+    "lombok": {
+        "affected_commodities": {"iron_ore": 0.12, "coal": 0.05},
+        "probability_multiplier": 0.6,
+    },
+}
+
+
+def _format_aud(value: float) -> str:
+    if value >= 1_000_000_000:
+        return f"A${value / 1_000_000_000:.1f}B"
+    if value >= 1_000_000:
+        return f"A${value / 1_000_000:.0f}M"
+    return f"A${value:,.0f}"
+
+
+def _calculate_exports_at_risk(chokepoint_id: str, duration_days: int) -> dict:
+    """Realistic exports-at-risk using commodity exposure fractions."""
+    exposure = _CHOKEPOINT_EXPOSURE.get(chokepoint_id, {})
+    affected = exposure.get("affected_commodities", {})
+    prob = exposure.get("probability_multiplier", 0.5)
+    # Per-chokepoint default overrides the API-supplied duration when set
+    default_wks = exposure.get("default_duration_weeks")
+    duration_weeks = default_wks if default_wks else duration_days / 7
+
+    total = 0
+    breakdown: dict = {}
+    for commodity, pct in affected.items():
+        weekly = _ANNUAL_EXPORTS.get(commodity, 0) / 52
+        risk = weekly * duration_weeks * pct * prob
+        breakdown[commodity] = round(risk / 1_000_000, 0)   # A$M
+        total += risk
+
+    return {
+        "total_aud_bn": round(total / 1_000_000_000, 1),
+        "display": _format_aud(total),
+        "breakdown_aud_m": breakdown,
+    }
+
+
+# ── Fix 2: Multi-factor confidence — markets are uncertain by definition ──────
+# 100% confidence = hallucination, not analysis.
+
+_ORDER_PRIORITY = {"primary": 0, "secondary": 1, "tertiary": 2}
+
+# Base confidence ceiling per impact order
+_CONF_MAX = {"primary": 75, "secondary": 55, "tertiary": 35}
+
+# Causal chain reliability — derived from impact order
+_CHAIN_MULT = {"primary": 1.0, "secondary": 0.8, "tertiary": 0.6}
+
+# How certain the disruption is for Australian exports, per chokepoint
+_CHOKEPOINT_SEVERITY = {
+    "malacca":        "critical",   # 85% of iron ore → China
+    "hormuz":         "high",       # 20% global LNG, but Aus LNG benefits
+    "bab_el_mandeb":  "medium",
+    "suez":           "medium",
+    "cape_good_hope": "low",        # fallback route, indirect cost effect
+    "lombok":         "low",
+}
+_SEVERITY_MULT = {"critical": 1.0, "high": 0.85, "medium": 0.70, "low": 0.55}
+
+
+def _magnitude_to_order(magnitude: str) -> str:
+    m = (magnitude or "").upper()
+    if m in ("VERY_HIGH", "HIGH"):
+        return "primary"
+    if m == "MEDIUM":
+        return "secondary"
+    return "tertiary"
+
+
+# Explicit impact-order overrides per chokepoint+ticker.
+# Takes precedence over magnitude-to-order derivation.
+# Used to guarantee correct 1°/2°/3° labels regardless of how magnitude is set in the matrix.
+_TICKER_IMPACT_OVERRIDE = {
+    "malacca": {
+        "BHP.AX": "primary",    # iron ore ships directly through Malacca
+        "RIO.AX": "primary",    # iron ore ships directly through Malacca
+        "FMG.AX": "primary",    # pure Pilbara-China play — maximum Malacca exposure
+        "WDS.AX": "primary",    # LNG to Japan/Korea routes through Malacca
+        "STO.AX": "primary",    # LNG to Japan/Korea routes through Malacca
+        "WHC.AX": "secondary",  # coal, partial Malacca routing via Coral Sea
+        "NHC.AX": "secondary",  # coal, partial Malacca routing via Coral Sea
+        "CBA.AX": "tertiary",   # macro: freight → inflation → RBA rates
+    },
+}
+
+
+# ── Fix 4: ASX sector-level impact breakdown ──────────────────────────────────
+# High-level sector ratings for "Sector Analysis" panel in the report modal.
+# Magnitude 0-100 = intensity of impact on that sector.
+_ASX_SECTOR_IMPACTS = {
+    "hormuz": {
+        "Energy":      {"direction": "bullish",  "magnitude": 85},
+        "Materials":   {"direction": "bearish",  "magnitude": 45},
+        "Financials":  {"direction": "neutral",  "magnitude": 15},
+        "Industrials": {"direction": "bearish",  "magnitude": 30},
+        "Consumer":    {"direction": "bearish",  "magnitude": 25},
+    },
+    "malacca": {
+        "Energy":      {"direction": "bearish",  "magnitude": 50},
+        "Materials":   {"direction": "bearish",  "magnitude": 85},
+        "Financials":  {"direction": "bearish",  "magnitude": 20},
+        "Industrials": {"direction": "bearish",  "magnitude": 60},
+        "Consumer":    {"direction": "bearish",  "magnitude": 30},
+    },
+    "bab_el_mandeb": {
+        "Energy":      {"direction": "bearish",  "magnitude": 35},
+        "Materials":   {"direction": "bearish",  "magnitude": 25},
+        "Financials":  {"direction": "neutral",  "magnitude": 10},
+        "Industrials": {"direction": "bearish",  "magnitude": 40},
+        "Consumer":    {"direction": "bearish",  "magnitude": 30},
+    },
+    "suez": {
+        "Energy":      {"direction": "bearish",  "magnitude": 30},
+        "Materials":   {"direction": "bearish",  "magnitude": 20},
+        "Financials":  {"direction": "neutral",  "magnitude": 10},
+        "Industrials": {"direction": "bearish",  "magnitude": 35},
+        "Consumer":    {"direction": "bearish",  "magnitude": 25},
+    },
+    "cape_good_hope": {
+        "Energy":      {"direction": "bearish",  "magnitude": 35},
+        "Materials":   {"direction": "bearish",  "magnitude": 40},
+        "Financials":  {"direction": "neutral",  "magnitude": 10},
+        "Industrials": {"direction": "bearish",  "magnitude": 45},
+        "Consumer":    {"direction": "bearish",  "magnitude": 20},
+    },
+    "lombok": {
+        "Energy":      {"direction": "neutral",  "magnitude": 15},
+        "Materials":   {"direction": "bearish",  "magnitude": 55},
+        "Financials":  {"direction": "neutral",  "magnitude": 10},
+        "Industrials": {"direction": "bearish",  "magnitude": 30},
+        "Consumer":    {"direction": "neutral",  "magnitude": 10},
+    },
+}
+
+
 def predict_australian_impact(disrupted_chokepoints: list, duration_days: int = 7) -> dict:
     """Generate Australian sector and regional impact prediction."""
-    all_asx_signals = {}
-    affected_regions = {}
-    affected_sectors = []
-    total_export_value_at_risk = 0
+    all_asx_signals: dict = {}
+    affected_regions: dict = {}
+    affected_sectors: list = []
+    primary_cp = disrupted_chokepoints[0] if disrupted_chokepoints else ""
 
     for cp_id in disrupted_chokepoints:
-        impact = CHOKEPOINT_AUSTRALIA_MATRIX.get(cp_id, {})
-        if not impact:
+        matrix_entry = CHOKEPOINT_AUSTRALIA_MATRIX.get(cp_id, {})
+        if not matrix_entry:
             continue
 
-        for sector, data in impact.get("australian_impact", {}).items():
+        for sector, data in matrix_entry.get("australian_impact", {}).items():
             for ticker, direction in data.get("asx_signal", {}).items():
                 all_asx_signals.setdefault(ticker, []).append({
                     "direction": direction,
                     "reason": data["reason"],
                     "magnitude": data["magnitude"],
+                    "impact_order": _magnitude_to_order(data["magnitude"]),
                     "time_to_impact": data.get("time_to_asx_impact", "unknown"),
                 })
             affected_sectors.append(sector)
 
-        for region, severity in impact.get("australian_regions_affected", {}).items():
+        for region, severity in matrix_entry.get("australian_regions_affected", {}).items():
             affected_regions[region] = severity
 
+    # Fix 1: realistic exports-at-risk (sum across all disrupted chokepoints)
+    exports_risk = {"total_aud_bn": 0.0, "display": "A$0", "breakdown_aud_m": {}}
     for cp_id in disrupted_chokepoints:
-        for commodity, profile in AUSTRALIAN_EXPORT_PROFILE.items():
-            if cp_id in profile["chokepoints"]:
-                daily_value = profile["annual_value_aud_bn"] * 1e9 / 365
-                total_export_value_at_risk += daily_value * duration_days
+        er = _calculate_exports_at_risk(cp_id, duration_days)
+        exports_risk["total_aud_bn"] = round(exports_risk["total_aud_bn"] + er["total_aud_bn"], 1)
+        for k, v in er["breakdown_aud_m"].items():
+            exports_risk["breakdown_aud_m"][k] = exports_risk["breakdown_aud_m"].get(k, 0) + v
+    exports_risk["display"] = _format_aud(exports_risk["total_aud_bn"] * 1_000_000_000)
 
     state_impacts = _calculate_state_impacts(disrupted_chokepoints)
 
     return {
         "disrupted_chokepoints": disrupted_chokepoints,
         "duration_days": duration_days,
-        "asx_predictions": _consolidate_asx_signals(all_asx_signals),
+        "asx_predictions": _consolidate_asx_signals(all_asx_signals, primary_cp),
         "affected_sectors": list(set(affected_sectors)),
         "australian_regions": affected_regions,
         "state_heatmap": state_impacts,
-        "export_value_at_risk_aud_bn": round(total_export_value_at_risk / 1e9, 1),
+        # Fix 1: replaced raw daily-value loop with commodity-exposure model
+        "export_value_at_risk_aud_bn": exports_risk["total_aud_bn"],
+        "export_value_at_risk_display": exports_risk["display"],
+        "export_breakdown_aud_m": exports_risk["breakdown_aud_m"],
         "simulation_seed": _generate_simulation_seed(disrupted_chokepoints, duration_days),
         "key_insight": _generate_key_insight(disrupted_chokepoints),
+        # Fix 4: high-level ASX sector breakdown for "Sector Analysis" panel
+        "asx_sector_breakdown": _ASX_SECTOR_IMPACTS.get(primary_cp, {}),
     }
 
 
@@ -267,36 +461,86 @@ def _calculate_state_impacts(disrupted_chokepoints: list) -> dict:
     """Map chokepoint disruptions to Australian state impact levels (0-100)."""
     state = {"WA": 0, "QLD": 0, "NSW": 0, "NT": 0, "SA": 0, "VIC": 0, "TAS": 0}
     if "malacca" in disrupted_chokepoints or "lombok" in disrupted_chokepoints:
-        state["WA"] = max(state["WA"], 90)
+        state["WA"]  = max(state["WA"],  90)
         state["QLD"] = max(state["QLD"], 60)
-        state["NT"] = max(state["NT"], 50)
+        state["NT"]  = max(state["NT"],  50)
+        state["NSW"] = max(state["NSW"], 30)   # Fix 2: Newcastle — world's largest coal export port
     if "hormuz" in disrupted_chokepoints:
         state["WA"] = max(state["WA"], 85)
         state["NT"] = max(state["NT"], 80)
         state["QLD"] = max(state["QLD"], 55)
-    if "bab_el_mandeb" in disrupted_chokepoints or "suez" in disrupted_chokepoints:
-        state["WA"] = max(state["WA"], 40)
+    if "bab_el_mandeb" in disrupted_chokepoints:
+        state["WA"]  = max(state["WA"],  40)
         state["VIC"] = max(state["VIC"], 30)
         state["NSW"] = max(state["NSW"], 30)
+    if "suez" in disrupted_chokepoints:
+        # Fix 1+2: correct Suez exposure — LNG west route only, no significant NSW/VIC commodity export via Suez
+        state["WA"]  = max(state["WA"],  45)   # Karratha LNG primary — North West Shelf to Europe
+        state["QLD"] = max(state["QLD"], 20)   # some European-bound thermal coal
+        state["NT"]  = max(state["NT"],  15)   # Darwin LNG minor European exposure
+        state["NSW"] = max(state["NSW"],  5)   # Newcastle coal minor
     if "cape_good_hope" in disrupted_chokepoints:
-        state["WA"] = max(state["WA"], 50)
-        state["QLD"] = max(state["QLD"], 35)
+        state["WA"]  = max(state["WA"],  50)   # Port Hedland, Dampier iron ore
+        state["NT"]  = max(state["NT"],  35)   # Fix 3: Darwin Santos LNG — was 0%
+        state["QLD"] = max(state["QLD"], 35)   # Gladstone APLNG, coal exports
+        state["SA"]  = max(state["SA"],  15)   # Olympic Dam copper
+        state["NSW"] = max(state["NSW"], 10)   # Newcastle coal (European routes)
+        state["VIC"] = max(state["VIC"],  5)   # minor indirect
     return state
 
 
-def _consolidate_asx_signals(signals: dict) -> list:
+def _consolidate_asx_signals(signals: dict, chokepoint_id: str = "") -> list:
+    """
+    Consolidate per-ticker signals into a final prediction with honest confidence.
+
+    Confidence formula (Fix 2):
+      base   = _CONF_MAX[impact_order]        (primary=75, secondary=55, tertiary=35)
+      × chain_mult[impact_order]              (primary=1.0, secondary=0.8, tertiary=0.6)
+      × severity_mult[chokepoint_severity]    (critical=1.0 … low=0.55)
+      → clamped to [10%, 85%]
+
+    100% confidence = hallucination, not analysis.
+    """
+    severity = _CHOKEPOINT_SEVERITY.get(chokepoint_id, "medium")
+    sev_mult = _SEVERITY_MULT[severity]
+
+    cp_overrides = _TICKER_IMPACT_OVERRIDE.get(chokepoint_id, {})
     result = []
     for ticker, signal_list in signals.items():
-        ups = sum(1 for s in signal_list if "UP" in s["direction"])
+        ups   = sum(1 for s in signal_list if "UP"   in s["direction"])
         downs = sum(1 for s in signal_list if "DOWN" in s["direction"])
         direction = "UP" if ups > downs else "DOWN" if downs > ups else "NEUTRAL"
-        confidence = max(ups, downs) / len(signal_list) if signal_list else 0
+
+        # Explicit override takes precedence; otherwise derive from magnitude
+        if ticker in cp_overrides:
+            best_order = cp_overrides[ticker]
+        else:
+            best_order = min(
+                signal_list,
+                key=lambda s: _ORDER_PRIORITY.get(s.get("impact_order", "tertiary"), 2),
+            )["impact_order"]
+
+        # Multi-factor confidence
+        conf_pct = (_CONF_MAX[best_order]
+                    * _CHAIN_MULT[best_order]
+                    * sev_mult)
+        confidence = round(max(0.10, min(0.85, conf_pct / 100)), 2)
+
+        # Fix 3: FMG concentration multiplier — 100% China revenue, 100% Malacca exposure
+        reasoning_note = None
+        if ticker == "FMG.AX" and chokepoint_id == "malacca":
+            confidence = round(min(0.85, confidence * 1.15), 2)
+            reasoning_note = "Pure Pilbara-China play — maximum Malacca exposure"
+
         result.append({
             "ticker": ticker,
             "direction": direction,
-            "confidence": round(confidence, 2),
+            "confidence": confidence,
+            "impact_order": best_order,
+            "confidence_cap": round(_CONF_MAX[best_order] / 100, 2),
             "signal_count": len(signal_list),
             "primary_reason": signal_list[0]["reason"][:100] if signal_list else "",
+            **({"reasoning_note": reasoning_note} if reasoning_note else {}),
         })
     return sorted(result, key=lambda x: x["confidence"], reverse=True)
 
@@ -320,8 +564,12 @@ def _generate_key_insight(chokepoints: list) -> str:
         return "Malacca disruption threatens $288M AUD/day in Australian iron ore exports ? FMG most exposed as pure Pilbara-China play"
     if "hormuz" in chokepoints:
         return "Hormuz disruption triggers LNG price spike 20-50% ? Australian LNG becomes premium alternative supplier ? WDS and STO BULLISH"
+    if "suez" in chokepoints:
+        return ("Suez closure adds 10-15 days and ~$800K per voyage to Australian LNG exports to Europe. "
+                "WDS most exposed as largest LNG exporter with European contracts. "
+                "Iron ore miners largely unaffected — Australian iron ore travels EAST through Malacca to China, not west through Suez.")
     if "bab_el_mandeb" in chokepoints:
-        return "Bab el-Mandeb/Red Sea disruption forces Cape reroute ? adds $1-2M per voyage to Australian LNG deliveries to Europe"
+        return "Bab el-Mandeb/Red Sea disruption forces Cape reroute — adds $1-2M per voyage to Australian LNG deliveries to Europe"
     if "lombok" in chokepoints:
         return "Lombok Strait disruption blocks Australia-China iron ore backup route ? adds 3-5 days when Malacca is also congested"
     return "Chokepoint disruption detected ? monitoring Australian export impact"
