@@ -171,6 +171,9 @@ class PredictionCard(BaseModel):
     # Anti-bias transparency
     persona_distribution:    Optional[str]   = None  # e.g. "Bear-weighted: strong downtrend confirmed"
 
+    # Polymarket prediction market signals at time of simulation
+    polymarket_markets:      Optional[List[dict]] = None  # top relevant markets with odds
+
     model_config = {
         "json_schema_extra": {
             "example": {

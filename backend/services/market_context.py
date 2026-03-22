@@ -11,6 +11,8 @@ All fetches have try/except with graceful STALE fallback — never blocks simula
 """
 
 import os
+import re
+import json
 import time
 import asyncio
 import logging
@@ -796,9 +798,168 @@ def check_data_quality(market_data: dict) -> dict:
     }
 
 
+# ── Polymarket prediction market fetcher ───────────────────────────────────────
+
+# Maps ASX tickers to commodity/macro keywords for Polymarket search
+_TICKER_TOPICS: Dict[str, List[str]] = {
+    "BHP.AX":  ["iron ore", "copper", "coal", "mining", "bhp", "australia", "china steel"],
+    "RIO.AX":  ["iron ore", "aluminium", "aluminum", "mining", "rio tinto", "australia", "china"],
+    "FMG.AX":  ["iron ore", "fortescue", "australia", "pilbara", "china", "steel"],
+    "WDS.AX":  ["lng", "gas", "oil", "energy", "woodside", "australia"],
+    "STO.AX":  ["oil", "gas", "energy", "santos", "australia", "lng"],
+    "NCM.AX":  ["gold", "mining", "newcrest", "australia"],
+    "NST.AX":  ["gold", "mining", "australia"],
+    "OZL.AX":  ["copper", "mining", "australia"],
+    "S32.AX":  ["aluminium", "manganese", "coal", "mining", "south32", "australia"],
+    "MIN.AX":  ["lithium", "iron ore", "mineral resources", "australia"],
+    "PLS.AX":  ["lithium", "battery", "ev", "pilbara minerals", "australia"],
+    "TWE.AX":  ["wine", "china tariff", "agriculture", "australia"],
+    "WBC.AX":  ["bank", "rba", "interest rate", "australia", "housing"],
+    "CBA.AX":  ["bank", "rba", "interest rate", "australia", "housing"],
+}
+
+# Commodity/macro terms always relevant for ASX mining/resources market
+_ALWAYS_RELEVANT = [
+    "iron ore", "china", "australia", "commodity", "oil", "gold", "copper",
+    "aud", "rba", "interest rate", "steel", "coal", "lithium", "mining",
+    "russia", "ukraine", "middle east", "taiwan", "sanctions",
+]
+
+
+def _score_polymarket(question: str, keywords: List[str]) -> float:
+    """Score a Polymarket question by exact keyword overlap. Higher = more relevant."""
+    q = question.lower()
+    score = 0.0
+    for kw in keywords:
+        if kw.lower() in q:
+            score += 1.0
+            # Bonus for high-relevance commodity terms
+            if kw in ("iron ore", "china", "australia", "copper", "gold"):
+                score += 0.5
+    return score
+
+
+async def fetch_polymarket_context(
+    event_keywords: List[str],
+    ticker: str,
+) -> Dict[str, Any]:
+    """
+    Fetch relevant Polymarket prediction markets for this event + ticker.
+
+    Uses the public Polymarket Gamma API (no auth required, no API key needed).
+    Returns top 5 markets scored by relevance, formatted as a prompt block.
+    Never blocks simulation — returns graceful empty result on any failure.
+    """
+    _empty = {
+        "markets": [],
+        "polymarket_block": "",   # empty = don't add noise to prompt if no data
+        "status": "unavailable",
+    }
+
+    try:
+        ticker_topics = _TICKER_TOPICS.get(ticker, [])
+        all_keywords  = list(set(event_keywords + ticker_topics + _ALWAYS_RELEVANT))
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            r = await client.get(
+                "https://gamma-api.polymarket.com/markets",
+                params={"active": "true", "closed": "false", "limit": 200},
+            )
+            r.raise_for_status()
+            raw = r.json()
+
+        if not isinstance(raw, list):
+            logger.warning("[POLYMARKET] Unexpected response type: %s", type(raw))
+            return _empty
+
+        scored = []
+        for m in raw:
+            question = m.get("question", "")
+            if not question:
+                continue
+            score = _score_polymarket(question, all_keywords)
+            if score < 1.0:
+                continue
+
+            # Parse outcomes and prices (Polymarket stores them as JSON strings)
+            try:
+                outcomes   = json.loads(m.get("outcomes", "[]"))    if isinstance(m.get("outcomes"),      str) else []
+                price_list = json.loads(m.get("outcomePrices", "[]")) if isinstance(m.get("outcomePrices"), str) else []
+                prices     = [float(p) for p in price_list]
+            except Exception:
+                outcomes, prices = [], []
+
+            volume    = float(m.get("volume",    0) or 0)
+            end_date  = (m.get("endDate") or "")[:10] or "open"
+
+            # Build outcome display string
+            if len(outcomes) == 2 and len(prices) == 2:
+                yes_pct = round(prices[0] * 100)
+                no_pct  = round(prices[1] * 100)
+                outcome_str = f"YES {yes_pct}% / NO {no_pct}%"
+                if yes_pct >= 65:
+                    signal = "BULLISH_SIGNAL"
+                elif yes_pct <= 35:
+                    signal = "BEARISH_SIGNAL"
+                else:
+                    signal = "NEUTRAL"
+                yes_prob = prices[0]
+            elif len(outcomes) > 2 and prices:
+                best_i    = prices.index(max(prices))
+                best_out  = outcomes[best_i] if best_i < len(outcomes) else "?"
+                best_pct  = round(max(prices) * 100)
+                outcome_str = f"Leading: {best_out} ({best_pct}%)"
+                signal      = "NEUTRAL"
+                yes_prob    = None
+            else:
+                outcome_str = "prices unavailable"
+                signal      = "NEUTRAL"
+                yes_prob    = None
+
+            scored.append({
+                "question":        question,
+                "outcome_str":     outcome_str,
+                "signal":          signal,
+                "volume_usd":      round(volume),
+                "end_date":        end_date,
+                "relevance_score": score,
+                "yes_probability": yes_prob,
+            })
+
+        # Sort: relevance first, then volume
+        scored.sort(key=lambda x: (-x["relevance_score"], -x["volume_usd"]))
+        top = scored[:5]
+
+        if not top:
+            return _empty
+
+        lines = [
+            "=== PREDICTION MARKET SIGNALS (Polymarket — Real Money) ===",
+            "These are financial bets by sophisticated traders. Treat as strong forward-looking signals.",
+        ]
+        for m in top:
+            vol_str = f"${m['volume_usd']:,}" if m["volume_usd"] > 0 else "n/a"
+            lines.append(
+                f"[{m['signal']}] \"{m['question']}\"\n"
+                f"  Odds: {m['outcome_str']} | Volume: {vol_str} | Expires: {m['end_date']}"
+            )
+        lines.append("=== END PREDICTION MARKETS ===")
+
+        logger.info("[POLYMARKET] %d relevant markets for %s", len(top), ticker)
+        return {
+            "markets":         top,
+            "polymarket_block": "\n".join(lines),
+            "status":          "live",
+        }
+
+    except Exception as e:
+        logger.warning("[POLYMARKET] Failed: %s", e)
+        return _empty
+
+
 # ── Main entry point ───────────────────────────────────────────────────────────
 
-async def fetch_market_context(ticker: str) -> Dict[str, Any]:
+async def fetch_market_context(ticker: str, event_keywords: Optional[List[str]] = None) -> Dict[str, Any]:
     """
     Fetch all live market data for the given ticker in parallel.
 
@@ -829,23 +990,25 @@ async def fetch_market_context(ticker: str) -> Dict[str, Any]:
         _fetch_lessons(ticker),
         _fetch_broad_market(),
         fetch_trend_context(ticker),
+        fetch_polymarket_context(event_keywords or [], ticker),
         return_exceptions=True,
     )
 
     def safe(r, fallback):
         return fallback if isinstance(r, Exception) else r
 
-    iron    = safe(results[0], {"price": 97.5,  "change_pct": 0.0, "status": STALE})
-    audusd  = safe(results[1], {"rate":  0.6500, "change_pct": 0.0, "status": STALE})
-    brent   = safe(results[2], {"price": 82.5,  "change_pct": 0.0, "status": STALE})
-    tech    = safe(results[3], {"price": 47.0,  "volume_vs_avg": 1.0, "rsi": None, "macd_signal": "NEUTRAL", "status": STALE})
-    news    = safe(results[4], [])
-    lessons = safe(results[5], [])
-    broad   = safe(results[6], {"axjo_change_pct": None, "spx_change_pct": None, "market_session": "UNKNOWN"})
-    trend   = safe(results[7], {"trend_label": "NEUTRAL", "day_1_change": None, "day_5_change": None,
-                                 "day_20_change": None, "consecutive_down_days": 0,
-                                 "dist_from_52w_high_pct": None,
-                                 "trend_block": "=== TREND MOMENTUM ===\nTrend data unavailable.\n=== END TREND ==="})
+    iron       = safe(results[0], {"price": 97.5,  "change_pct": 0.0, "status": STALE})
+    audusd     = safe(results[1], {"rate":  0.6500, "change_pct": 0.0, "status": STALE})
+    brent      = safe(results[2], {"price": 82.5,  "change_pct": 0.0, "status": STALE})
+    tech       = safe(results[3], {"price": 47.0,  "volume_vs_avg": 1.0, "rsi": None, "macd_signal": "NEUTRAL", "status": STALE})
+    news       = safe(results[4], [])
+    lessons    = safe(results[5], [])
+    broad      = safe(results[6], {"axjo_change_pct": None, "spx_change_pct": None, "market_session": "UNKNOWN"})
+    trend      = safe(results[7], {"trend_label": "NEUTRAL", "day_1_change": None, "day_5_change": None,
+                                    "day_20_change": None, "consecutive_down_days": 0,
+                                    "dist_from_52w_high_pct": None,
+                                    "trend_block": "=== TREND MOMENTUM ===\nTrend data unavailable.\n=== END TREND ==="})
+    polymarket = safe(results[8], {"markets": [], "polymarket_block": "", "status": "unavailable"})
 
     fetch_ts = fetch_start.strftime("%Y-%m-%d %H:%M UTC")
 
@@ -897,6 +1060,8 @@ async def fetch_market_context(ticker: str) -> Dict[str, Any]:
         if lessons else "No past lessons available yet."
     )
 
+    poly_block = polymarket["polymarket_block"]
+
     context_block = f"""{trend['trend_block']}
 === LIVE MARKET CONTEXT (fetched {fetch_ts}) ===
 Iron Ore 62% Fe: ${iron['price']}/t | Change: {_chg(iron['change_pct'])}{_stale(iron)}
@@ -906,7 +1071,7 @@ Brent Crude: ${brent['price']}/bbl | Change: {_chg(brent['change_pct'])}{_stale(
 {rsi_label} | MACD Signal: {tech['macd_signal']}
 === END MARKET CONTEXT ===
 {broad_block}
-=== NEWS SIGNALS (recency + relevance weighted) ===
+{poly_block + chr(10) if poly_block else ""}=== NEWS SIGNALS (recency + relevance weighted) ===
 {news_block}
 === END NEWS ===
 === LESSONS FROM PAST PREDICTIONS ===
@@ -957,6 +1122,9 @@ Brent Crude: ${brent['price']}/bbl | Change: {_chg(brent['change_pct'])}{_stale(
         "day_20_change":          trend.get("day_20_change"),
         "consecutive_down_days":  trend.get("consecutive_down_days", 0),
         "dist_from_52w_high_pct": trend.get("dist_from_52w_high_pct"),
+        # Polymarket prediction market signals
+        "polymarket_markets":     polymarket["markets"],
+        "polymarket_status":      polymarket["status"],
     }
 
     logger.info("[MARKET] Fetch complete for %s: volume_vs_avg=%.2f price_chg=%s fetched_at=%s",

@@ -31,6 +31,7 @@ if hasattr(sys.stdout, 'reconfigure'):
 if hasattr(sys.stderr, 'reconfigure'):
     sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 
+import re
 import asyncio
 import json
 import uuid
@@ -799,7 +800,15 @@ class Simulation:
 
         # ── STEP 1: Fetch live market context + lessons ────────────────────────
         from services.market_context import fetch_market_context
-        market_ctx = await fetch_market_context(ticker)
+
+        # Extract event keywords for Polymarket relevance scoring
+        _event_kw: List[str] = []
+        for _field in ("country", "event_type", "notes", "location"):
+            _val = str(event_data.get(_field, "") or "").lower()
+            _event_kw.extend(re.findall(r"[a-z]{3,}", _val))
+        _event_kw = list(set(_event_kw))[:20]  # deduplicate, cap at 20
+
+        market_ctx = await fetch_market_context(ticker, event_keywords=_event_kw)
         logger.info("Market context fetched: iron_ore=%.2f audusd=%.4f brent=%.2f rsi=%s quality=%s",
                     market_ctx["iron_ore_price"], market_ctx["audusd_rate"],
                     market_ctx["brent_price"],
@@ -1232,6 +1241,8 @@ class Simulation:
             "ticker_volume_vs_avg":    market_ctx.get("ticker_volume_vs_avg"),
             # Anti-bias: persona distribution used
             "persona_distribution":    simulation_results.get("persona_distribution"),
+            # Polymarket prediction market signals
+            "polymarket_markets":       market_ctx.get("polymarket_markets", []),
         }
 
         prediction = PredictionCard(**prediction_dict)
