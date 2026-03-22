@@ -29,6 +29,9 @@ logger = logging.getLogger(__name__)
 _ALPHA_VANTAGE_KEY = os.getenv("ALPHA_VANTAGE_API_KEY", "")
 _FRED_API_KEY      = os.getenv("FRED_API_KEY", "")
 _MARKETAUX_KEY     = os.getenv("MARKETAUX_API_KEY", "")
+_GUARDIAN_API_KEY  = os.getenv("GUARDIAN_API_KEY", "")
+_FINNHUB_API_KEY   = os.getenv("FINNHUB_API_KEY", "")
+_GNEWS_API_KEY     = os.getenv("GNEWS_API_KEY", "")
 
 STALE = "STALE"
 
@@ -798,6 +801,347 @@ def check_data_quality(market_data: dict) -> dict:
     }
 
 
+# ── Open-Meteo: Port Hedland weather (no API key) ─────────────────────────────
+
+# WMO weather code → severity label
+_WMO_SEVERE = {95, 96, 97, 98, 99}   # thunderstorm / tropical storm
+_WMO_DISRUPT = {51,53,55,61,63,65,80,81,82,85,86}  # rain / showers
+
+async def _fetch_weather_port_hedland() -> Dict[str, Any]:
+    """
+    Fetch 3-day weather forecast for Port Hedland (−20.31°S, 118.60°E).
+    Uses Open-Meteo — completely free, no API key required.
+    Returns a short alert string when conditions are operationally significant.
+    """
+    _default = {"alert": "", "status": "unavailable"}
+    try:
+        async with httpx.AsyncClient(timeout=8.0) as client:
+            r = await client.get(
+                "https://api.open-meteo.com/v1/forecast",
+                params={
+                    "latitude":  -20.31,
+                    "longitude": 118.60,
+                    "daily": "weathercode,windspeed_10m_max,precipitation_sum",
+                    "timezone": "Australia/Perth",
+                    "forecast_days": 3,
+                },
+            )
+            r.raise_for_status()
+            data = r.json().get("daily", {})
+
+        codes  = data.get("weathercode", [])
+        winds  = data.get("windspeed_10m_max", [])
+        precip = data.get("precipitation_sum", [])
+        days   = ["Today", "Tomorrow", "Day+2"]
+
+        alerts = []
+        for i, (code, wind, rain) in enumerate(zip(codes, winds, precip)):
+            day = days[i] if i < len(days) else f"Day+{i}"
+            wind = float(wind or 0)
+            rain = float(rain or 0)
+            code = int(code or 0)
+
+            if wind >= 90 or code in _WMO_SEVERE:
+                alerts.append(
+                    f"[CYCLONE RISK — {day}] Wind {wind:.0f} km/h, "
+                    f"rain {rain:.0f}mm — PORT LIKELY CLOSED → STRONGLY BEARISH for iron ore exports"
+                )
+            elif wind >= 60:
+                alerts.append(
+                    f"[STORM WARNING — {day}] Wind {wind:.0f} km/h → possible Port Hedland disruption → BEARISH"
+                )
+            elif wind >= 40 or code in _WMO_DISRUPT:
+                alerts.append(
+                    f"[WEATHER CAUTION — {day}] Wind {wind:.0f} km/h, rain {rain:.0f}mm → minor disruption risk"
+                )
+
+        if not alerts:
+            logger.info("[WEATHER] Port Hedland: clear conditions")
+            return {"alert": "", "status": "live"}
+
+        alert_str = (
+            "=== PORT HEDLAND WEATHER ALERT ===\n"
+            + "\n".join(alerts)
+            + "\n=== END WEATHER ==="
+        )
+        logger.info("[WEATHER] Port Hedland alert: %s", alerts[0])
+        return {"alert": alert_str, "status": "live"}
+
+    except Exception as e:
+        logger.warning("[WEATHER] Port Hedland fetch failed: %s", e)
+        return _default
+
+
+# ── The Guardian: high-quality geopolitical + economic news ───────────────────
+
+async def _fetch_guardian_news(ticker: str, event_keywords: List[str]) -> List[Dict[str, Any]]:
+    """
+    Fetch relevant articles from The Guardian Open Platform API.
+    Free API key — get one at: https://bonobo.capi.guim.co.uk/register/developer
+    Set env var: GUARDIAN_API_KEY
+    Returns list of news items in the same format as _fetch_news().
+    """
+    if not _GUARDIAN_API_KEY:
+        return []
+    try:
+        ticker_clean = ticker.replace(".AX", "")
+        # Build query: company name + commodity + key event terms
+        query_terms = [ticker_clean] + [k for k in event_keywords if len(k) > 4][:4]
+        query = " OR ".join(f'"{t}"' for t in query_terms[:4])
+
+        since = (datetime.now(timezone.utc) - timedelta(days=3)).strftime("%Y-%m-%d")
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            r = await client.get(
+                "https://content.guardianapis.com/search",
+                params={
+                    "q":            query,
+                    "section":      "business,world,australia-news,environment",
+                    "order-by":     "newest",
+                    "page-size":    6,
+                    "from-date":    since,
+                    "show-fields":  "trailText,wordcount",
+                    "api-key":      _GUARDIAN_API_KEY,
+                },
+            )
+            r.raise_for_status()
+            articles = r.json().get("response", {}).get("results", [])
+
+        items = []
+        now = datetime.now(timezone.utc)
+        for a in articles:
+            pub_str  = a.get("webPublicationDate", "")
+            headline = a.get("webTitle", "")
+            if not headline:
+                continue
+            try:
+                pub_dt    = datetime.fromisoformat(pub_str.replace("Z", "+00:00"))
+                hours_old = (now - pub_dt).total_seconds() / 3600
+            except Exception:
+                hours_old = 48.0
+
+            w = news_weight(hours_old=hours_old, category="STRATEGIC", headline=headline, ticker=ticker)
+            if w > 0.20:
+                items.append({
+                    "title":           f"[Guardian] {headline}",
+                    "summary":         (a.get("fields", {}).get("trailText") or "")[:200],
+                    "hours_old":       round(hours_old, 1),
+                    "weight":          w,
+                    "signal_strength": weight_to_label(w),
+                    "published_at":    pub_str,
+                    "source":          "guardian",
+                })
+
+        logger.info("[GUARDIAN] %d articles fetched for %s", len(items), ticker)
+        return items[:5]
+
+    except Exception as e:
+        logger.warning("[GUARDIAN] Fetch failed: %s", e)
+        return []
+
+
+# ── OpenSanctions: sanctions entity check (no API key) ────────────────────────
+
+# Countries known to have active broad sanctions regimes
+_SANCTIONED_COUNTRIES = {
+    "russia", "iran", "north korea", "myanmar", "belarus",
+    "syria", "cuba", "venezuela", "sudan", "zimbabwe",
+    "dprk", "crimea", "dpr", "lnr",
+}
+
+async def _fetch_sanctions_context(event_keywords: List[str]) -> Dict[str, Any]:
+    """
+    Check OpenSanctions for entities related to the event.
+    No API key required — free public API.
+    Returns a short sanctions block if relevant entities are found.
+    """
+    _empty = {"block": "", "count": 0}
+    try:
+        # Only query if event involves a sanctioned country/context
+        kw_lower = {k.lower() for k in event_keywords}
+        if not kw_lower.intersection(_SANCTIONED_COUNTRIES):
+            return _empty
+
+        # Use the most specific sanctioned country keyword as the query
+        query_term = next(k for k in kw_lower if k in _SANCTIONED_COUNTRIES)
+
+        async with httpx.AsyncClient(timeout=8.0) as client:
+            r = await client.get(
+                "https://api.opensanctions.org/search/default",
+                params={"q": query_term, "schema": "Organization", "limit": 5},
+            )
+            r.raise_for_status()
+            results = r.json().get("results", [])
+
+        if not results:
+            return _empty
+
+        names = [e.get("caption", "") for e in results[:3] if e.get("caption")]
+        count = len(results)
+        block = (
+            f"=== SANCTIONS CONTEXT ===\n"
+            f"OpenSanctions: {count} sanctioned entities found related to '{query_term}'\n"
+            f"Examples: {', '.join(names)}\n"
+            f"IMPLICATION: Sanctions exposure → supply chain risk, payment disruption, demand uncertainty → BEARISH bias\n"
+            f"=== END SANCTIONS ==="
+        )
+        logger.info("[SANCTIONS] %d entities found for '%s'", count, query_term)
+        return {"block": block, "count": count}
+
+    except Exception as e:
+        logger.warning("[SANCTIONS] Fetch failed: %s", e)
+        return _empty
+
+
+# ── Finnhub: earnings surprise + sentiment (free key) ─────────────────────────
+
+async def _fetch_finnhub_signals(ticker: str) -> Dict[str, Any]:
+    """
+    Fetch latest earnings surprise and recommendation trend from Finnhub.
+    Free API key (60 calls/min) — sign up at https://finnhub.io
+    Set env var: FINNHUB_API_KEY
+    Returns a 1-line signal for the agent prompt.
+    """
+    _empty = {"line": "", "status": "unavailable"}
+    if not _FINNHUB_API_KEY:
+        return _empty
+    try:
+        # Finnhub uses ticker without .AX for international stocks
+        fh_ticker = ticker.replace(".AX", "")
+        async with httpx.AsyncClient(timeout=8.0) as client:
+            earnings_r, rec_r = await asyncio.gather(
+                client.get(
+                    "https://finnhub.io/api/v1/stock/earnings",
+                    params={"symbol": fh_ticker, "limit": 1, "token": _FINNHUB_API_KEY},
+                ),
+                client.get(
+                    "https://finnhub.io/api/v1/stock/recommendation",
+                    params={"symbol": fh_ticker, "token": _FINNHUB_API_KEY},
+                ),
+                return_exceptions=True,
+            )
+
+        lines = []
+
+        # Latest earnings beat/miss
+        if not isinstance(earnings_r, Exception) and earnings_r.status_code == 200:
+            eps_data = earnings_r.json()
+            if eps_data:
+                latest = eps_data[0]
+                actual   = latest.get("actual")
+                estimate = latest.get("estimate")
+                period   = latest.get("period", "")
+                if actual is not None and estimate is not None and estimate != 0:
+                    surprise_pct = round((actual - estimate) / abs(estimate) * 100, 1)
+                    if surprise_pct > 5:
+                        lines.append(
+                            f"Finnhub Earnings ({period}): BEAT by {surprise_pct:+.1f}% "
+                            f"(EPS actual={actual} vs est={estimate}) → BULLISH"
+                        )
+                    elif surprise_pct < -5:
+                        lines.append(
+                            f"Finnhub Earnings ({period}): MISSED by {surprise_pct:+.1f}% "
+                            f"(EPS actual={actual} vs est={estimate}) → BEARISH"
+                        )
+                    else:
+                        lines.append(
+                            f"Finnhub Earnings ({period}): IN LINE (EPS {actual} vs est {estimate}) → NEUTRAL"
+                        )
+
+        # Analyst recommendations
+        if not isinstance(rec_r, Exception) and rec_r.status_code == 200:
+            rec_data = rec_r.json()
+            if rec_data:
+                latest_rec = rec_data[0]
+                buy        = latest_rec.get("buy", 0) + latest_rec.get("strongBuy", 0)
+                sell       = latest_rec.get("sell", 0) + latest_rec.get("strongSell", 0)
+                hold       = latest_rec.get("hold", 0)
+                total      = buy + sell + hold
+                if total > 0:
+                    buy_pct = round(buy / total * 100)
+                    lines.append(
+                        f"Analyst consensus: {buy} BUY / {hold} HOLD / {sell} SELL "
+                        f"({buy_pct}% bullish) — {latest_rec.get('period', '')}"
+                    )
+
+        if not lines:
+            return _empty
+
+        logger.info("[FINNHUB] Signals for %s: %s", ticker, lines[0][:60])
+        return {"line": " | ".join(lines), "status": "live"}
+
+    except Exception as e:
+        logger.warning("[FINNHUB] Fetch failed for %s: %s", ticker, e)
+        return _empty
+
+
+# ── GNews: real-time news including Chinese sources (free key) ─────────────────
+
+async def _fetch_gnews(ticker: str, event_keywords: List[str]) -> List[Dict[str, Any]]:
+    """
+    Fetch relevant news from GNews — covers Chinese-language sources.
+    Free key: 100 req/day — sign up at https://gnews.io
+    Set env var: GNEWS_API_KEY
+    Returns list of news items compatible with _fetch_news() format.
+    """
+    if not _GNEWS_API_KEY:
+        return []
+    try:
+        ticker_clean = ticker.replace(".AX", "")
+        # Narrow query to avoid noise
+        commodity_terms = [t for t in event_keywords if t in (
+            "iron ore", "coal", "copper", "gold", "lithium", "oil", "gas",
+            "china", "australia", "mining", "steel", "bhp", "rio", "fmg",
+        )]
+        query = " ".join([ticker_clean] + commodity_terms[:2]) or ticker_clean
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            r = await client.get(
+                "https://gnews.io/api/v4/search",
+                params={
+                    "q":       query,
+                    "lang":    "en",
+                    "country": "au",
+                    "max":     5,
+                    "sortby":  "publishedAt",
+                    "apikey":  _GNEWS_API_KEY,
+                },
+            )
+            r.raise_for_status()
+            articles = r.json().get("articles", [])
+
+        items = []
+        now = datetime.now(timezone.utc)
+        for a in articles:
+            headline = a.get("title", "")
+            pub_str  = a.get("publishedAt", "")
+            if not headline:
+                continue
+            try:
+                pub_dt    = datetime.fromisoformat(pub_str.replace("Z", "+00:00"))
+                hours_old = (now - pub_dt).total_seconds() / 3600
+            except Exception:
+                hours_old = 48.0
+
+            w = news_weight(hours_old=hours_old, headline=headline, ticker=ticker)
+            if w > 0.20:
+                items.append({
+                    "title":           f"[GNews] {headline}",
+                    "summary":         (a.get("description") or "")[:200],
+                    "hours_old":       round(hours_old, 1),
+                    "weight":          w,
+                    "signal_strength": weight_to_label(w),
+                    "published_at":    pub_str,
+                    "source":          "gnews",
+                })
+
+        logger.info("[GNEWS] %d articles for %s", len(items), ticker)
+        return items[:4]
+
+    except Exception as e:
+        logger.warning("[GNEWS] Fetch failed: %s", e)
+        return []
+
+
 # ── Polymarket prediction market fetcher ───────────────────────────────────────
 
 # Maps ASX tickers to commodity/macro keywords for Polymarket search
@@ -982,15 +1326,20 @@ async def fetch_market_context(ticker: str, event_keywords: Optional[List[str]] 
     logger.info("[MARKET] Fresh fetch starting for %s ...", ticker)
 
     results = await asyncio.gather(
-        _fetch_iron_ore(),
-        _fetch_audusd(),
-        _fetch_brent(),
-        _fetch_ticker_technicals(ticker),
-        _fetch_news(ticker),
-        _fetch_lessons(ticker),
-        _fetch_broad_market(),
-        fetch_trend_context(ticker),
-        fetch_polymarket_context(event_keywords or [], ticker),
+        _fetch_iron_ore(),                                          # 0
+        _fetch_audusd(),                                            # 1
+        _fetch_brent(),                                             # 2
+        _fetch_ticker_technicals(ticker),                           # 3
+        _fetch_news(ticker),                                        # 4
+        _fetch_lessons(ticker),                                     # 5
+        _fetch_broad_market(),                                      # 6
+        fetch_trend_context(ticker),                                # 7
+        fetch_polymarket_context(event_keywords or [], ticker),     # 8
+        _fetch_weather_port_hedland(),                              # 9
+        _fetch_guardian_news(ticker, event_keywords or []),         # 10
+        _fetch_sanctions_context(event_keywords or []),             # 11
+        _fetch_finnhub_signals(ticker),                             # 12
+        _fetch_gnews(ticker, event_keywords or []),                 # 13
         return_exceptions=True,
     )
 
@@ -1008,7 +1357,12 @@ async def fetch_market_context(ticker: str, event_keywords: Optional[List[str]] 
                                     "day_20_change": None, "consecutive_down_days": 0,
                                     "dist_from_52w_high_pct": None,
                                     "trend_block": "=== TREND MOMENTUM ===\nTrend data unavailable.\n=== END TREND ==="})
-    polymarket = safe(results[8], {"markets": [], "polymarket_block": "", "status": "unavailable"})
+    polymarket = safe(results[8],  {"markets": [], "polymarket_block": "", "status": "unavailable"})
+    weather    = safe(results[9],  {"alert": "", "status": "unavailable"})
+    guardian   = safe(results[10], [])
+    sanctions  = safe(results[11], {"found": False, "block": "", "entities": []})
+    finnhub    = safe(results[12], {"signal": "", "status": "unavailable"})
+    gnews      = safe(results[13], [])
 
     fetch_ts = fetch_start.strftime("%Y-%m-%d %H:%M UTC")
 
@@ -1050,10 +1404,20 @@ async def fetch_market_context(ticker: str, event_keywords: Optional[List[str]] 
         f"=== END BROAD MARKET ==="
     )
 
+    # Merge all news sources; Guardian/GNews items may lack signal_strength
+    all_news = list(news)
+    for item in (guardian + gnews):
+        if item not in all_news:
+            all_news.append(item)
+
     news_block = "\n".join(
-        f"[{n['signal_strength']}] {n['title']} ({n['hours_old']}h ago)"
-        for n in news
-    ) if news else "No recent news within 24h threshold."
+        f"[{n.get('signal_strength', 'MEDIUM')}] {n['title']} ({n.get('hours_old', '?')}h ago)"
+        for n in all_news
+    ) if all_news else "No recent news within 24h threshold."
+
+    weather_alert  = weather.get("alert", "")
+    sanctions_block = sanctions.get("block", "")
+    finnhub_line   = finnhub.get("signal", "")
 
     lessons_block = (
         "\n".join(f"- {l}" for l in lessons)
@@ -1071,7 +1435,7 @@ Brent Crude: ${brent['price']}/bbl | Change: {_chg(brent['change_pct'])}{_stale(
 {rsi_label} | MACD Signal: {tech['macd_signal']}
 === END MARKET CONTEXT ===
 {broad_block}
-{poly_block + chr(10) if poly_block else ""}=== NEWS SIGNALS (recency + relevance weighted) ===
+{("=== PORT HEDLAND WEATHER ALERT ===\n" + weather_alert + "\n=== END WEATHER ===\n") if weather_alert else ""}{poly_block + chr(10) if poly_block else ""}{(sanctions_block + chr(10)) if sanctions_block else ""}{("=== ANALYST & EARNINGS (Finnhub) ===\n" + finnhub_line + "\n=== END ANALYST ===\n") if finnhub_line else ""}=== NEWS SIGNALS (recency + relevance weighted) ===
 {news_block}
 === END NEWS ===
 === LESSONS FROM PAST PREDICTIONS ===
@@ -1125,6 +1489,14 @@ Brent Crude: ${brent['price']}/bbl | Change: {_chg(brent['change_pct'])}{_stale(
         # Polymarket prediction market signals
         "polymarket_markets":     polymarket["markets"],
         "polymarket_status":      polymarket["status"],
+        # New API signals
+        "weather_alert":          weather_alert,
+        "weather_status":         weather.get("status"),
+        "sanctions_found":        sanctions.get("found", False),
+        "sanctions_entities":     sanctions.get("entities", []),
+        "finnhub_signal":         finnhub_line,
+        "guardian_news_count":    len(guardian),
+        "gnews_count":            len(gnews),
     }
 
     logger.info("[MARKET] Fetch complete for %s: volume_vs_avg=%.2f price_chg=%s fetched_at=%s",
