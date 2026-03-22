@@ -7,3 +7,16 @@ healthcheckPath = "/api/health"
 healthcheckTimeout = 30
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3
+
+# ── Morning Pre-Market Prediction Cron ───────────────────────────────────────
+# Runs at 09:30 AEST (23:30 UTC previous day) Mon–Fri before ASX open.
+# AEST = UTC+10, so Sunday 23:30 UTC = Monday 09:30 AEST, etc.
+#
+# Required env vars on the cron service in Railway dashboard:
+#   BACKEND_URL   = https://<your-railway-app>.railway.app
+#   API_KEY       = <your API key if set>
+#   MORNING_TICKERS = BHP.AX,RIO.AX,FMG.AX,WDS.AX,STO.AX,CBA.AX  (optional)
+
+[[cronjobs]]
+schedule = "30 23 * * 0-4"
+command = "cd backend && python3 scripts/morning_prediction.py"
