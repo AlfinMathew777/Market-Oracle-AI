@@ -33,21 +33,42 @@ abs_service   = ABSService()
 
 @router.get("/acled")
 async def get_acled_events():
-    """GET /api/data/acled — conflict events GeoJSON, served from Redis cache."""
+    """GET /api/data/acled — conflict events GeoJSON.
+    Returns live ACLED data when available, falls back to GDELT live news events,
+    and uses demo data only as a last resort.
+    """
     cached = await cache_get("acled:events:v1")
-    if cached:
+    if cached and cached.get("status") == "live":
         return {"status": "success", "data": cached,
                 "count": cached.get("count", 0), "source": "cache"}
 
-    logger.info("Redis miss — fetching ACLED live")
+    logger.info("Cache miss — fetching live events")
     try:
         geojson = acled_service.get_events()
+
+        # If ACLED is blocked/unavailable, fall back to live RSS news events
+        if geojson.get("status") == "demo":
+            logger.info("ACLED unavailable — fetching RSS live events")
+            loop = asyncio.get_event_loop()
+            rss_data = await loop.run_in_executor(None, acled_service.get_rss_events)
+
+            if rss_data.get("status") == "live":
+                await cache_set("acled:events:v1", rss_data, ttl=900)  # 15 min cache
+                return {"status": "success", "data": rss_data,
+                        "count": rss_data.get("count", 0), "source": "rss_live"}
+
+            # RSS also failed — cache demo data briefly so we don't hammer feeds
+            await cache_set("acled:events:v1", geojson, ttl=300)
+            return {"status": "success", "data": geojson,
+                    "count": geojson.get("count", 0), "source": "demo"}
+
+        # ACLED returned real data — cache for 6 hours
         await cache_set("acled:events:v1", geojson, ttl=21600)
         return {"status": "success", "data": geojson,
                 "count": geojson.get("count", 0), "source": "live"}
     except Exception as e:
-        logger.error("ACLED live fetch failed: %s", e)
-        raise HTTPException(status_code=503, detail="ACLED data temporarily unavailable")
+        logger.error("Events fetch failed: %s", e)
+        raise HTTPException(status_code=503, detail="Event data temporarily unavailable")
 
 
 # ── ASX Prices ────────────────────────────────────────────────────────────────

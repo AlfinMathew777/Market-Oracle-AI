@@ -161,8 +161,8 @@ def get_gdelt_sentiment_score(topic: str, timespan: str = "24h", max_records: in
                 total_tone += float(tone)
                 valid_tone_count += 1
             
-            # Collect sample article titles (up to 3)
-            if len(sample_articles) < 3:
+            # Collect sample article titles (up to 50 for live event matching)
+            if len(sample_articles) < 50:
                 sample_articles.append({
                     "title": article.get("title", "Untitled"),
                     "url": article.get("url", ""),
@@ -400,6 +400,122 @@ def build_gdelt_topic_from_event(event_data: dict) -> str:
     return query
 
 
+# ── GDELT Live Events Feed ────────────────────────────────────────────────────
+# Topics to query and their geographic/sector metadata for the feed
+_LIVE_EVENT_TOPICS = [
+    {"query": "China Australia iron ore trade sourcelang:english",   "country": "China",                       "lat": 39.9,  "lng": 116.4, "event_type": "Strategic developments",    "affected_region": "china_trade"},
+    {"query": "Middle East oil tanker Red Sea sourcelang:english",   "country": "Yemen",                       "lat": 15.4,  "lng": 44.2,  "event_type": "Explosions/Remote violence", "affected_region": "middle_east"},
+    {"query": "Ukraine Russia war energy Europe sourcelang:english", "country": "Ukraine",                     "lat": 48.0,  "lng": 37.8,  "event_type": "Battles",                   "affected_region": "other"},
+    {"query": "Taiwan China military strait sourcelang:english",     "country": "Taiwan",                      "lat": 25.0,  "lng": 121.5, "event_type": "Strategic developments",    "affected_region": "taiwan_rare_earth"},
+    {"query": "Australia RBA ASX market sourcelang:english",         "country": "Australia",                   "lat": -33.9, "lng": 151.2, "event_type": "Strategic developments",    "affected_region": "australia_domestic"},
+    {"query": "US tariffs trade war Australia sourcelang:english",   "country": "United States",               "lat": 38.9,  "lng": -77.0, "event_type": "Strategic developments",    "affected_region": "us_trade_policy"},
+    {"query": "Congo cobalt lithium mining sourcelang:english",      "country": "Democratic Republic of Congo","lat": -4.3,  "lng": 15.3,  "event_type": "Battles",                   "affected_region": "drc_lithium"},
+]
+
+_live_events_cache: Dict = {"data": None, "expires_at": 0}
+
+
+def get_live_geopolitical_events() -> Dict:
+    """
+    Fetch live geopolitical events from GDELT for the Australian Impact Feed.
+    Uses a single broad English-language query to avoid rate limiting, then maps
+    articles to the most relevant topic based on keywords.
+    Cached for 1 hour.
+    """
+    import time
+    now = time.time()
+    if _live_events_cache["data"] and now < _live_events_cache["expires_at"]:
+        logger.info("GDELT live events cache HIT")
+        return _live_events_cache["data"]
+
+    today = datetime.now(timezone.utc)
+
+    # Single query covering all ASX-relevant geopolitical topics in English
+    broad_query = (
+        "(China iron ore OR Ukraine Russia war OR Taiwan military OR "
+        "Red Sea oil tanker OR Australia ASX OR US tariffs OR Congo cobalt) "
+        "sourcelang:english"
+    )
+
+    try:
+        result = get_gdelt_sentiment_score(broad_query, timespan="7d", max_records=50)
+        articles = result.get("sample_articles", [])
+    except Exception as e:
+        logger.warning("GDELT broad query failed: %s", e)
+        articles = []
+
+    # Keyword → topic metadata mapping
+    _KEYWORD_MAP = [
+        (["china", "iron ore", "beijing", "xi"],                                   _LIVE_EVENT_TOPICS[0]),
+        (["red sea", "houthi", "tanker", "ship", "yemen", "suez"],                 _LIVE_EVENT_TOPICS[1]),
+        (["ukraine", "russia", "kyiv", "moscow", "energy", "gas"],                 _LIVE_EVENT_TOPICS[2]),
+        (["taiwan", "pla", "strait", "tsmc", "rare earth"],                        _LIVE_EVENT_TOPICS[3]),
+        (["australia", "rba", "asx", "aud", "bhp", "rio", "cba"],                  _LIVE_EVENT_TOPICS[4]),
+        (["tariff", "trump", "us trade", "trade war", "sanction"],                 _LIVE_EVENT_TOPICS[5]),
+        (["congo", "cobalt", "lithium", "coltan", "drc"],                          _LIVE_EVENT_TOPICS[6]),
+    ]
+
+    seen_topics: set = set()
+    features = []
+
+    for article in articles:
+        title = (article.get("title") or "").strip()
+        if not title or not title.isascii():
+            continue  # skip non-English / garbled titles
+
+        title_lower = title.lower()
+        matched_meta = None
+        for keywords, meta in _KEYWORD_MAP:
+            if meta["country"] in seen_topics:
+                continue
+            if any(kw in title_lower for kw in keywords):
+                matched_meta = meta
+                break
+
+        if not matched_meta:
+            continue
+
+        seen_topics.add(matched_meta["country"])
+        i = len(features)
+        features.append({
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [matched_meta["lng"], matched_meta["lat"]],
+            },
+            "properties": {
+                "id": f"GDELT-{i:03d}",
+                "event_type": matched_meta["event_type"],
+                "country": matched_meta["country"],
+                "location": matched_meta["country"],
+                "description": title[:200],
+                "date": today.strftime("%Y-%m-%d"),
+                "fatalities": 0,
+                "notes": title,
+                "affected_region": matched_meta["affected_region"],
+                "source": "GDELT Live",
+                "sentiment": result.get("sentiment", "neutral"),
+                "avgtone": result.get("avgtone", 0.0),
+            },
+        })
+
+        if len(features) >= len(_LIVE_EVENT_TOPICS):
+            break
+
+    gdelt_result = {
+        "type": "FeatureCollection",
+        "count": len(features),
+        "features": features,
+        "source": "GDELT Live News",
+        "status": "live" if features else "empty",
+    }
+
+    _live_events_cache["data"] = gdelt_result
+    _live_events_cache["expires_at"] = now + 3600
+    logger.info("GDELT live events: %d events from single query", len(features))
+    return gdelt_result
+
+
 if __name__ == "__main__":
     # Test GDELT service
     test_topics = [
@@ -409,7 +525,7 @@ if __name__ == "__main__":
         "US tariffs Australia"
     ]
     
-    print("GDELT Sentiment Service Test")
+    print("GDELT Sentiment Service Test")  # noqa: T201
     print("=" * 60)
     
     for topic in test_topics:

@@ -8,6 +8,8 @@ import requests
 import logging
 import os
 import time
+import hashlib
+import xml.etree.ElementTree as ET
 from datetime import datetime, timezone, timedelta
 from typing import Dict
 
@@ -104,12 +106,15 @@ class ACLEDService:
 
             country_filter = ":OR:country=".join(RELEVANT_COUNTRIES)
 
+            # Fetch events from the last 90 days (rolling window, always current)
+            ninety_days_ago = (datetime.now(timezone.utc) - timedelta(days=90)).strftime("%Y-%m-%d")
+
             params = {
                 "_format": "json",
                 "country": country_filter,
                 "fields": "event_id_cnty|event_date|event_type|country|location|latitude|longitude|fatalities|notes",
                 "limit": 50,
-                "event_date": "2025-01-01",
+                "event_date": ninety_days_ago,
                 "event_date_where": ">=",
             }
 
@@ -185,6 +190,8 @@ class ACLEDService:
         return "other"
 
     def _demo_response(self) -> Dict:
+        # Shift demo event dates to be relative to today so they never look stale
+        today = datetime.now(timezone.utc)
         features = [
             {
                 "type": "Feature",
@@ -195,13 +202,13 @@ class ACLEDService:
                     "country": e["country"],
                     "location": e["country"],
                     "description": e["description"],
-                    "date": e["date"],
+                    "date": (today - timedelta(days=i)).strftime("%Y-%m-%d"),
                     "fatalities": e["fatalities"],
                     "notes": e["description"],
                     "affected_region": self._classify_region({"country": e["country"]}),
                 },
             }
-            for e in _DEMO_FEATURES
+            for i, e in enumerate(_DEMO_FEATURES)
         ]
         return {
             "type": "FeatureCollection",
@@ -209,6 +216,115 @@ class ACLEDService:
             "features": features,
             "source": "Demo Data (add ACLED credentials for live events)",
             "status": "demo",
+        }
+
+    def get_rss_events(self) -> Dict:
+        """Fetch live geopolitical/market events from free RSS feeds.
+        No API key required. Used as fallback when ACLED is unavailable.
+        """
+        RSS_SOURCES = [
+            {"url": "https://www.aljazeera.com/xml/rss/all.xml",         "source": "Al Jazeera",   "region": "GEO"},
+            {"url": "https://feeds.bbci.co.uk/news/world/rss.xml",       "source": "BBC World",    "region": "GEO"},
+            {"url": "https://oilprice.com/rss/main",                     "source": "OilPrice",     "region": "COMMODITIES"},
+            {"url": "https://www.mining.com/feed/",                      "source": "Mining.com",   "region": "COMMODITIES"},
+            {"url": "https://www.abc.net.au/news/feed/2942460/rss.xml",  "source": "ABC Business", "region": "AU"},
+            {"url": "https://stockhead.com.au/feed/",                    "source": "Stockhead",    "region": "AU"},
+        ]
+
+        # Country/region keyword mapping for geographic pin placement
+        COUNTRY_MAP = [
+            (["china", "beijing", "xi jinping", "iron ore", "pla"],                                   "China",          39.9,  116.4, "china_trade",         "Strategic developments"),
+            (["ukraine", "kyiv", "zelenskyy", "russia", "moscow", "nato"],                            "Ukraine",        48.0,   37.8, "other",               "Battles"),
+            (["taiwan", "taipei", "strait", "tsmc"],                                                  "Taiwan",         25.0,  121.5, "taiwan_rare_earth",   "Strategic developments"),
+            (["red sea", "houthi", "yemen", "tanker", "suez", "bab el-mandeb"],                       "Yemen",          15.4,   44.2, "middle_east",         "Explosions/Remote violence"),
+            (["iran", "tehran", "nuclear", "hormuz"],                                                  "Iran",           32.0,   53.7, "middle_east",         "Strategic developments"),
+            (["israel", "gaza", "hamas", "idf", "west bank"],                                         "Israel",         31.5,   34.8, "middle_east",         "Explosions/Remote violence"),
+            (["congo", "drc", "cobalt", "coltan", "kinshasa"],                                        "Democratic Republic of Congo", -4.3, 15.3, "drc_lithium", "Battles"),
+            (["papua new guinea", "png", "ok tedi", "wafi"],                                          "Papua New Guinea", -8.8, 147.2, "other",              "Riots/Protests"),
+            (["myanmar", "burma", "rare earth", "junta"],                                             "Myanmar",        21.0,  105.8, "other",               "Battles"),
+            (["australia", "asx", "rba", "aud", "bhp", "rio tinto", "fortescue"],                    "Australia",     -33.9,  151.2, "australia_domestic",  "Strategic developments"),
+            (["tariff", "trump", "us trade", "trade war", "fed ", "wall street"],                     "United States",  38.9,  -77.0, "us_trade_policy",     "Strategic developments"),
+            (["singapore", "asean", "southeast asia"],                                                "Singapore",       1.3,  103.8, "asean_trade",         "Strategic developments"),
+            (["copper", "lithium", "gold", "silver", "commodity", "iron ore", "oil", "lng", "coal"], "Australia",     -33.9,  151.2, "australia_domestic",  "Strategic developments"),
+        ]
+
+        today = datetime.now(timezone.utc)
+        articles = []
+
+        for feed in RSS_SOURCES:
+            try:
+                resp = requests.get(
+                    feed["url"],
+                    timeout=8,
+                    headers={"User-Agent": "MarketOracleAI/1.0"},
+                )
+                if resp.status_code != 200:
+                    continue
+                root = ET.fromstring(resp.text)
+                items = root.findall(".//item")
+                for item in items[:8]:
+                    title = (item.findtext("title") or "").strip()
+                    link  = (item.findtext("link")  or "").strip()
+                    pub   = (item.findtext("pubDate") or "").strip()
+                    if title:
+                        articles.append({"title": title, "url": link, "pubDate": pub, "source": feed["source"]})
+            except Exception as e:
+                logger.debug("RSS feed %s failed: %s", feed["source"], e)
+
+        if not articles:
+            logger.warning("All RSS feeds failed — falling back to demo")
+            return self._demo_response()
+
+        seen_countries: set = set()
+        features = []
+
+        for art in articles:
+            title_lower = art["title"].lower()
+            matched = None
+            for keywords, country, lat, lng, region, event_type in COUNTRY_MAP:
+                if country in seen_countries:
+                    continue
+                if any(kw in title_lower for kw in keywords):
+                    matched = (country, lat, lng, region, event_type)
+                    break
+            if not matched:
+                continue
+
+            country, lat, lng, region, event_type = matched
+            seen_countries.add(country)
+            idx = len(features)
+            features.append({
+                "type": "Feature",
+                "geometry": {"type": "Point", "coordinates": [lng, lat]},
+                "properties": {
+                    "id":              f"RSS-{idx:03d}",
+                    "event_type":      event_type,
+                    "country":         country,
+                    "location":        country,
+                    "description":     art["title"][:200],
+                    "date":            today.strftime("%Y-%m-%d"),
+                    "fatalities":      0,
+                    "notes":           art["title"],
+                    "affected_region": region,
+                    "source_name":     art["source"],
+                    "url":             art["url"],
+                },
+            })
+
+            if len(features) >= 15:
+                break
+
+        if not features:
+            logger.warning("No RSS articles matched country map — falling back to demo")
+            return self._demo_response()
+
+        logger.info("RSS live events fetched: %d events from feeds", len(features))
+        return {
+            "type": "FeatureCollection",
+            "count": len(features),
+            "features": features,
+            "source": "Live News (RSS)",
+            "status": "live",
         }
 
     def _error_response(self, error_msg: str) -> Dict:

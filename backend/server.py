@@ -158,16 +158,30 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(SlowAPIMiddleware)
 
-# Configure CORS — restrict to known frontend origins in production
+# Configure CORS — supports single URL, comma-separated list, or wildcard "*"
 _FRONTEND_URL = os.environ.get("FRONTEND_URL", "")
-_ALLOWED_ORIGINS = (
-    [_FRONTEND_URL] if _FRONTEND_URL
-    else ["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:3001", "http://127.0.0.1:3001"]
-)
+_LOCAL_ORIGINS = [
+    "http://localhost:3000", "http://127.0.0.1:3000",
+    "http://localhost:3001", "http://127.0.0.1:3001",
+]
+
+if _FRONTEND_URL == "*":
+    _ALLOWED_ORIGINS = ["*"]
+    _ALLOW_CREDENTIALS = False  # credentials not allowed with wildcard
+elif _FRONTEND_URL:
+    # Support comma-separated list of allowed origins
+    _ALLOWED_ORIGINS = [o.strip() for o in _FRONTEND_URL.split(",") if o.strip()] + _LOCAL_ORIGINS
+    _ALLOW_CREDENTIALS = True
+else:
+    _ALLOWED_ORIGINS = _LOCAL_ORIGINS
+    _ALLOW_CREDENTIALS = True
+
+logger.info("CORS allowed origins: %s", _ALLOWED_ORIGINS)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_ALLOWED_ORIGINS,
-    allow_credentials=True,
+    allow_credentials=_ALLOW_CREDENTIALS,
     allow_methods=["*"],
     allow_headers=["*"],
 )

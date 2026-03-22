@@ -18,21 +18,28 @@ function TrackRecord() {
     return () => clearInterval(interval);
   }, [tickerFilter]);
 
-  const fetchData = async () => {
+  const fetchData = async (attempt = 1) => {
     try {
       setLoading(true);
+      setError(null);
       const params = tickerFilter ? `?ticker=${encodeURIComponent(tickerFilter)}&days=30` : '?days=30';
       const [histRes, statsRes] = await Promise.all([
         fetch(`${BACKEND_URL}/api/predictions/history${params}`),
         fetch(`${BACKEND_URL}/api/predictions/accuracy${tickerFilter ? `?ticker=${encodeURIComponent(tickerFilter)}` : ''}`),
       ]);
+      if (!histRes.ok || !statsRes.ok) throw new Error(`Server error ${histRes.status}`);
       const histData  = await histRes.json();
       const statsData = await statsRes.json();
       if (histData.status === 'success')  setHistory(histData.data || []);
       if (statsData.status === 'success') setStats(statsData.data);
-      setError(null);
     } catch (err) {
-      setError('Failed to load prediction history. Backend may be restarting.');
+      if (attempt < 3) {
+        // Render free tier cold starts take ~15-30s; retry automatically
+        setTimeout(() => fetchData(attempt + 1), attempt * 8000);
+        setError(`Backend waking up… retrying (${attempt}/3)`);
+      } else {
+        setError('Failed to load prediction history. Backend may be offline — try refreshing.');
+      }
     } finally {
       setLoading(false);
     }
@@ -155,7 +162,19 @@ function TrackRecord() {
           </div>
         </div>
 
-        {error && <div className="tr-error">{error}</div>}
+        {error && (
+          <div className="tr-error">
+            {error}
+            {!error.includes('retrying') && (
+              <button
+                onClick={() => fetchData()}
+                style={{ marginLeft: '12px', padding: '2px 10px', cursor: 'pointer', fontSize: '12px' }}
+              >
+                Retry
+              </button>
+            )}
+          </div>
+        )}
 
         <div className="tr-table-wrap">
           <table className="tr-table">
