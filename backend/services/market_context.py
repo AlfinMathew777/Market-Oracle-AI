@@ -181,44 +181,147 @@ async def _av(function: str, params: dict, timeout: float = 8.0) -> Optional[dic
 
 # ── Individual fetchers ────────────────────────────────────────────────────────
 
-async def _fetch_iron_ore() -> Dict[str, Any]:
-    """Iron Ore 62% Fe — SGX TIO=F via yfinance, Alpha Vantage fallback."""
-    try:
-        import yfinance as yf
-        t = yf.Ticker("TIO=F")
-        info = t.fast_info
-        price = getattr(info, "last_price", None)
-        prev  = getattr(info, "previous_close", price)
-        if price and prev and prev > 0:
-            return {"price": round(float(price), 2), "change_pct": round((price - prev) / prev * 100, 2), "status": "live"}
-    except Exception as e:
-        logger.warning("Iron ore yfinance: %s", e)
+_IRON_ORE_SOFT_MAX = 125.0   # warn above this — elevated but possible
+_IRON_ORE_HARD_MAX = 160.0   # reject above this — clearly wrong
+_IRON_ORE_HARD_MIN =  60.0   # reject below this — clearly wrong
+_IRON_ORE_STALE_FALLBACK = 106.0  # conservative recent-market default
 
+
+def _validate_iron_ore(price: float, source: str = "") -> bool:
+    """Return False if the price is outside hard limits (clearly wrong data)."""
+    if not price or price <= 0:
+        return False
+    if price < _IRON_ORE_HARD_MIN or price > _IRON_ORE_HARD_MAX:
+        logger.warning(
+            "[IRON_ORE] REJECTED %s: $%.2f outside hard limits ($%.0f-$%.0f)",
+            source, price, _IRON_ORE_HARD_MIN, _IRON_ORE_HARD_MAX,
+        )
+        return False
+    if price > _IRON_ORE_SOFT_MAX:
+        logger.warning(
+            "[IRON_ORE] WARNING %s: $%.2f above current market range "
+            "($85-$125). Verify this is correct before trusting.",
+            source, price,
+        )
+    return True
+
+
+async def _fetch_iron_ore() -> Dict[str, Any]:
+    """
+    Iron Ore 62% Fe — three-source fetch with cross-validation and Redis LKG.
+
+    Source priority:
+      1. SGX TIO=F via yf.download() — direct futures price (no fast_info stale risk)
+      2. VALE % change applied to Redis LKG baseline — avoids the fixed-multiplier bug
+         that was returning $140.50 when iron ore was actually $106
+         (root cause: VALE fast_info was stale at old higher price * 9.5 multiplier)
+      3. PICK ETF as cross-check signal (direction only, not price)
+      4. Redis LKG — survives process restarts
+      5. Static fallback $106 (conservative recent market default)
+    """
+    import yfinance as yf
+
+    # ── Source 1: SGX TIO=F via download() — avoids fast_info in-process cache ──
+    try:
+        hist = yf.download("TIO=F", period="5d", progress=False, auto_adjust=True)
+        if not hist.empty and len(hist) >= 2:
+            close_col = hist["Close"]
+            if hasattr(close_col, "squeeze"):
+                close_col = close_col.squeeze()
+            price = float(close_col.iloc[-1])
+            prev  = float(close_col.iloc[-2])
+            if _validate_iron_ore(price, "TIO=F"):
+                chg = round((price - prev) / prev * 100, 2) if prev > 0 else 0.0
+                logger.info("[IRON_ORE] TIO=F: $%.2f/t (chg=%.2f%%)", price, chg)
+                return {"price": round(price, 2), "change_pct": chg, "status": "live"}
+    except Exception as e:
+        logger.warning("[IRON_ORE] TIO=F download failed: %s", e)
+
+    # ── Source 2: Alpha Vantage IRON_ORE endpoint ──────────────────────────────
     data = await _av("IRON_ORE", {})
     if data and "data" in data and len(data["data"]) >= 2:
         try:
             p0 = float(data["data"][0]["value"])
             p1 = float(data["data"][1]["value"])
-            return {"price": round(p0, 2), "change_pct": round((p0 - p1) / p1 * 100, 2), "status": "live"}
+            if _validate_iron_ore(p0, "Alpha Vantage"):
+                chg = round((p0 - p1) / p1 * 100, 2) if p1 > 0 else 0.0
+                logger.info("[IRON_ORE] Alpha Vantage: $%.2f/t", p0)
+                return {"price": round(p0, 2), "change_pct": chg, "status": "live"}
         except Exception:
             pass
 
-    # VALE proxy: world's largest iron ore producer — ADR price * ~9.5 ≈ iron ore $/t
-    # Directional signal is accurate; absolute price is approximate
+    # ── Source 3: VALE % change applied to LKG baseline ───────────────────────
+    # Root-cause fix: the old VALE * 9.5 multiplier returned $140.50 because
+    # VALE fast_info was stale at a higher price. Now we:
+    #   a) use download() — no fast_info stale risk
+    #   b) apply % change to a known-good baseline rather than a raw multiplier
     try:
-        import yfinance as yf
-        info  = yf.Ticker("VALE").fast_info
-        price = getattr(info, "last_price", None)
-        prev  = getattr(info, "previous_close", price)
-        if price and float(price) > 0:
-            proxy_price = round(float(price) * 9.5, 2)
-            chg = round((float(price) - float(prev)) / float(prev) * 100, 2) if prev and float(prev) > 0 else 0.0
-            logger.info("[IRON_ORE] VALE proxy: ADR=$%.2f → proxy_iron_ore=$%.2f/t chg=%.2f%%", price, proxy_price, chg)
-            return {"price": proxy_price, "change_pct": chg, "status": "proxy_vale"}
-    except Exception as e:
-        logger.warning("[IRON_ORE] VALE proxy failed: %s", e)
+        # Fetch VALE and PICK using download() to avoid fast_info stale cache
+        vale_hist = yf.download("VALE", period="5d", progress=False, auto_adjust=True)
+        pick_hist = yf.download("PICK", period="5d", progress=False, auto_adjust=True)
 
-    return {"price": 97.5, "change_pct": 0.0, "status": STALE}
+        vale_chg, pick_chg = None, None
+
+        if not vale_hist.empty and len(vale_hist) >= 2:
+            vc = vale_hist["Close"]
+            if hasattr(vc, "squeeze"):
+                vc = vc.squeeze()
+            v_now  = float(vc.iloc[-1])
+            v_prev = float(vc.iloc[-2])
+            vale_chg = round((v_now - v_prev) / v_prev * 100, 2) if v_prev > 0 else 0.0
+
+        if not pick_hist.empty and len(pick_hist) >= 2:
+            pc = pick_hist["Close"]
+            if hasattr(pc, "squeeze"):
+                pc = pc.squeeze()
+            p_now  = float(pc.iloc[-1])
+            p_prev = float(pc.iloc[-2])
+            pick_chg = round((p_now - p_prev) / p_prev * 100, 2) if p_prev > 0 else 0.0
+
+        if vale_chg is not None:
+            # Cross-check: VALE and PICK should move in the same direction
+            if pick_chg is not None and (vale_chg > 0) != (pick_chg > 0) and abs(vale_chg) > 0.5:
+                logger.warning(
+                    "[IRON_ORE] Cross-validation mismatch: VALE %+.1f%% vs PICK %+.1f%% "
+                    "— direction signals disagree. Using VALE but treating as approximate.",
+                    vale_chg, pick_chg,
+                )
+
+            # Get baseline from Redis LKG, else use conservative static fallback
+            baseline = _IRON_ORE_STALE_FALLBACK
+            try:
+                from services.redis_client import cache_get
+                lkg = await cache_get("ironore:lkg")
+                if lkg and isinstance(lkg, dict) and _validate_iron_ore(lkg.get("price", 0), "Redis LKG"):
+                    baseline = lkg["price"]
+                    logger.info("[IRON_ORE] Using Redis LKG baseline: $%.2f/t", baseline)
+            except Exception:
+                pass
+
+            implied = round(baseline * (1 + vale_chg / 100), 2)
+            if _validate_iron_ore(implied, "VALE proxy"):
+                logger.info(
+                    "[IRON_ORE] VALE proxy: chg=%+.2f%% × baseline=$%.2f → implied=$%.2f/t"
+                    " (PICK chg=%s%%)",
+                    vale_chg, baseline, implied,
+                    f"{pick_chg:+.2f}" if pick_chg is not None else "N/A",
+                )
+                return {"price": implied, "change_pct": vale_chg, "status": "proxy_vale"}
+    except Exception as e:
+        logger.warning("[IRON_ORE] VALE/PICK proxy failed: %s", e)
+
+    # ── Source 4: Redis LKG — survives Railway process restarts ───────────────
+    try:
+        from services.redis_client import cache_get
+        lkg = await cache_get("ironore:lkg")
+        if lkg and isinstance(lkg, dict) and _validate_iron_ore(lkg.get("price", 0), "Redis LKG"):
+            logger.warning("[IRON_ORE] All live fetches failed — using Redis LKG $%.2f/t", lkg["price"])
+            return {**lkg, "status": STALE}
+    except Exception:
+        pass
+
+    logger.warning("[IRON_ORE] All sources failed — static fallback $%.2f/t", _IRON_ORE_STALE_FALLBACK)
+    return {"price": _IRON_ORE_STALE_FALLBACK, "change_pct": 0.0, "status": STALE}
 
 
 async def _fetch_audusd() -> Dict[str, Any]:
@@ -1663,8 +1766,30 @@ async def fetch_market_context(ticker: str, event_keywords: Optional[List[str]] 
     def safe(r, fallback):
         return fallback if isinstance(r, Exception) else r
 
-    iron       = safe(results[0], {"price": 97.5,  "change_pct": 0.0, "status": STALE})
+    iron       = safe(results[0], {"price": _IRON_ORE_STALE_FALLBACK, "change_pct": 0.0, "status": STALE})
     audusd     = safe(results[1], {"rate":  0.6500, "change_pct": 0.0, "status": STALE})
+
+    # Write live iron ore to Redis LKG so the VALE proxy has a fresh baseline
+    # on next call, and so cold-starts don't fall back to the static default.
+    if iron.get("status") not in (STALE, None) and _validate_iron_ore(iron.get("price", 0), "post-fetch"):
+        try:
+            from services.redis_client import cache_set
+            await cache_set("ironore:lkg", iron, ttl=3600)
+        except Exception:
+            pass
+
+    # AUD/USD stale guard: 0.65 was the static fallback before the Redis LKG fix.
+    # If we somehow got a cached 0.65 that's suspiciously low, force a fresh fetch.
+    if audusd.get("rate", 1.0) < 0.63 and audusd.get("status") == STALE:
+        logger.warning(
+            "[AUDUSD] Stale guard: cached rate %.4f is below 0.63 — "
+            "forcing fresh fetch to avoid serving wrong data to agents",
+            audusd.get("rate"),
+        )
+        try:
+            audusd = await _fetch_audusd()
+        except Exception:
+            pass
     brent      = safe(results[2], {"price": 82.5,  "change_pct": 0.0, "status": STALE})
     tech       = safe(results[3], {"price": 47.0,  "volume_vs_avg": 1.0, "rsi": None, "macd_signal": "NEUTRAL", "status": STALE})
     news       = safe(results[4], [])
