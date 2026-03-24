@@ -269,8 +269,7 @@ async def _fetch_audusd() -> Dict[str, Any]:
             logger.warning("AUD/USD yfinance: %s", e)
 
     if result is None:
-        # Last-known-good: reuse a previously fetched valid value (up to 30 min old)
-        # rather than silently returning stale 0.65 to every agent.
+        # Last-known-good tier 1: in-process cache (same Railway dyno, up to 30 min old)
         lkg_age = time.time() - _audusd_cache_ts
         if _audusd_cache is not None and lkg_age < _AUDUSD_LKG_MAX_AGE:
             logger.warning(
@@ -278,7 +277,22 @@ async def _fetch_audusd() -> Dict[str, Any]:
                 _audusd_cache["rate"], lkg_age,
             )
             return _audusd_cache
-        logger.warning("[AUDUSD] All fetches failed and no LKG available — using static fallback 0.6500")
+
+        # Last-known-good tier 2: Redis — survives process restarts / cold starts
+        try:
+            from services.redis_client import cache_get
+            redis_val = await cache_get("audusd:lkg")
+            if redis_val and isinstance(redis_val, dict) and _validate_audusd(redis_val.get("rate", 0)):
+                logger.warning(
+                    "[AUDUSD] Using Redis LKG %.4f after all live fetches failed",
+                    redis_val["rate"],
+                )
+                result = {**redis_val, "status": STALE}
+        except Exception as _re:
+            logger.debug("[AUDUSD] Redis LKG lookup failed: %s", _re)
+
+    if result is None:
+        logger.warning("[AUDUSD] All fetches and LKG failed — using static fallback 0.6500")
         result = {"rate": 0.6500, "change_pct": 0.0, "status": STALE}
 
     if not _validate_audusd(result["rate"]):
@@ -292,6 +306,15 @@ async def _fetch_audusd() -> Dict[str, Any]:
     logger.info("[AUDUSD] Fresh fetch: %.4f (status=%s)", result["rate"], result["status"])
     _audusd_cache = result
     _audusd_cache_ts = time.time()
+
+    # Write live values to Redis so cold-starts don't fall back to 0.6500
+    if result.get("status") != STALE:
+        try:
+            from services.redis_client import cache_set
+            await cache_set("audusd:lkg", result, ttl=3600)  # 1-hour Redis LKG
+        except Exception as _re:
+            logger.debug("[AUDUSD] Redis LKG write failed: %s", _re)
+
     return result
 
 

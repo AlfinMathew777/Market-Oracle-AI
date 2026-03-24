@@ -189,6 +189,38 @@ _PROFILES: Dict[str, Dict[str, Any]] = {
             "Event → lithium demand / iron ore price → MinRes revenue → MIN.AX price"
         ),
     },
+    "LYC.AX": {
+        "name": "Lynas Rare Earths",
+        "sector": "Rare Earths / Critical Minerals",
+        "primary_revenue_drivers": [
+            "NdPr (neodymium-praseodymium) rare earth oxide price (USD/kg) — dominant driver",
+            "EV motor demand (drives NdPr demand from manufacturers)",
+            "Wind turbine installations globally",
+            "US and Japan government defence contracts",
+            "AUD/USD (costs in AUD, revenues in USD)",
+        ],
+        "key_sensitivities": [
+            "NdPr oxide spot price — single largest revenue driver",
+            "China rare earth export restrictions (BULLISH for LYC — removes competition)",
+            "US-China trade war in critical minerals (BULLISH — LYC is non-Chinese supply)",
+            "EV adoption rate globally (determines NdPr magnet demand)",
+            "Malaysian processing licence renewals (Kuantan plant risk)",
+            "US Defence Department contract status",
+            "AUD/USD (LYC earns USD, pays AUD labour costs)",
+        ],
+        "irrelevant_signals": [
+            "Iron ore prices (LYC produces rare earths, not iron ore)",
+            "Port Hedland, Pilbara iron ore shipments",
+            "China steel mill demand",
+            "RBA rate decisions (minimal direct revenue link)",
+            "BHP, Rio Tinto, Fortescue operations",
+        ],
+        "causal_chain_template": (
+            "Event → NdPr rare earth price / EV demand / China export policy impact "
+            "→ Lynas revenue and margin direction → LYC.AX price. "
+            "NEVER mention iron ore or steel mills."
+        ),
+    },
     "TWE.AX": {
         "name": "Treasury Wine Estates",
         "sector": "Consumer Staples — Wine",

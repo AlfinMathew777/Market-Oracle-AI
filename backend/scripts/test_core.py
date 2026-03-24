@@ -439,6 +439,11 @@ _SECTOR_KEYWORDS: Dict[str, set] = {
     "Banking (Retail & Business)": {"rba", "rate", "interest rate", "mortgage", "housing", "unemployment", "credit", "consumer", "inflation", "cba", "westpac", "anz", "nab", "cash rate"},
     "Gold Mining":              {"gold", "usd", "dollar", "real rate", "safe haven", "risk-off"},
     "Lithium & Iron Ore Mining": {"lithium", "ev", "electric vehicle", "iron ore", "china battery", "spodumene"},
+    "Rare Earths / Critical Minerals": {
+        "rare earth", "neodymium", "praseodymium", "ndpr", "lynas", "critical mineral",
+        "ev motor", "wind turbine", "china export restriction", "rare earths",
+        "magnet", "defence supply chain", "non-chinese supply", "kalgoorlie processing",
+    },
 }
 
 
@@ -594,6 +599,28 @@ CAUSAL_CHAIN_QUESTIONS = {
             "signal for Woodside's near-term outlook?"
         ),
     },
+    "rare_earths": {
+        "tickers": ["LYC.AX", "ARU.AX", "REE.AX"],
+        "cost": (
+            "How does this event affect Lynas's processing facility costs "
+            "in Kalgoorlie (WA) or Kuantan (Malaysia)? "
+            "NEVER mention iron ore, Port Hedland, or steel mills."
+        ),
+        "revenue": (
+            "How does this affect NdPr (neodymium-praseodymium) rare earth oxide prices "
+            "or demand from EV motor manufacturers and defence customers?"
+        ),
+        "demand": (
+            "How does this affect EV motor production, wind turbine manufacturing, "
+            "or US/Japan defence procurement? "
+            "NEVER mention Chinese steel mills."
+        ),
+        "sentiment": (
+            "What does this mean for critical minerals supply chain diversification "
+            "away from China? China export restrictions = BULLISH for LYC. "
+            "Non-Chinese rare earth supply = strategic premium."
+        ),
+    },
     "generic": {
         "tickers": [],
         "cost":      "How does this event affect the company's input costs?",
@@ -603,9 +630,10 @@ CAUSAL_CHAIN_QUESTIONS = {
     },
 }
 
-_BANKING_TICKERS = ["CBA.AX", "WBC.AX", "ANZ.AX", "NAB.AX"]
-_MINING_TICKERS  = ["BHP.AX", "RIO.AX", "FMG.AX", "S32.AX"]
-_ENERGY_TICKERS  = ["WDS.AX", "STO.AX"]
+_BANKING_TICKERS     = ["CBA.AX", "WBC.AX", "ANZ.AX", "NAB.AX"]
+_MINING_TICKERS      = ["BHP.AX", "RIO.AX", "FMG.AX", "S32.AX"]
+_ENERGY_TICKERS      = ["WDS.AX", "STO.AX"]
+_RARE_EARTH_TICKERS  = ["LYC.AX", "ARU.AX"]
 
 _MINING_KEYWORDS = [
     "port hedland", "iron ore", "pilbara", "copper mine",
@@ -654,6 +682,14 @@ def _get_forbidden_phrases(ticker: str) -> str:
             "- mining operations, ore shipments\n"
             "- Chinese steel mill demand"
         )
+    if ticker in _RARE_EARTH_TICKERS:
+        return (
+            "- iron ore prices, steel production\n"
+            "- Port Hedland, Pilbara iron ore shipments\n"
+            "- Chinese steel mills\n"
+            f"{ticker} produces RARE EARTHS (NdPr) for EV motors and defence, "
+            "not iron ore for steel."
+        )
     return "- Apply this company's actual business model only"
 
 
@@ -691,6 +727,15 @@ def filter_trigger_for_ticker(trigger: str, ticker: str) -> str:
             f"No energy-specific catalyst identified for {ticker} in the last 24 hours. "
             f"Analyse {ticker} based on: LNG spot prices, Brent crude oil, "
             f"Asian energy demand, and shipping route conditions."
+        )
+
+    if ticker in _RARE_EARTH_TICKERS and any(k in t for k in _MINING_KEYWORDS):
+        logger.info("[TRIGGER FILTER] Blocked iron ore trigger for %s: %.60s", ticker, trigger)
+        return (
+            f"No rare earths-specific catalyst identified for {ticker} in the last 24 hours. "
+            f"Analyse {ticker} based on: NdPr rare earth oxide prices, "
+            f"EV motor demand outlook, US/Japan defence contracts, "
+            f"and China critical minerals export policy."
         )
 
     return trigger
@@ -760,8 +805,20 @@ def apply_minimum_confidence_guard(
     total         = bullish + bearish + neutral
     neutral_ratio = neutral / total if total > 0 else 1.0
 
+    # Rule 1: Hard zero — absolute floor, no bypass allowed.
+    # Chain override cannot save a 0% confidence prediction.
+    # (LYC bug fix: chain_override_active was bypassing this, letting 0%
+    #  confidence predictions through as directional.)
+    if confidence < 3.0:
+        return (
+            "neutral",
+            confidence,
+            "INSUFFICIENT_SIGNAL: confidence below minimum threshold — "
+            "no directional prediction generated",
+        )
+
     # Chain-override bypass: causal logic already spoke — keep direction,
-    # only warn if confidence is very low.
+    # only warn if confidence is very low (but >= 3%, so still meaningful).
     if chain_override_active and direction != "neutral":
         if confidence < 15.0:
             return (
@@ -774,15 +831,6 @@ def apply_minimum_confidence_guard(
             )
         # Confidence is acceptable — no note needed
         return direction, confidence, None
-
-    # Rule 1: Hard zero confidence — no direction possible
-    if confidence < 3.0:
-        return (
-            "neutral",
-            confidence,
-            "INSUFFICIENT_SIGNAL: confidence below minimum threshold — "
-            "no directional prediction generated",
-        )
 
     # Rule 2: Majority neutral — market direction genuinely unclear
     if neutral_ratio >= 0.50:
@@ -1011,8 +1059,15 @@ class AdversarialAgent:
             vote, reason = _parse_vote(response, self.persona)
         except Exception as e:
             logger.warning("Agent %d (%s) error: %s", self.agent_id, self.persona, e)
-            vote   = "neutral"
-            reason = "Error — defaulting to neutral"
+            # Forced-vote personas (macro_bull, geo_bear) must not silently become
+            # neutral on error — that inflates neutral count and distorts confidence.
+            if self.persona == "macro_bull":
+                vote = "bullish"
+            elif self.persona == "geo_bear":
+                vote = "bearish"
+            else:
+                vote = "neutral"
+            reason = f"Error — defaulting to {vote}"
 
         return {"agent_id": self.agent_id, "persona": self.persona, "vote": vote, "reason": reason}
 
