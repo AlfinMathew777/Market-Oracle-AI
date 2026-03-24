@@ -48,7 +48,7 @@ from models.prediction import (
     KeySignal, SignalType, AgentConsensus, CausalChainStep
 )
 from event_ticker_mapping import map_event_to_ticker, get_ticker_info
-from services.ticker_profiles import build_ticker_context_block
+from services.ticker_profiles import build_ticker_context_block, get_profile
 
 logger = logging.getLogger(__name__)
 
@@ -417,6 +417,111 @@ def validate_trigger_event(trigger_event: str, ticker: str, news_items: list) ->
 
     # Level 3: No news — macro/technical-driven session
     return f"No major catalyst identified for {ticker} in last 24h — likely macro/technical-driven session"
+
+
+# ── Trigger relevance scoring ─────────────────────────────────────────────────
+
+# Sector keyword sets used for fast relevance scoring.
+# Keys map to ticker sectors; each set contains terms that signal relevance.
+_SECTOR_KEYWORDS: Dict[str, set] = {
+    "Diversified Mining":       {"iron ore", "steel", "copper", "china", "pilbara", "port hedland", "bhp", "rio", "mining", "commodity", "ore", "mill", "blast furnace"},
+    "Iron Ore Mining":          {"iron ore", "steel", "china", "pilbara", "port hedland", "fortescue", "fmg", "ore", "mill", "china property"},
+    "Oil & Gas (LNG-focused)":  {"lng", "gas", "oil", "brent", "energy", "woodside", "jkm", "liquefied", "tanker", "middle east", "hormuz", "suez"},
+    "Oil & Gas":                {"lng", "gas", "oil", "brent", "energy", "santos", "jkm", "asia pacific", "middle east", "hormuz"},
+    "Banking (Retail & Business)": {"rba", "rate", "interest rate", "mortgage", "housing", "unemployment", "credit", "consumer", "inflation", "cba", "westpac", "anz", "nab", "cash rate"},
+    "Gold Mining":              {"gold", "usd", "dollar", "real rate", "safe haven", "risk-off"},
+    "Lithium & Iron Ore Mining": {"lithium", "ev", "electric vehicle", "iron ore", "china battery", "spodumene"},
+}
+
+
+def score_event_relevance(event_text: str, ticker: str) -> float:
+    """
+    Score how relevant a news headline/trigger is to a specific ticker (0.0–1.0).
+
+    - Matches keywords from the ticker's sector keyword set (+0.2 per hit, max 1.0)
+    - Penalty if the text explicitly matches an irrelevant_signal phrase (-0.5, floor 0.1)
+    - Cross-sector penalty: if the event text matches a *different* sector's keywords
+      but NOT the ticker's own sector keywords, multiply final score by 0.1.
+    """
+    if not event_text:
+        return 0.0
+
+    profile = get_profile(ticker)
+    sector  = profile.get("sector", "")
+    irrelevant_signals = [s.lower() for s in profile.get("irrelevant_signals", [])]
+
+    text_lower = event_text.lower()
+
+    # Hard irrelevance check — explicit profile signal
+    for signal in irrelevant_signals:
+        # Strip qualifier phrases like "(minimal direct impact...)" for matching
+        core = signal.split("(")[0].strip()
+        if core and core in text_lower:
+            return 0.05  # effectively irrelevant
+
+    # Keyword match against own sector
+    own_keywords = _SECTOR_KEYWORDS.get(sector, set())
+    hits = sum(1 for kw in own_keywords if kw in text_lower)
+    own_score = min(1.0, hits * 0.25)
+
+    # Cross-sector penalty: does the event strongly match a *different* sector?
+    if own_score < 0.25:
+        for other_sector, kws in _SECTOR_KEYWORDS.items():
+            if other_sector == sector:
+                continue
+            other_hits = sum(1 for kw in kws if kw in text_lower)
+            if other_hits >= 2:
+                # Event looks like it belongs to another sector — penalise
+                return max(0.05, own_score * 0.1)
+
+    return max(0.0, own_score)
+
+
+def get_ticker_relevant_trigger(
+    news_items: list,
+    ticker: str,
+    raw_trigger: str,
+    relevance_threshold: float = 0.2,
+) -> str:
+    """
+    Return the most ticker-relevant trigger event string.
+
+    Priority:
+    1. raw_trigger from Judge LLM — score it; use if score >= threshold
+    2. Best-matching news item from news_items — use if score >= threshold
+    3. Fallback: "No [sector]-specific catalyst identified for {ticker} in last 24h"
+
+    This prevents Port Hedland storm being injected as the trigger for CBA.AX.
+    """
+    profile = get_profile(ticker)
+    sector  = profile.get("sector", "Unknown")
+
+    # Score the judge's raw trigger
+    judge_score = score_event_relevance(raw_trigger, ticker)
+    if judge_score >= relevance_threshold and raw_trigger and "No data" not in raw_trigger:
+        return raw_trigger  # Judge already gave a relevant trigger
+
+    # Fall back to scoring all news items
+    best_item  = None
+    best_score = 0.0
+    recent = [n for n in news_items if n.get("hours_old", 999) <= 48]
+    for item in recent:
+        text  = item.get("title", item.get("headline", ""))
+        score = score_event_relevance(text, ticker)
+        if score > best_score:
+            best_score = score
+            best_item  = item
+
+    if best_item and best_score >= relevance_threshold:
+        headline = best_item.get("title", best_item.get("headline", "Market event"))
+        source   = best_item.get("source", "MarketAux")
+        return f"{headline} (Source: {source}, {best_item.get('hours_old', '?')}h ago)"
+
+    # Nothing relevant found — sector-specific fallback
+    return (
+        f"No {sector}-specific catalyst identified for {ticker} in last 24h "
+        f"— likely macro/technical-driven session"
+    )
 
 
 # ── Bug Fix 4: Smart direction determination ───────────────────────────────────
@@ -888,6 +993,73 @@ class Simulation:
         trend_label = market_ctx.get("trend_label", "NEUTRAL") or "NEUTRAL"
         persona_distribution_desc = self._reinit_agents_for_trend(trend_label)
 
+        # ── STEP 1c: Game Theory signals ──────────────────────────────────────
+        from services.game_theory.institutional_model import classify_institutional_behaviour
+        from services.game_theory.china_model import analyse_china_strategy_from_price
+        from datetime import timezone as _tz
+
+        try:
+            hour_utc = datetime.now(_tz.utc).hour
+            has_critical_news = any(
+                item.get("weight", 0) >= 0.85
+                for item in market_ctx.get("news_items", [])
+            )
+
+            institutional_signal = classify_institutional_behaviour(
+                volume_vs_avg=market_ctx.get("ticker_volume_vs_avg"),
+                price_change_pct=market_ctx.get("ticker_price_change_pct"),
+                has_critical_news=has_critical_news,
+                consecutive_down_days=market_ctx.get("consecutive_down_days", 0) or 0,
+                rsi=market_ctx.get("ticker_rsi"),
+                time_of_day_utc=hour_utc,
+            )
+
+            china_signal = analyse_china_strategy_from_price(
+                iron_ore_price=market_ctx.get("iron_ore_price"),
+                iron_ore_change_pct=market_ctx.get("iron_ore_change_pct"),
+                ticker=ticker,
+            )
+
+            gt_modifier = institutional_signal.modifier
+            if china_signal:
+                gt_modifier += china_signal.modifier
+            gt_modifier = max(-25, min(25, gt_modifier))
+
+            gt_lines = ["\n=== GAME THEORY INTELLIGENCE ==="]
+            gt_lines.append(f"\nINSTITUTIONAL BEHAVIOUR ANALYSIS:")
+            gt_lines.append(f"  Type: {institutional_signal.behaviour_type}")
+            gt_lines.append(f"  Direction: {institutional_signal.direction_bias}")
+            gt_lines.append(f"  Persistence: {institutional_signal.persistence}")
+            gt_lines.append(f"  Signal: {institutional_signal.reasoning}")
+            if china_signal and china_signal.strategy != "neutral_monitoring":
+                gt_lines.append(f"\nCHINA STRATEGIC DEMAND SIGNAL:")
+                gt_lines.append(f"  Strategy: {china_signal.strategy}")
+                gt_lines.append(f"  Demand direction: {china_signal.demand_direction}")
+                gt_lines.append(f"  Signal: {china_signal.reasoning}")
+            gt_lines.append(f"\nGAME THEORY CONFIDENCE MODIFIER: {gt_modifier:+d}")
+            gt_lines.append(
+                "\nUSE THESE SIGNALS: Institutional behaviour type tells you "
+                "WHY volume is high — this predicts what happens next. "
+                "China strategy tells you the demand outlook beyond today's price. "
+                "Weight these signals alongside fundamental and technical analysis."
+            )
+            gt_lines.append("=== END GAME THEORY ===\n")
+            game_theory_block = "\n".join(gt_lines)
+
+            context_block = context_block + game_theory_block
+            logger.info(
+                "Game theory signals — institutional=%s(%s) china=%s gt_modifier=%+d",
+                institutional_signal.behaviour_type,
+                institutional_signal.direction_bias,
+                china_signal.strategy if china_signal else "N/A",
+                gt_modifier,
+            )
+        except Exception as _gt_err:
+            logger.warning("Game theory module error (non-fatal): %s", _gt_err)
+            institutional_signal = None
+            china_signal = None
+            gt_modifier = 0
+
         # ── STEP 2: Set agent prompts (with trend-aware neutral bias) ─────────
         self._set_agent_prompts(ticker, lessons_str, trend_label)
 
@@ -949,10 +1121,11 @@ class Simulation:
             spx_change_pct=spx_change_pct,
         )
 
-        # ── STEP 8: Validate trigger_event + apply confidence modifier ─────────
+        # ── STEP 8: Select ticker-relevant trigger + apply confidence modifier ──
         raw_trigger   = judge_result.get("trigger_event", "")
-        trigger_event = validate_trigger_event(raw_trigger, ticker, news_items)
+        trigger_event = get_ticker_relevant_trigger(news_items, ticker, raw_trigger)
         judge_result["trigger_event"] = trigger_event
+        logger.info("Trigger event (relevance-filtered): %.60s...", trigger_event)
 
         modifier = judge_result.get("confidence_modifier", 0)
         final_confidence = max(0.0, min(1.0, raw_confidence + modifier / 100))
@@ -1010,6 +1183,17 @@ class Simulation:
         if market_warning:
             logger.info("Market session modifier applied: %s", market_warning)
 
+        # ── Game Theory modifier ─────────────────────────────────────────────
+        # Applied AFTER reconciler + market session, BEFORE minimum confidence guard.
+        # Additive to existing confidence. Hard-capped at ±25 already.
+        if gt_modifier != 0:
+            pre_gt = final_confidence
+            final_confidence = max(0.0, min(0.95, final_confidence + gt_modifier / 100))
+            logger.info(
+                "Game theory modifier applied: %+d → confidence %.1f%% → %.1f%%",
+                gt_modifier, pre_gt * 100, final_confidence * 100,
+            )
+
         # ── Fix 1: Minimum confidence guard ──────────────────────────────────
         # chain_override_active=True when the chain audit contradicted agents
         # and changed the direction — guard must not undo that logic override.
@@ -1030,6 +1214,50 @@ class Simulation:
         final_confidence = round(confidence_pct / 100, 5)
         if signal_note:
             logger.info("Confidence guard triggered: %s", signal_note)
+
+        # ── Monte Carlo signal stability + price range ────────────────────────
+        # Run AFTER all confidence adjustments — MC validates the final signal.
+        try:
+            from services.game_theory.monte_carlo import (
+                run_confidence_monte_carlo,
+                run_price_range_monte_carlo,
+            )
+            mc_confidence = run_confidence_monte_carlo(
+                bullish=n_bull,
+                bearish=n_bear,
+                neutral=n_neut,
+                iron_ore_price=market_ctx.get("iron_ore_price"),
+                n_simulations=1000,
+            )
+            ticker_price = market_ctx.get("ticker_price")
+            if ticker_price and ticker_price > 0:
+                direction_prob = n_bear / max(n_bull + n_bear + n_neut, 1)
+                mc_price = run_price_range_monte_carlo(
+                    current_price=ticker_price,
+                    direction_probability=direction_prob,
+                    ticker=ticker,
+                    days=7,
+                    n_simulations=10000,
+                )
+            else:
+                mc_price = None
+
+            if not mc_confidence.is_stable:
+                pre_mc = final_confidence
+                final_confidence = round(final_confidence * 0.75, 5)
+                logger.info(
+                    "MC confidence unstable (stability=%.1f%%) — confidence reduced %.1f%% → %.1f%%",
+                    mc_confidence.direction_stability_pct, pre_mc * 100, final_confidence * 100,
+                )
+            else:
+                logger.info(
+                    "MC confidence stable (stability=%.1f%%, conviction=%s)",
+                    mc_confidence.direction_stability_pct, mc_confidence.conviction_label,
+                )
+        except Exception as _mc_err:
+            logger.warning("Monte Carlo failed: %s", _mc_err)
+            mc_confidence = None
+            mc_price = None
 
         return {
             "simulation_id":    self.simulation_id,
@@ -1066,6 +1294,33 @@ class Simulation:
             "reconciler_reasoning":   judge_result.get("reconciler_reasoning"),
             # Anti-bias: trend-weighted persona distribution used this run
             "persona_distribution":   persona_distribution_desc,
+            # Game theory intelligence
+            "game_theory_institutional":      institutional_signal.behaviour_type if institutional_signal else None,
+            "game_theory_institutional_bias": institutional_signal.direction_bias if institutional_signal else None,
+            "game_theory_china":              china_signal.strategy if china_signal else None,
+            "game_theory_modifier":           gt_modifier,
+            # Monte Carlo simulation results
+            "monte_carlo_confidence": {
+                "mean_confidence":         mc_confidence.mean_confidence,
+                "confidence_std":          mc_confidence.confidence_std,
+                "direction_stability_pct": mc_confidence.direction_stability_pct,
+                "is_stable":               mc_confidence.is_stable,
+                "dominant_direction":      mc_confidence.dominant_direction,
+                "conviction_label":        mc_confidence.conviction_label,
+            } if mc_confidence else None,
+            "monte_carlo_price": {
+                "current_price":      mc_price.current_price,
+                "expected_price_7d":  mc_price.expected_price_7d,
+                "expected_change_pct": mc_price.expected_change_pct,
+                "range_90pct_low":    mc_price.range_90pct_low,
+                "range_90pct_high":   mc_price.range_90pct_high,
+                "range_68pct_low":    mc_price.range_68pct_low,
+                "range_68pct_high":   mc_price.range_68pct_high,
+                "prob_down_5pct":     mc_price.prob_down_5pct,
+                "prob_up_5pct":       mc_price.prob_up_5pct,
+                "prob_down_10pct":    mc_price.prob_down_10pct,
+                "prob_up_10pct":      mc_price.prob_up_10pct,
+            } if mc_price else None,
         }
 
     async def _run_judge(
@@ -1318,6 +1573,14 @@ class Simulation:
             "persona_distribution":    simulation_results.get("persona_distribution"),
             # Polymarket prediction market signals
             "polymarket_markets":       market_ctx.get("polymarket_markets", []),
+            # Game theory intelligence
+            "game_theory_institutional":      simulation_results.get("game_theory_institutional"),
+            "game_theory_institutional_bias": simulation_results.get("game_theory_institutional_bias"),
+            "game_theory_china":              simulation_results.get("game_theory_china"),
+            "game_theory_modifier":           simulation_results.get("game_theory_modifier"),
+            # Monte Carlo results
+            "monte_carlo_confidence": simulation_results.get("monte_carlo_confidence"),
+            "monte_carlo_price":      simulation_results.get("monte_carlo_price"),
         }
 
         prediction = PredictionCard(**prediction_dict)

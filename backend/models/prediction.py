@@ -179,6 +179,16 @@ class PredictionCard(BaseModel):
     # Polymarket prediction market signals at time of simulation
     polymarket_markets:      Optional[List[dict]] = None  # top relevant markets with odds
 
+    # Game theory intelligence signals
+    game_theory_institutional:      Optional[str]   = None  # e.g. "forced_selling"
+    game_theory_institutional_bias: Optional[str]   = None  # "bullish" | "bearish" | "neutral"
+    game_theory_china:              Optional[str]   = None  # e.g. "stockpile_drawdown"
+    game_theory_modifier:           Optional[int]   = None  # net confidence delta applied (-25 to +25)
+
+    # Monte Carlo simulation results
+    monte_carlo_confidence: Optional[dict] = None  # MonteCarloConfidence fields as dict
+    monte_carlo_price:      Optional[dict] = None  # MonteCarloPriceRange fields as dict
+
     model_config = {
         "json_schema_extra": {
             "example": {

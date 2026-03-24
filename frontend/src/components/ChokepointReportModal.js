@@ -103,6 +103,7 @@ export default function ChokepointReportModal({ result, onClose }) {
     export_breakdown_aud_m = {},
     asx_sector_breakdown = {},
     key_insight,
+    monte_carlo_chokepoint = null,
   } = impact;
 
   // Use formatted display string if available, else format the number
@@ -413,6 +414,52 @@ export default function ChokepointReportModal({ result, onClose }) {
                     );
                   })}
                 </div>
+              </div>
+            );
+          })()}
+
+          {/* Monte Carlo disruption scenario */}
+          {monte_carlo_chokepoint && (() => {
+            const mc = monte_carlo_chokepoint;
+            const fmtAud = (n) => {
+              if (n >= 1_000_000_000) return `A$${(n / 1_000_000_000).toFixed(1)}B`;
+              if (n >= 1_000_000)     return `A$${(n / 1_000_000).toFixed(0)}M`;
+              return `A$${n.toLocaleString()}`;
+            };
+            const labelColor = mc.scenario_label.startsWith('CRITICAL') ? '#ff3366'
+              : mc.scenario_label.startsWith('SEVERE')   ? '#ff8800'
+              : mc.scenario_label.startsWith('MODERATE') ? '#ffcc00'
+              : '#aaaaaa';
+            return (
+              <div className="cp-section">
+                <div className="cp-section-title">Monte Carlo Scenario Distribution</div>
+                <div className="cp-mc-label" style={{ color: labelColor }}>
+                  {mc.scenario_label}
+                </div>
+                <div className="cp-mc-grid">
+                  <div className="cp-mc-cell">
+                    <div className="cp-mc-cell-label">Expected Impact</div>
+                    <div className="cp-mc-cell-val" style={{ color: '#ff8800' }}>{fmtAud(mc.expected_exports_aud)}</div>
+                  </div>
+                  <div className="cp-mc-cell">
+                    <div className="cp-mc-cell-label">Worst Case (95th %ile)</div>
+                    <div className="cp-mc-cell-val" style={{ color: '#ff3366' }}>{fmtAud(mc.worst_case_exports_aud)}</div>
+                  </div>
+                  <div className="cp-mc-cell">
+                    <div className="cp-mc-cell-label">Best Case (5th %ile)</div>
+                    <div className="cp-mc-cell-val" style={{ color: '#00ff88' }}>{fmtAud(mc.best_case_exports_aud)}</div>
+                  </div>
+                  <div className="cp-mc-cell">
+                    <div className="cp-mc-cell-label">Expected Duration</div>
+                    <div className="cp-mc-cell-val" style={{ color: '#ccc' }}>{mc.expected_duration_days}d</div>
+                  </div>
+                </div>
+                <div className="cp-mc-probs">
+                  <span className="cp-mc-prob">P(&gt;A$1B): {mc.prob_exceeds_1b_pct}%</span>
+                  <span className="cp-mc-prob">P(&gt;A$5B): {mc.prob_exceeds_5b_pct}%</span>
+                  <span className="cp-mc-prob">P(&gt;A$10B): {mc.prob_exceeds_10b_pct}%</span>
+                </div>
+                <div className="cp-mc-note">10,000 scenario simulations · varying duration, severity, market reaction</div>
               </div>
             );
           })()}

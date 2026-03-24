@@ -189,6 +189,90 @@ function PredictionCard({ prediction, onClose }) {
                 );
               })()}
 
+              {/* Monte Carlo simulation */}
+              {(prediction.monte_carlo_confidence || prediction.monte_carlo_price) && (
+                <div className="pred-section pred-monte-carlo">
+                  <div className="pred-section-title">Monte Carlo Simulation</div>
+
+                  {prediction.monte_carlo_confidence && (() => {
+                    const mc = prediction.monte_carlo_confidence;
+                    const stabilityColor = mc.is_stable ? '#00ff88' : '#ff8800';
+                    const convictionColor = mc.conviction_label === 'HIGH' ? '#00ff88'
+                      : mc.conviction_label === 'MEDIUM' ? '#ffcc00' : '#ff8800';
+                    return (
+                      <div className="pred-mc-confidence">
+                        <div className="pred-mc-row">
+                          <span className="pred-mc-label">Signal Stability</span>
+                          <span className="pred-mc-value" style={{ color: stabilityColor }}>
+                            {mc.direction_stability_pct}% — {mc.is_stable ? 'STABLE' : 'FRAGILE'}
+                          </span>
+                        </div>
+                        <div className="pred-mc-row">
+                          <span className="pred-mc-label">Conviction</span>
+                          <span className="pred-mc-value" style={{ color: convictionColor }}>
+                            {mc.conviction_label} · {mc.dominant_direction.toUpperCase()}
+                          </span>
+                        </div>
+                        <div className="pred-mc-row">
+                          <span className="pred-mc-label">Confidence Range</span>
+                          <span className="pred-mc-value" style={{ color: '#ccc' }}>
+                            {mc.mean_confidence}% ± {mc.confidence_std}% across 1,000 scenarios
+                          </span>
+                        </div>
+                        {!mc.is_stable && (
+                          <div className="pred-mc-warning">
+                            ⚠ Fragile signal — confidence reduced 25% due to MC instability
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+
+                  {prediction.monte_carlo_price && (() => {
+                    const mp = prediction.monte_carlo_price;
+                    const changeColor = mp.expected_change_pct >= 0 ? '#00ff88' : '#ff3366';
+                    return (
+                      <div className="pred-mc-price">
+                        <div className="pred-mc-price-header">
+                          7-Day Price Range · {mp.current_price} → {' '}
+                          <span style={{ color: changeColor }}>
+                            {mp.expected_price_7d} ({mp.expected_change_pct > 0 ? '+' : ''}{mp.expected_change_pct}%)
+                          </span>
+                        </div>
+                        <div className="pred-mc-ranges">
+                          <div className="pred-mc-range-row">
+                            <span className="pred-mc-range-label">90% CI</span>
+                            <span className="pred-mc-range-val">{mp.range_90pct_low} – {mp.range_90pct_high}</span>
+                          </div>
+                          <div className="pred-mc-range-row">
+                            <span className="pred-mc-range-label">68% CI</span>
+                            <span className="pred-mc-range-val">{mp.range_68pct_low} – {mp.range_68pct_high}</span>
+                          </div>
+                        </div>
+                        <div className="pred-mc-probs">
+                          <div className="pred-mc-prob-item">
+                            <span className="pred-mc-prob-label" style={{ color: '#ff3366' }}>↓5%+</span>
+                            <span className="pred-mc-prob-val">{mp.prob_down_5pct}%</span>
+                          </div>
+                          <div className="pred-mc-prob-item">
+                            <span className="pred-mc-prob-label" style={{ color: '#00ff88' }}>↑5%+</span>
+                            <span className="pred-mc-prob-val">{mp.prob_up_5pct}%</span>
+                          </div>
+                          <div className="pred-mc-prob-item">
+                            <span className="pred-mc-prob-label" style={{ color: '#ff3366' }}>↓10%+</span>
+                            <span className="pred-mc-prob-val">{mp.prob_down_10pct}%</span>
+                          </div>
+                          <div className="pred-mc-prob-item">
+                            <span className="pred-mc-prob-label" style={{ color: '#00ff88' }}>↑10%+</span>
+                            <span className="pred-mc-prob-val">{mp.prob_up_10pct}%</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+
               {/* Contrarian view */}
               {prediction.contrarian_view && (
                 <div className="pred-section pred-contrarian">

@@ -462,6 +462,30 @@ def predict_australian_impact(disrupted_chokepoints: list, duration_days: int = 
 
     state_impacts = _calculate_state_impacts(disrupted_chokepoints)
 
+    # Monte Carlo disruption scenario range
+    mc_chokepoint = None
+    try:
+        from services.game_theory.monte_carlo import run_chokepoint_monte_carlo
+        base_exports_at_risk = exports_risk["total_aud_bn"] * 1_000_000_000
+        if base_exports_at_risk > 0:
+            mc_chokepoint_result = run_chokepoint_monte_carlo(
+                chokepoint_id=primary_cp,
+                base_exports_at_risk=base_exports_at_risk,
+                n_simulations=10000,
+            )
+            mc_chokepoint = {
+                "expected_duration_days":  mc_chokepoint_result.expected_duration_days,
+                "expected_exports_aud":    mc_chokepoint_result.expected_exports_aud,
+                "worst_case_exports_aud":  mc_chokepoint_result.worst_case_exports_aud,
+                "best_case_exports_aud":   mc_chokepoint_result.best_case_exports_aud,
+                "prob_exceeds_1b_pct":     mc_chokepoint_result.prob_exceeds_1b_pct,
+                "prob_exceeds_5b_pct":     mc_chokepoint_result.prob_exceeds_5b_pct,
+                "prob_exceeds_10b_pct":    mc_chokepoint_result.prob_exceeds_10b_pct,
+                "scenario_label":          mc_chokepoint_result.scenario_label,
+            }
+    except Exception as _mc_err:
+        logger.warning("Chokepoint Monte Carlo failed: %s", _mc_err)
+
     return {
         "disrupted_chokepoints": disrupted_chokepoints,
         "duration_days": duration_days,
@@ -477,6 +501,8 @@ def predict_australian_impact(disrupted_chokepoints: list, duration_days: int = 
         "key_insight": _generate_key_insight(disrupted_chokepoints),
         # Fix 4: high-level ASX sector breakdown for "Sector Analysis" panel
         "asx_sector_breakdown": _ASX_SECTOR_IMPACTS.get(primary_cp, {}),
+        # Monte Carlo disruption scenario distribution
+        "monte_carlo_chokepoint": mc_chokepoint,
     }
 
 
