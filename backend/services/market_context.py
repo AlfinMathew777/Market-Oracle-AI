@@ -78,6 +78,11 @@ class MarketDataCache:
 # long enough to avoid hammering yfinance on rapid retries.
 market_cache = MarketDataCache(ttl_seconds=60)
 
+# AUD/USD dedicated cache — 5-minute TTL (rate doesn't move tick-by-tick for our purposes)
+_audusd_cache: Optional[Dict[str, Any]] = None
+_audusd_cache_ts: float = 0.0
+_AUDUSD_CACHE_TTL = 300  # 5 minutes
+
 # Staleness detector — tracks last N volume ratios per ticker to catch frozen values
 _volume_history: Dict[str, List[float]] = {}
 _VOLUME_STALE_THRESHOLD = 3  # warn if the same ratio appears this many times in a row
@@ -206,7 +211,19 @@ async def _fetch_iron_ore() -> Dict[str, Any]:
 
 
 async def _fetch_audusd() -> Dict[str, Any]:
-    """AUD/USD — Alpha Vantage realtime rate, yfinance fallback."""
+    """AUD/USD — Alpha Vantage realtime rate, yfinance fallback. 5-min in-process cache."""
+    global _audusd_cache, _audusd_cache_ts
+
+    # Return cached value if fresh enough
+    age = time.time() - _audusd_cache_ts
+    if _audusd_cache is not None and age < _AUDUSD_CACHE_TTL:
+        logger.info("[AUDUSD] Cache hit: rate=%.4f (%.0fs old)", _audusd_cache["rate"], age)
+        return _audusd_cache
+
+    logger.info("[AUDUSD] Fresh fetch: cache miss (%.0fs old, TTL=%ds)", age, _AUDUSD_CACHE_TTL)
+
+    result: Optional[Dict[str, Any]] = None
+
     if _ALPHA_VANTAGE_KEY:
         try:
             data = await _av("CURRENCY_EXCHANGE_RATE", {"from_currency": "AUD", "to_currency": "USD"})
@@ -216,25 +233,31 @@ async def _fetch_audusd() -> Dict[str, Any]:
                 info = yf.Ticker("AUDUSD=X").fast_info
                 prev = getattr(info, "previous_close", rate)
                 chg  = round((rate - prev) / prev * 100, 2) if prev > 0 else 0.0
-                return {"rate": round(rate, 4), "change_pct": chg, "status": "live"}
+                result = {"rate": round(rate, 4), "change_pct": chg, "status": "live"}
         except Exception as e:
             logger.warning("AUD/USD AV: %s", e)
 
-    try:
-        import yfinance as yf
-        # Use download() with a 5-day window — forces a fresh HTTP request every time,
-        # bypassing yfinance's aggressive in-process fast_info cache that pins stale values.
-        hist = yf.download("AUDUSD=X", period="5d", progress=False, auto_adjust=True)
-        if not hist.empty and len(hist) >= 2:
-            rate = float(hist["Close"].iloc[-1])
-            prev = float(hist["Close"].iloc[-2])
-            chg  = round((rate - prev) / prev * 100, 2) if prev > 0 else 0.0
-            logger.info("[AUDUSD] yfinance history: rate=%.4f prev=%.4f chg=%.2f%%", rate, prev, chg)
-            return {"rate": round(rate, 4), "change_pct": chg, "status": "live"}
-    except Exception as e:
-        logger.warning("AUD/USD yfinance: %s", e)
+    if result is None:
+        try:
+            import yfinance as yf
+            # Use download() with a 5-day window — forces a fresh HTTP request every time,
+            # bypassing yfinance's aggressive in-process fast_info cache that pins stale values.
+            hist = yf.download("AUDUSD=X", period="5d", progress=False, auto_adjust=True)
+            if not hist.empty and len(hist) >= 2:
+                rate = float(hist["Close"].iloc[-1])
+                prev = float(hist["Close"].iloc[-2])
+                chg  = round((rate - prev) / prev * 100, 2) if prev > 0 else 0.0
+                result = {"rate": round(rate, 4), "change_pct": chg, "status": "live"}
+        except Exception as e:
+            logger.warning("AUD/USD yfinance: %s", e)
 
-    return {"rate": 0.6500, "change_pct": 0.0, "status": STALE}
+    if result is None:
+        result = {"rate": 0.6500, "change_pct": 0.0, "status": STALE}
+
+    logger.info("[AUDUSD] Fresh fetch: %.4f (status=%s)", result["rate"], result["status"])
+    _audusd_cache = result
+    _audusd_cache_ts = time.time()
+    return result
 
 
 async def _fetch_brent() -> Dict[str, Any]:

@@ -339,6 +339,7 @@ def _reconciler_prompt(
     axjo_change_pct: Optional[float],
     spx_change_pct: Optional[float],
     lessons_block: str,
+    chain_questions: Optional[dict] = None,
 ) -> str:
     """
     Call 2 of 2-stage Judge pipeline.
@@ -388,10 +389,10 @@ def _reconciler_prompt(
         f'"override_flag": "string or null", '
         f'"reasoning": "Two sentences explaining the reconciled conclusion.", '
         f'"trigger_event": "Specific event name, approximate date, and source/context.", '
-        f'"cost_impact": "Full sentence: how this event affects {ticker} input costs — state direction with reasoning.", '
-        f'"revenue_impact": "Full sentence: how this event affects {ticker} commodity revenue — state direction with reasoning.", '
-        f'"demand_signal": "Full sentence: what this means for {ticker} buyers such as Chinese steel mills — state direction with reasoning.", '
-        f'"sentiment_signal": "Full sentence: risk-on or risk-off? What do AUD/USD or iron ore futures signal — state direction with reasoning."}}'
+        f'"cost_impact": "Full sentence answering: {(chain_questions or {}).get("cost", f"How does this event affect {ticker} input costs?")}", '
+        f'"revenue_impact": "Full sentence answering: {(chain_questions or {}).get("revenue", f"How does this event affect {ticker} revenue?")}", '
+        f'"demand_signal": "Full sentence answering: {(chain_questions or {}).get("demand", f"How does this affect demand for {ticker} products?")}", '
+        f'"sentiment_signal": "Full sentence answering: {(chain_questions or {}).get("sentiment", f"What does this mean for {ticker} investor sentiment?")}"}}'
     )
 
 
@@ -522,6 +523,173 @@ def get_ticker_relevant_trigger(
         f"No {sector}-specific catalyst identified for {ticker} in last 24h "
         f"— likely macro/technical-driven session"
     )
+
+
+# ── Ticker-specific causal chain questions ────────────────────────────────────
+
+CAUSAL_CHAIN_QUESTIONS = {
+    "banking": {
+        "tickers": ["CBA.AX", "WBC.AX", "ANZ.AX", "NAB.AX"],
+        "cost": (
+            "How does this event affect CBA's funding costs, "
+            "deposit competition, or regulatory compliance costs? "
+            "NEVER mention iron ore, Port Hedland, or steel mills."
+        ),
+        "revenue": (
+            "How does this event affect CBA's net interest margin (NIM), "
+            "home loan volumes, or business lending revenue? "
+            "NEVER mention commodity revenue."
+        ),
+        "demand": (
+            "How does this event affect Australian household and "
+            "business borrowing demand? "
+            "Focus on RBA rates, unemployment, housing market. "
+            "NEVER mention Chinese steel mills or iron ore buyers."
+        ),
+        "sentiment": (
+            "What does this mean for Australian banking sector sentiment? "
+            "Consider: RBA rate expectations, housing market confidence, "
+            "credit quality. NEVER mention commodity futures."
+        ),
+    },
+    "mining": {
+        "tickers": ["BHP.AX", "RIO.AX", "FMG.AX", "S32.AX"],
+        "cost": (
+            "How does this event affect BHP's energy, freight, "
+            "and labour costs in the Pilbara?"
+        ),
+        "revenue": (
+            "How does this event affect iron ore, copper, or coal "
+            "prices that BHP sells?"
+        ),
+        "demand": (
+            "How does this affect Chinese steel mill demand "
+            "for BHP's iron ore?"
+        ),
+        "sentiment": (
+            "What do AUD/USD and iron ore futures signal "
+            "for BHP's near-term outlook?"
+        ),
+    },
+    "energy": {
+        "tickers": ["WDS.AX", "STO.AX"],
+        "cost": (
+            "How does this event affect Woodside's offshore "
+            "operating or LNG transport costs?"
+        ),
+        "revenue": (
+            "How does this affect LNG spot prices or Brent crude "
+            "oil (which links to LNG contracts)?"
+        ),
+        "demand": (
+            "How does this affect Asian LNG demand from "
+            "Japan, South Korea, and China?"
+        ),
+        "sentiment": (
+            "What do oil prices and energy sector sentiment "
+            "signal for Woodside's near-term outlook?"
+        ),
+    },
+    "generic": {
+        "tickers": [],
+        "cost":      "How does this event affect the company's input costs?",
+        "revenue":   "How does this affect the company's revenue?",
+        "demand":    "How does this affect demand for the company's products?",
+        "sentiment": "What does this mean for investor sentiment?",
+    },
+}
+
+_BANKING_TICKERS = ["CBA.AX", "WBC.AX", "ANZ.AX", "NAB.AX"]
+_MINING_TICKERS  = ["BHP.AX", "RIO.AX", "FMG.AX", "S32.AX"]
+_ENERGY_TICKERS  = ["WDS.AX", "STO.AX"]
+
+_MINING_KEYWORDS = [
+    "port hedland", "iron ore", "pilbara", "copper mine",
+    "coal mine", "steel mill", "iron ore price", "fortescue",
+    "rio tinto ore", "bhp mine", "bulk carrier", "ore carrier",
+    "magnetite", "haematite", "ore shipment",
+]
+_BANKING_KEYWORDS = [
+    "rba rate", "interest rate", "mortgage", "home loan",
+    "credit", "deposit", "lending", "banking", "apra",
+    "net interest margin", "loan arrears", "housing",
+]
+_ENERGY_KEYWORDS = [
+    "lng price", "gas price", "brent crude", "oil price",
+    "natural gas", "petroleum", "lng terminal", "gas field",
+]
+
+
+def get_causal_chain_questions(ticker: str) -> dict:
+    """Return ticker-specific causal chain questions. Prevents CBA from getting mining questions."""
+    for sector, config in CAUSAL_CHAIN_QUESTIONS.items():
+        if ticker in config.get("tickers", []):
+            return config
+    return CAUSAL_CHAIN_QUESTIONS["generic"]
+
+
+def _get_forbidden_phrases(ticker: str) -> str:
+    if ticker in _BANKING_TICKERS:
+        return (
+            "- iron ore revenue, commodity revenue\n"
+            "- Chinese steel mills, iron ore buyers\n"
+            "- Port Hedland, Pilbara, ore shipments\n"
+            "- BHP, Rio Tinto, Fortescue operations\n"
+            f"{ticker} earns money from LOANS and INTEREST MARGIN."
+        )
+    if ticker in _MINING_TICKERS:
+        return (
+            "- net interest margin, deposit costs\n"
+            "- home loans, mortgage volumes\n"
+            "- APRA regulations as primary driver\n"
+            "- banking sector sentiment"
+        )
+    if ticker in _ENERGY_TICKERS:
+        return (
+            "- iron ore prices, steel production\n"
+            "- mining operations, ore shipments\n"
+            "- Chinese steel mill demand"
+        )
+    return "- Apply this company's actual business model only"
+
+
+def filter_trigger_for_ticker(trigger: str, ticker: str) -> str:
+    """
+    Checks if trigger event matches the ticker's sector.
+    Returns a corrected trigger if a cross-sector mismatch is detected.
+    """
+    if not trigger:
+        return trigger
+
+    t = trigger.lower()
+
+    if ticker in _BANKING_TICKERS and any(k in t for k in _MINING_KEYWORDS):
+        logger.info("[TRIGGER FILTER] Blocked mining trigger for %s: %.60s", ticker, trigger)
+        return (
+            f"No banking-specific catalyst identified for {ticker} in the last 24 hours. "
+            f"This appears to be a macro/technical-driven session. "
+            f"Analyse {ticker} based on: RBA interest rate expectations, "
+            f"Australian housing market conditions, credit quality trends, "
+            f"and broader market risk sentiment."
+        )
+
+    if ticker in _MINING_TICKERS and any(k in t for k in _BANKING_KEYWORDS):
+        logger.info("[TRIGGER FILTER] Blocked banking trigger for %s: %.60s", ticker, trigger)
+        return (
+            f"No mining-specific catalyst identified for {ticker} in the last 24 hours. "
+            f"Analyse {ticker} based on: iron ore price, China demand signals, "
+            f"AUD/USD, and commodity market sentiment."
+        )
+
+    if ticker in _ENERGY_TICKERS and any(k in t for k in _MINING_KEYWORDS):
+        logger.info("[TRIGGER FILTER] Blocked mining trigger for %s: %.60s", ticker, trigger)
+        return (
+            f"No energy-specific catalyst identified for {ticker} in the last 24 hours. "
+            f"Analyse {ticker} based on: LNG spot prices, Brent crude oil, "
+            f"Asian energy demand, and shipping route conditions."
+        )
+
+    return trigger
 
 
 # ── Bug Fix 4: Smart direction determination ───────────────────────────────────
@@ -1108,6 +1276,7 @@ class Simulation:
         else:
             top_critical_news = "None"
 
+        chain_questions = get_causal_chain_questions(ticker)
         judge_result = await self._run_judge(
             ticker, n_bull, n_bear, n_neut,
             bullish_votes[:3], bearish_votes[:3],
@@ -1119,13 +1288,19 @@ class Simulation:
             top_critical_news=top_critical_news,
             axjo_change_pct=axjo_change_pct,
             spx_change_pct=spx_change_pct,
+            chain_questions=chain_questions,
         )
 
         # ── STEP 8: Select ticker-relevant trigger + apply confidence modifier ──
         raw_trigger   = judge_result.get("trigger_event", "")
         trigger_event = get_ticker_relevant_trigger(news_items, ticker, raw_trigger)
+        # Cross-sector mismatch guard: blocks mining triggers for banking tickers, etc.
+        trigger_event = filter_trigger_for_ticker(trigger_event, ticker)
         judge_result["trigger_event"] = trigger_event
-        logger.info("Trigger event (relevance-filtered): %.60s...", trigger_event)
+        if raw_trigger and trigger_event != raw_trigger:
+            logger.info("[TRIGGER FILTER] Replaced trigger for %s: %.50s...", ticker, raw_trigger)
+        else:
+            logger.info("[TRIGGER FILTER] Passed trigger for %s: %.60s...", ticker, trigger_event)
 
         modifier = judge_result.get("confidence_modifier", 0)
         final_confidence = max(0.0, min(1.0, raw_confidence + modifier / 100))
@@ -1337,12 +1512,14 @@ class Simulation:
         top_critical_news: str = "None",
         axjo_change_pct: Optional[float] = None,
         spx_change_pct: Optional[float] = None,
+        chain_questions: Optional[dict] = None,
     ) -> Dict[str, Any]:
         """
         Two-stage Judge pipeline — prevents vote-count anchoring.
 
         Call 1 (Blind Judge): sees arguments only, NO vote tally.
-        Call 2 (Reconciler):  sees Blind verdict + vote tally → final JSON.
+        Call 2 (Reconciler):  sees Blind verdict + vote tally → full causal chain JSON.
+        chain_questions: ticker-specific questions injected into the causal chain slots.
         """
 
         def _fmt_reasons(votes: list) -> str:
@@ -1420,6 +1597,7 @@ class Simulation:
             axjo_change_pct=axjo_change_pct,
             spx_change_pct=spx_change_pct,
             lessons_block=lessons_block,
+            chain_questions=chain_questions,
         )
 
         reconciler_user = (
