@@ -383,7 +383,14 @@ def _reconciler_prompt(
         f"  If market_session = BROAD_SELLOFF AND final direction = bullish:\n"
         f"  Unless logic_confidence = high: downgrade to neutral, add confidence_modifier = -10, "
         f'override_flag = "SELLOFF_DOWNGRADE"\n\n'
-        f"Return ONLY valid JSON (no markdown). String values must be FULL SENTENCES of 8-20 words:\n"
+        + (
+            f"=== FORBIDDEN PHRASES FOR {ticker} ===\n"
+            f"NEVER use these in your causal chain — they are for a different sector:\n"
+            f"{_get_forbidden_phrases(ticker)}\n"
+            f"=== END FORBIDDEN PHRASES ===\n\n"
+            if chain_questions else ""
+        )
+        + f"Return ONLY valid JSON (no markdown). String values must be FULL SENTENCES of 8-20 words:\n"
         f'{{"verdict": "bullish|bearish|neutral", '
         f'"confidence_modifier": 10 or 0 or -10, '
         f'"override_flag": "string or null", '
@@ -532,24 +539,21 @@ CAUSAL_CHAIN_QUESTIONS = {
         "tickers": ["CBA.AX", "WBC.AX", "ANZ.AX", "NAB.AX"],
         "cost": (
             "How does this event affect CBA's funding costs, "
-            "deposit competition, or regulatory compliance costs? "
-            "NEVER mention iron ore, Port Hedland, or steel mills."
+            "deposit competition, or regulatory compliance costs?"
         ),
         "revenue": (
             "How does this event affect CBA's net interest margin (NIM), "
-            "home loan volumes, or business lending revenue? "
-            "NEVER mention commodity revenue."
+            "home loan volumes, or business lending revenue?"
         ),
         "demand": (
             "How does this event affect Australian household and "
             "business borrowing demand? "
-            "Focus on RBA rates, unemployment, housing market. "
-            "NEVER mention Chinese steel mills or iron ore buyers."
+            "Focus on RBA rates, unemployment, and the housing market."
         ),
         "sentiment": (
             "What does this mean for Australian banking sector sentiment? "
             "Consider: RBA rate expectations, housing market confidence, "
-            "credit quality. NEVER mention commodity futures."
+            "and credit quality."
         ),
     },
     "mining": {

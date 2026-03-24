@@ -81,7 +81,18 @@ market_cache = MarketDataCache(ttl_seconds=60)
 # AUD/USD dedicated cache — 5-minute TTL (rate doesn't move tick-by-tick for our purposes)
 _audusd_cache: Optional[Dict[str, Any]] = None
 _audusd_cache_ts: float = 0.0
-_AUDUSD_CACHE_TTL = 300  # 5 minutes
+_AUDUSD_CACHE_TTL = 300      # 5 minutes
+_AUDUSD_LKG_MAX_AGE = 1800   # 30-minute last-known-good reuse window
+
+
+def _validate_audusd(rate: float) -> bool:
+    """AUD/USD has traded between 0.55 and 1.10 historically. Reject outside this range."""
+    if not rate:
+        return False
+    if rate < 0.50 or rate > 1.10:
+        logger.warning("[AUDUSD SANITY] Rate %.4f outside valid range — rejecting", rate)
+        return False
+    return True
 
 # Staleness detector — tracks last N volume ratios per ticker to catch frozen values
 _volume_history: Dict[str, List[float]] = {}
@@ -229,11 +240,12 @@ async def _fetch_audusd() -> Dict[str, Any]:
             data = await _av("CURRENCY_EXCHANGE_RATE", {"from_currency": "AUD", "to_currency": "USD"})
             if data and "Realtime Currency Exchange Rate" in data:
                 rate = float(data["Realtime Currency Exchange Rate"]["5. Exchange Rate"])
-                import yfinance as yf
-                info = yf.Ticker("AUDUSD=X").fast_info
-                prev = getattr(info, "previous_close", rate)
-                chg  = round((rate - prev) / prev * 100, 2) if prev > 0 else 0.0
-                result = {"rate": round(rate, 4), "change_pct": chg, "status": "live"}
+                if _validate_audusd(rate):
+                    import yfinance as yf
+                    info = yf.Ticker("AUDUSD=X").fast_info
+                    prev = getattr(info, "previous_close", rate)
+                    chg  = round((rate - prev) / prev * 100, 2) if prev > 0 else 0.0
+                    result = {"rate": round(rate, 4), "change_pct": chg, "status": "live"}
         except Exception as e:
             logger.warning("AUD/USD AV: %s", e)
 
@@ -244,14 +256,37 @@ async def _fetch_audusd() -> Dict[str, Any]:
             # bypassing yfinance's aggressive in-process fast_info cache that pins stale values.
             hist = yf.download("AUDUSD=X", period="5d", progress=False, auto_adjust=True)
             if not hist.empty and len(hist) >= 2:
-                rate = float(hist["Close"].iloc[-1])
-                prev = float(hist["Close"].iloc[-2])
-                chg  = round((rate - prev) / prev * 100, 2) if prev > 0 else 0.0
-                result = {"rate": round(rate, 4), "change_pct": chg, "status": "live"}
+                # Handle both flat columns and multi-level columns (yfinance ≥ 0.2.x)
+                close_col = hist["Close"]
+                if hasattr(close_col, "squeeze"):
+                    close_col = close_col.squeeze()
+                rate = float(close_col.iloc[-1])
+                prev = float(close_col.iloc[-2])
+                if _validate_audusd(rate):
+                    chg  = round((rate - prev) / prev * 100, 2) if prev > 0 else 0.0
+                    result = {"rate": round(rate, 4), "change_pct": chg, "status": "live"}
         except Exception as e:
             logger.warning("AUD/USD yfinance: %s", e)
 
     if result is None:
+        # Last-known-good: reuse a previously fetched valid value (up to 30 min old)
+        # rather than silently returning stale 0.65 to every agent.
+        lkg_age = time.time() - _audusd_cache_ts
+        if _audusd_cache is not None and lkg_age < _AUDUSD_LKG_MAX_AGE:
+            logger.warning(
+                "[AUDUSD] All live fetches failed — reusing last-known-good %.4f (%.0fs old)",
+                _audusd_cache["rate"], lkg_age,
+            )
+            return _audusd_cache
+        logger.warning("[AUDUSD] All fetches failed and no LKG available — using static fallback 0.6500")
+        result = {"rate": 0.6500, "change_pct": 0.0, "status": STALE}
+
+    if not _validate_audusd(result["rate"]):
+        # Rate failed sanity check — try LKG before accepting bad data
+        lkg_age = time.time() - _audusd_cache_ts
+        if _audusd_cache is not None and lkg_age < _AUDUSD_LKG_MAX_AGE:
+            logger.warning("[AUDUSD] Sanity check failed (%.4f) — using LKG %.4f", result["rate"], _audusd_cache["rate"])
+            return _audusd_cache
         result = {"rate": 0.6500, "change_pct": 0.0, "status": STALE}
 
     logger.info("[AUDUSD] Fresh fetch: %.4f (status=%s)", result["rate"], result["status"])
