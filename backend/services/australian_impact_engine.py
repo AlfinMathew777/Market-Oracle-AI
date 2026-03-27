@@ -19,18 +19,18 @@ AUSTRALIAN_EXPORT_PROFILE = {
         "annual_value_aud_bn": 105,
         "pct_total_exports": 27,
         "primary_destination": "China (80%)",
-        "primary_route": "Port Hedland — Lombok/Malacca — China",
-        "chokepoints": ["malacca", "lombok"],
+        "primary_route": "Port Hedland — Lombok/Makassar Strait — China (NORTH route, NOT Malacca)",
+        "chokepoints": ["lombok"],
         "asx_stocks": ["BHP.AX", "RIO.AX", "FMG.AX"],
         "daily_value_aud_m": 288,  # $288M AUD per day — Port Hedland alone
-        "disruption_impact": "Each day of Malacca closure = ~$288M AUD export delay",
+        "disruption_impact": "Each day of Lombok closure = ~$288M AUD export delay",
     },
     "lng": {
         "annual_value_aud_bn": 53,
         "pct_total_exports": 14,
         "primary_destination": "Japan (35%), China (30%), Korea (20%)",
-        "primary_route": "Karratha/Darwin — Malacca — NE Asia, OR — Europe via Suez",
-        "chokepoints": ["malacca", "hormuz", "suez", "bab_el_mandeb"],
+        "primary_route": "Karratha/Darwin — Lombok/Timor Sea/Indonesian straits — NE Asia, OR — Europe via Suez/Cape",
+        "chokepoints": ["lombok", "hormuz", "suez", "bab_el_mandeb"],
         "asx_stocks": ["WDS.AX", "STO.AX"],
         "daily_value_aud_m": 145,
         "disruption_impact": "Hormuz closure spikes LNG spot price 20-50% in 24-48hrs — WDS BULLISH",
@@ -39,8 +39,8 @@ AUSTRALIAN_EXPORT_PROFILE = {
         "annual_value_aud_bn": 36,
         "pct_total_exports": 9,
         "primary_destination": "India (35%), Japan (25%), Korea (20%)",
-        "primary_route": "Queensland ports — Coral Sea — Indian Ocean",
-        "chokepoints": ["malacca", "lombok"],
+        "primary_route": "Queensland ports — Coral Sea/Pacific (Japan/Korea direct) — Indian Ocean (India)",
+        "chokepoints": ["lombok"],
         "asx_stocks": ["WHC.AX", "NHC.AX"],
         "daily_value_aud_m": 99,
         "disruption_impact": "Malacca closure forces Cape reroute — adds 15 days, $1-2M per voyage",
@@ -91,7 +91,7 @@ CHOKEPOINT_AUSTRALIA_MATRIX = {
             "IRON_ORE": {
                 "direction": "NEUTRAL_NEGATIVE",
                 "magnitude": "LOW",
-                "reason": "Iron ore ships through Malacca not Hormuz. Indirect impact via China steel demand slowdown if Chinese energy costs rise.",
+                "reason": "Iron ore ships through Lombok/Makassar not Hormuz. Indirect impact via China steel demand slowdown if Chinese energy costs rise.",
                 "asx_signal": {"BHP.AX": "SLIGHT_DOWN", "FMG.AX": "SLIGHT_DOWN"},
                 "time_to_asx_impact": "1-2 weeks (lagged)",
             },
@@ -105,46 +105,47 @@ CHOKEPOINT_AUSTRALIA_MATRIX = {
         "gdp_impact_estimate": "Hormuz disruption lasting 30 days = estimated $8-15B AUD impact on resource export earnings",
     },
     "malacca": {
-        "risk_level": "CRITICAL",
+        "risk_level": "HIGH",
         "australian_impact": {
             "IRON_ORE": {
-                "direction": "BEARISH",
-                "magnitude": "VERY_HIGH",
-                "reason": "Malacca is the PRIMARY route for Australian iron ore to China. Closure forces Lombok/Sunda reroute adding 3-5 days, or Cape reroute adding 15+ days. FMG most exposed as pure Pilbara-China play.",
-                "asx_signal": {"BHP.AX": "DOWN", "RIO.AX": "DOWN", "FMG.AX": "DOWN_STRONG"},
-                "price_impact": "Freight rates +40-60%. Port Hedland exports $288M AUD/day.",
-                "time_to_asx_impact": "12-24 hours",
+                "direction": "NEUTRAL",
+                "magnitude": "VERY_LOW",
+                "reason": "Australian iron ore (Port Hedland) travels NORTH through Lombok/Makassar Strait to China — NOT through Malacca. Malacca disruption does not affect BHP, RIO, or FMG export routes.",
+                "asx_signal": {"BHP.AX": "NEUTRAL", "RIO.AX": "NEUTRAL", "FMG.AX": "NEUTRAL"},
+                "time_to_asx_impact": "N/A — route unaffected",
             },
             "LNG": {
-                "direction": "BEARISH",
+                "direction": "BULLISH",
                 "magnitude": "HIGH",
-                "reason": "Malacca is also the route for Australian LNG to Japan and Korea. Disruption delays deliveries.",
-                "asx_signal": {"WDS.AX": "DOWN", "STO.AX": "DOWN"},
+                "reason": "Malacca carries Qatar LNG (77MT/year) to China, Japan, and Korea. Closure disrupts Qatar's exports — Australia's primary LNG competitor. WDS and STO become the premium alternative supplier, spot price surges.",
+                "asx_signal": {"WDS.AX": "UP", "STO.AX": "UP"},
+                "price_impact": "LNG spot price +10-25% as Qatar LNG supply disrupted",
                 "time_to_asx_impact": "24-48 hours",
+            },
+            "IMPORTS_AFFECTED": {
+                "direction": "BEARISH",
+                "magnitude": "MEDIUM",
+                "reason": "Australia imports manufactured goods, electronics, and consumer products through Malacca. Disruption raises import costs, lifts CPI inflation — RBA rate hike risk increases, banks face net interest margin pressure.",
+                "asx_signal": {"CBA.AX": "SLIGHT_DOWN"},
+                "time_to_asx_impact": "4-8 weeks (supply chain and macro transmission lag)",
             },
             "COAL": {
                 "direction": "BEARISH",
-                "magnitude": "MEDIUM",
-                "reason": "Queensland coal to India and Korea routes through Malacca. Rerouting cost surge.",
-                "asx_signal": {"WHC.AX": "DOWN", "NHC.AX": "DOWN"},
-                "time_to_asx_impact": "48-72 hours",
-            },
-            "MACRO_RATES": {
-                "direction": "BEARISH_CONSUMER",
                 "magnitude": "LOW",
-                "reason": "Malacca disruption raises freight costs → Australian import inflation → RBA rate hike risk → bank net interest margins squeezed, consumer stress rises.",
-                "asx_signal": {"CBA.AX": "SLIGHT_DOWN"},
-                "time_to_asx_impact": "4-8 weeks (macro transmission lag)",
+                "reason": "A minority of Queensland thermal coal to East Asian buyers may transit near Malacca approaches. Rerouting via Lombok/Sunda adds 1-2 days cost.",
+                "asx_signal": {"WHC.AX": "SLIGHT_DOWN", "NHC.AX": "SLIGHT_DOWN"},
+                "time_to_asx_impact": "48-72 hours",
             },
         },
         "australian_regions_affected": {
-            "Pilbara WA": "CRITICAL — BHP/RIO/FMG export halt",
-            "Port Hedland WA": "CRITICAL — world's largest bulk export port, $288M AUD/day",
-            "Karratha WA": "HIGH — LNG + iron ore dual exposure",
-            "Gladstone QLD": "HIGH — coal and LNG exports",
-            "Newcastle NSW": "HIGH — world's largest coal export port, thermal coal to Japan/Korea routes through Malacca",
+            "Karratha WA": "LOW — WDS LNG competitive benefit (not direct route impact)",
+            "Darwin NT": "LOW — STO LNG competitive benefit",
+            "Gladstone QLD": "MEDIUM — APLNG LNG competitive benefit; coal minor routing impact",
+            "Newcastle NSW": "LOW — coal minor rerouting; Japan/Korea routes go via Pacific not Malacca",
+            "Perth WA": "LOW — import cost rise (consumer goods)",
+            "Sydney NSW": "LOW — import cost rise (consumer goods)",
         },
-        "gdp_impact_estimate": "Malacca closure lasting 14 days = estimated $4-8B AUD impact. Port Hedland exports $288M AUD of iron ore every single day.",
+        "gdp_impact_estimate": "Malacca closure: Australian iron ore UNAFFECTED ($0 direct impact). LNG gains estimated $500M-1B AUD from spot price premium. Import cost increase $200-500M AUD.",
     },
     "bab_el_mandeb": {
         "risk_level": "HIGH",
@@ -220,22 +221,31 @@ CHOKEPOINT_AUSTRALIA_MATRIX = {
         "gdp_impact_estimate": "Cape disruption combined with Red Sea disruption = full Australian export route crisis",
     },
     "lombok": {
-        "risk_level": "LOW",
+        "risk_level": "CRITICAL",
         "australian_impact": {
-            "IRON_ORE_REROUTE": {
+            "IRON_ORE": {
+                "direction": "BEARISH",
+                "magnitude": "VERY_HIGH",
+                "reason": "Lombok Strait is the PRIMARY route for Australian iron ore exports (Port Hedland) to China. Closure forces Sunda Strait reroute (+1-2 days) or Cape Horn reroute (+30 days) in worst case. FMG most exposed as pure Pilbara-China play. $288M AUD/day iron ore exports at risk.",
+                "asx_signal": {"FMG.AX": "DOWN_STRONG", "BHP.AX": "DOWN", "RIO.AX": "DOWN"},
+                "price_impact": "Freight rates +30-50%. Port Hedland exports $288M AUD/day.",
+                "time_to_asx_impact": "12-24 hours",
+            },
+            "LNG": {
                 "direction": "BEARISH",
                 "magnitude": "MEDIUM",
-                "reason": "Lombok is the PRIMARY ALTERNATIVE when Malacca is disrupted. If BOTH Malacca AND Lombok are blocked simultaneously, Australian iron ore exports face a full crisis — Cape Horn reroute adds 30 days.",
-                "asx_signal": {"FMG.AX": "DOWN_SEVERE", "BHP.AX": "DOWN", "RIO.AX": "DOWN"},
-                "scenario": "Malacca + Lombok simultaneous disruption = worst case for Australian resources",
-                "time_to_asx_impact": "12 hours if both close simultaneously",
+                "reason": "Australian LNG from WDS (Pluto/North West Shelf) and STO transits Lombok northward to Japan and Korea. Rerouting via Ombai Strait or Timor Sea adds time and vessel cost.",
+                "asx_signal": {"WDS.AX": "SLIGHT_DOWN", "STO.AX": "SLIGHT_DOWN"},
+                "time_to_asx_impact": "24-48 hours",
             },
         },
         "australian_regions_affected": {
-            "Pilbara WA": "HIGH if combined Malacca+Lombok disruption",
-            "Port Hedland WA": "HIGH — iron ore export backup route blocked",
+            "Pilbara WA": "CRITICAL — BHP/RIO/FMG primary export route blocked",
+            "Port Hedland WA": "CRITICAL — world's largest bulk export port, $288M AUD/day iron ore",
+            "Karratha WA": "HIGH — WDS LNG export route affected",
+            "Darwin NT": "MEDIUM — STO LNG minor routing impact",
         },
-        "gdp_impact_estimate": "Lombok disruption alone = moderate. Combined with Malacca = catastrophic for Australian iron ore exports.",
+        "gdp_impact_estimate": "Lombok closure = ~$288M AUD iron ore export delay per day. 14-day closure = ~$4B AUD impact on Australian resource export earnings.",
     },
 }
 
@@ -258,7 +268,10 @@ _CHOKEPOINT_EXPOSURE = {
         "probability_multiplier": 1.0,
     },
     "malacca": {
-        "affected_commodities": {"iron_ore": 0.85, "coal": 0.60, "lng": 0.30},
+        # Iron ore = 0 (Australian iron ore travels via Lombok, NOT Malacca).
+        # LNG = 0 (Australian LNG goes north via Indonesian straits, not through Malacca).
+        # Coal = 0.15 (minor Queensland thermal coal routing exposure via nearby straits).
+        "affected_commodities": {"coal": 0.15},
         "probability_multiplier": 1.0,
     },
     "bab_el_mandeb": {
@@ -281,7 +294,8 @@ _CHOKEPOINT_EXPOSURE = {
         "probability_multiplier": 0.5,
     },
     "lombok": {
-        "affected_commodities": {"iron_ore": 0.12, "coal": 0.05},
+        # PRIMARY Australian iron ore route — 85% of Port Hedland iron ore transits Lombok/Makassar.
+        "affected_commodities": {"iron_ore": 0.85, "lng": 0.20, "coal": 0.05},
         "probability_multiplier": 0.6,
     },
 }
@@ -332,12 +346,12 @@ _CHAIN_MULT = {"primary": 1.0, "secondary": 0.8, "tertiary": 0.6}
 
 # How certain the disruption is for Australian exports, per chokepoint
 _CHOKEPOINT_SEVERITY = {
-    "malacca":        "critical",   # 85% of iron ore → China
+    "malacca":        "critical",   # globally critical (23mb/d oil); mixed ASX impact — BULLISH LNG, NEUTRAL miners
     "hormuz":         "high",       # 20% global LNG, but Aus LNG benefits
     "bab_el_mandeb":  "medium",
     "suez":           "medium",
     "cape_good_hope": "low",        # fallback route, indirect cost effect
-    "lombok":         "low",
+    "lombok":         "critical",   # PRIMARY Australian iron ore route — $288M AUD/day at risk
 }
 _SEVERITY_MULT = {"critical": 1.0, "high": 0.85, "medium": 0.70, "low": 0.55}
 
@@ -356,14 +370,21 @@ def _magnitude_to_order(magnitude: str) -> str:
 # Used to guarantee correct 1°/2°/3° labels regardless of how magnitude is set in the matrix.
 _TICKER_IMPACT_OVERRIDE = {
     "malacca": {
-        "BHP.AX": "primary",    # iron ore ships directly through Malacca
-        "RIO.AX": "primary",    # iron ore ships directly through Malacca
-        "FMG.AX": "primary",    # pure Pilbara-China play — maximum Malacca exposure
-        "WDS.AX": "primary",    # LNG to Japan/Korea routes through Malacca
-        "STO.AX": "primary",    # LNG to Japan/Korea routes through Malacca
-        "WHC.AX": "secondary",  # coal, partial Malacca routing via Coral Sea
-        "NHC.AX": "secondary",  # coal, partial Malacca routing via Coral Sea
-        "CBA.AX": "tertiary",   # macro: freight → inflation → RBA rates
+        "WDS.AX": "primary",    # LNG competitive benefit — Qatar LNG competitor disrupted
+        "STO.AX": "primary",    # LNG competitive benefit — Qatar LNG competitor disrupted
+        "CBA.AX": "secondary",  # import inflation → RBA rates (direct macro channel)
+        "WHC.AX": "tertiary",   # coal, minor Malacca-adjacent routing
+        "NHC.AX": "tertiary",   # coal, minor Malacca-adjacent routing
+        "BHP.AX": "tertiary",   # iron ore route UNAFFECTED — only global freight market noise
+        "RIO.AX": "tertiary",   # iron ore route UNAFFECTED
+        "FMG.AX": "tertiary",   # iron ore route UNAFFECTED — travels through Lombok not Malacca
+    },
+    "lombok": {
+        "FMG.AX": "primary",    # pure Pilbara-China play — maximum Lombok exposure
+        "BHP.AX": "primary",    # iron ore ships directly through Lombok
+        "RIO.AX": "primary",    # iron ore ships directly through Lombok
+        "WDS.AX": "secondary",  # Pluto/NW Shelf LNG uses Lombok northward route
+        "STO.AX": "secondary",  # Darwin LNG minor Lombok routing
     },
     "suez": {
         "WDS.AX": "primary",    # NW Shelf LNG direct European route — most exposed
@@ -388,11 +409,12 @@ _ASX_SECTOR_IMPACTS = {
         "Consumer":    {"direction": "bearish",  "magnitude": 25},
     },
     "malacca": {
-        "Energy":      {"direction": "bearish",  "magnitude": 50},
-        "Materials":   {"direction": "bearish",  "magnitude": 85},
-        "Financials":  {"direction": "bearish",  "magnitude": 20},
-        "Industrials": {"direction": "bearish",  "magnitude": 60},
-        "Consumer":    {"direction": "bearish",  "magnitude": 30},
+        # Iron ore UNAFFECTED. LNG BULLISH (Qatar competitor disrupted). Imports BEARISH (inflation).
+        "Energy":      {"direction": "bullish",  "magnitude": 70},  # WDS/STO LNG competitive benefit
+        "Materials":   {"direction": "neutral",  "magnitude": 15},  # iron ore route unaffected
+        "Financials":  {"direction": "bearish",  "magnitude": 25},  # import inflation → RBA rate risk
+        "Industrials": {"direction": "bearish",  "magnitude": 20},  # import cost rises
+        "Consumer":    {"direction": "bearish",  "magnitude": 35},  # import cost inflation
     },
     "bab_el_mandeb": {
         "Energy":      {"direction": "bearish",  "magnitude": 35},
@@ -416,10 +438,11 @@ _ASX_SECTOR_IMPACTS = {
         "Consumer":    {"direction": "bearish",  "magnitude": 20},
     },
     "lombok": {
-        "Energy":      {"direction": "neutral",  "magnitude": 15},
-        "Materials":   {"direction": "bearish",  "magnitude": 55},
-        "Financials":  {"direction": "neutral",  "magnitude": 10},
-        "Industrials": {"direction": "bearish",  "magnitude": 30},
+        # PRIMARY Australian iron ore route — miners BEARISH VERY_HIGH
+        "Energy":      {"direction": "bearish",  "magnitude": 25},  # some LNG routing affected
+        "Materials":   {"direction": "bearish",  "magnitude": 90},  # iron ore PRIMARY route — FMG/BHP/RIO
+        "Financials":  {"direction": "bearish",  "magnitude": 15},  # macro freight costs
+        "Industrials": {"direction": "bearish",  "magnitude": 40},  # freight cost surge
         "Consumer":    {"direction": "neutral",  "magnitude": 10},
     },
 }
@@ -509,11 +532,19 @@ def predict_australian_impact(disrupted_chokepoints: list, duration_days: int = 
 def _calculate_state_impacts(disrupted_chokepoints: list) -> dict:
     """Map chokepoint disruptions to Australian state impact levels (0-100)."""
     state = {"WA": 0, "QLD": 0, "NSW": 0, "NT": 0, "SA": 0, "VIC": 0, "TAS": 0}
-    if "malacca" in disrupted_chokepoints or "lombok" in disrupted_chokepoints:
-        state["WA"]  = max(state["WA"],  90)
-        state["QLD"] = max(state["QLD"], 60)
-        state["NT"]  = max(state["NT"],  50)
-        state["NSW"] = max(state["NSW"], 30)   # Fix 2: Newcastle — world's largest coal export port
+    if "lombok" in disrupted_chokepoints:
+        # Lombok = PRIMARY iron ore route — WA (Pilbara) critically exposed
+        state["WA"]  = max(state["WA"],  90)   # Pilbara iron ore, Karratha LNG
+        state["QLD"] = max(state["QLD"], 20)   # minor coal routing
+        state["NT"]  = max(state["NT"],  30)   # Darwin LNG minor routing
+        state["NSW"] = max(state["NSW"], 10)   # minor
+    if "malacca" in disrupted_chokepoints:
+        # Malacca = LNG competitive benefit + import cost pressure — miners UNAFFECTED
+        state["WA"]  = max(state["WA"],  15)   # WDS/STO corporate HQ — LNG benefit
+        state["QLD"] = max(state["QLD"], 25)   # Gladstone APLNG LNG competitive benefit
+        state["NT"]  = max(state["NT"],  20)   # Darwin LNG competitive benefit
+        state["NSW"] = max(state["NSW"], 20)   # import cost rise
+        state["VIC"] = max(state["VIC"], 15)   # import cost rise
     if "hormuz" in disrupted_chokepoints:
         state["WA"] = max(state["WA"], 85)
         state["NT"] = max(state["NT"], 80)
@@ -577,9 +608,9 @@ def _consolidate_asx_signals(signals: dict, chokepoint_id: str = "") -> list:
 
         # Fix 3: FMG concentration multiplier — 100% China revenue, 100% Malacca exposure
         reasoning_note = None
-        if ticker == "FMG.AX" and chokepoint_id == "malacca":
+        if ticker == "FMG.AX" and chokepoint_id == "lombok":
             confidence = round(min(0.85, confidence * 1.15), 2)
-            reasoning_note = "Pure Pilbara-China play — maximum Malacca exposure"
+            reasoning_note = "Pure Pilbara-China play — maximum Lombok exposure"
 
         result.append({
             "ticker": ticker,
@@ -607,18 +638,20 @@ def _generate_simulation_seed(chokepoints: list, duration_days: int) -> str:
 
 
 def _generate_key_insight(chokepoints: list) -> str:
+    if "lombok" in chokepoints and "malacca" in chokepoints:
+        return "DUAL CRISIS: Lombok + Malacca both disrupted. Australian iron ore primary route (Lombok) blocked — $288M AUD/day at risk. Global oil/LNG supply disrupted. BEARISH BHP/RIO/FMG. BULLISH WDS/STO (energy price surge)."
     if "malacca" in chokepoints and "hormuz" in chokepoints:
-        return "DUAL CRISIS: Malacca + Hormuz simultaneous disruption threatens 54% of global seaborne oil and ALL major Australian export routes simultaneously"
+        return "DUAL CRISIS: Malacca + Hormuz simultaneous disruption threatens 54% of global seaborne oil. Australian iron ore UNAFFECTED (travels via Lombok). BULLISH WDS/STO (energy price surge + Qatar LNG disrupted)."
+    if "lombok" in chokepoints:
+        return "Lombok Strait disruption: PRIMARY Australian iron ore route blocked. $288M AUD/day in Port Hedland iron ore exports at risk — FMG most exposed as pure Pilbara-China play."
     if "malacca" in chokepoints:
-        return "Malacca disruption threatens $288M AUD/day in Australian iron ore exports — FMG most exposed as pure Pilbara-China play"
+        return "Malacca disruption: Australian iron ore UNAFFECTED (route is Lombok Strait, not Malacca). BULLISH WDS/STO — Qatar LNG (77MT/yr) disrupted, Australian LNG becomes premium alternative. BEARISH CBA — import cost inflation."
     if "hormuz" in chokepoints:
         return "Hormuz disruption triggers LNG price spike 20-50% — Australian LNG becomes premium alternative supplier — WDS and STO BULLISH"
     if "suez" in chokepoints:
         return ("Suez closure adds 10-15 days and ~$800K per voyage to Australian LNG exports to Europe. "
                 "WDS most exposed as largest LNG exporter with European contracts. "
-                "Iron ore miners largely unaffected — Australian iron ore travels EAST through Malacca to China, not west through Suez.")
+                "Iron ore miners largely unaffected — Australian iron ore travels NORTH through Lombok/Makassar to China, not west through Suez.")
     if "bab_el_mandeb" in chokepoints:
         return "Bab el-Mandeb/Red Sea disruption forces Cape reroute — adds $1-2M per voyage to Australian LNG deliveries to Europe"
-    if "lombok" in chokepoints:
-        return "Lombok Strait disruption blocks Australia-China iron ore backup route — adds 3-5 days when Malacca is also congested"
     return "Chokepoint disruption detected — monitoring Australian export impact"

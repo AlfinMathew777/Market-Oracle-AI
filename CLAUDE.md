@@ -70,10 +70,14 @@ Chokepoint click (Globe) → handleChokepointSimulate()
 - `chain_override_active=True` bypasses neutral guard
 
 ## Chokepoint Facts (Do Not Contradict)
-- Iron ore travels **EAST** through Malacca to China. NOT through Suez.
-- BHP/RIO/FMG = primary for Malacca, **tertiary** for Suez.
-- WDS/STO = primary for both Malacca and Suez.
+- Iron ore travels **NORTH** through **Lombok/Makassar Strait** to China. NOT through Malacca. NOT through Suez.
+- **Malacca** carries Middle East crude oil and Qatar LNG. Australian iron ore does NOT transit Malacca.
+- Malacca disruption = **BULLISH WDS/STO** (Qatar LNG competitor removed), **NEUTRAL miners**, **BEARISH CBA** (import inflation).
+- **Lombok** = PRIMARY chokepoint for Australian iron ore. BHP/RIO/FMG = primary for Lombok, tertiary for Malacca/Suez.
+- WDS/STO = primary for Lombok AND Suez (LNG routes both ways). Competitive BULLISH for Malacca (Qatar disrupted).
 - Suez state heatmap: WA=45, QLD=20, NT=15, NSW=5, **VIC=0**.
+- Malacca state heatmap: WA=15, QLD=25, NT=20, NSW=20, VIC=15 (import inflation + LNG benefit).
+- Lombok state heatmap: WA=90, QLD=20, NT=30, NSW=10.
 
 ## Conventions
 - Commit format: `type: description` (feat/fix/refactor/docs/chore)

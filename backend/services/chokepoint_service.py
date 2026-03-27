@@ -35,10 +35,10 @@ CHOKEPOINTS = {
         "risk_level": "CRITICAL",
         "alternative_route": "Lombok Strait or Sunda Strait (+3-5 days)",
         "current_threat": "Piracy risk, China-ASEAN tensions",
-        "asx_tickers_affected": ["BHP.AX", "RIO.AX", "FMG.AX", "WDS.AX", "STO.AX"],
-        "asx_impact": "Primary route for Australian iron ore to China. Disruption — FMG/BHP export delay — bearish",
+        "asx_tickers_affected": ["WDS.AX", "STO.AX", "CBA.AX"],
+        "asx_impact": "Carries Middle East crude oil and Qatar LNG to Asia. Australian iron ore travels through Lombok — NOT Malacca. Disruption = BULLISH WDS/STO (Qatar LNG competitor removed), BEARISH CBA (import inflation)",
         "impact_multiplier": 2.8,
-        "cargo_types": ["crude_oil", "iron_ore", "LNG", "coal"],
+        "cargo_types": ["crude_oil", "LNG", "coal", "container_goods"],
         "width_km": 65,
         "countries_controlling": ["Indonesia", "Malaysia", "Singapore"],
     },
@@ -68,7 +68,7 @@ CHOKEPOINTS = {
         "alternative_route": "Cape of Good Hope (+10-15 days)",
         "current_threat": "Red Sea Houthi disruption — many vessels already rerouted via Cape",
         "asx_tickers_affected": ["WDS.AX", "STO.AX"],
-        "asx_impact": "Australian LNG to Europe route. Closure = freight cost spike +$800K–1.5M/voyage. Iron ore unaffected — travels east via Malacca.",
+        "asx_impact": "Australian LNG to Europe route. Closure = freight cost spike +$800K–1.5M/voyage. Iron ore unaffected — travels north via Lombok/Makassar Strait to China.",
         "impact_multiplier": 1.5,
         "cargo_types": ["crude_oil", "LNG", "container_goods", "grain"],
         "width_km": 193,
@@ -126,14 +126,14 @@ CHOKEPOINTS = {
         "name": "Lombok Strait",
         "lat": -8.7, "lon": 115.7,
         "oil_flow_mbd": 1.5,
-        "pct_global_maritime": 2,
-        "pct_global_supply": 1,
-        "risk_level": "LOW",
-        "alternative_route": "Malacca Strait (if Lombok blocked, ships reroute back)",
-        "current_threat": "Low current threat — monitoring for contingency",
-        "asx_tickers_affected": ["BHP.AX", "FMG.AX", "RIO.AX"],
-        "asx_impact": "KEY FOR ASX — alternative to Malacca for Australian iron ore to China. Adds 3-5 days if disrupted.",
-        "impact_multiplier": 1.9,
+        "pct_global_maritime": 5,
+        "pct_global_supply": 3,
+        "risk_level": "HIGH",
+        "alternative_route": "Sunda Strait (+1-2 days) or Ombai Strait; full Cape reroute (+30 days) worst case",
+        "current_threat": "Low current threat — but PRIMARY chokepoint for Australian iron ore and LNG exports to China/NE Asia",
+        "asx_tickers_affected": ["BHP.AX", "FMG.AX", "RIO.AX", "WDS.AX", "STO.AX"],
+        "asx_impact": "PRIMARY route for Australian iron ore (Port Hedland) to China. Disruption = BHP/RIO/FMG BEARISH. $288M AUD/day iron ore exports at risk.",
+        "impact_multiplier": 2.5,
         "cargo_types": ["iron_ore", "coal", "LNG", "crude_oil"],
         "width_km": 40,
         "countries_controlling": ["Indonesia"],
@@ -275,8 +275,8 @@ HIGH RISK ({len(high)}):
 {high_lines}
 
 ASX DIRECT IMPACT:
-- Hormuz/Malacca disruption — oil price spike — WDS.AX STO.AX BULLISH
-- Malacca disruption — Australian iron ore export delay — BHP.AX FMG.AX RIO.AX BEARISH
+- Hormuz disruption — oil/LNG price spike — WDS.AX STO.AX BULLISH
+- Malacca disruption — BULLISH WDS.AX STO.AX (Qatar LNG competitor removed). Iron ore UNAFFECTED (travels via Lombok). BEARISH CBA.AX (import inflation).
+- Lombok disruption — PRIMARY Australian iron ore route — BHP.AX RIO.AX FMG.AX BEARISH. $288M AUD/day at risk.
 - Cape of Good Hope congestion — freight cost surge — all exporters margin squeeze
-- Lombok disruption — adds 3-5 days to Australia-China iron ore route — FMG.AX BEARISH
 """
