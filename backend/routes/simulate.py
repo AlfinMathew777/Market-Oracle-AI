@@ -192,6 +192,17 @@ async def _run_simulation_background(simulation_id: str, body: SimulationRequest
         else:
             prediction_json = prediction
 
+        logger.info("=== POLL DEBUG: Storing result for %s ===", simulation_id)
+        logger.info("  prediction_json type: %s", type(prediction_json).__name__)
+        logger.info("  prediction_json is None: %s", prediction_json is None)
+        if prediction_json and isinstance(prediction_json, dict):
+            logger.info("  prediction_json keys: %s", list(prediction_json.keys())[:10])
+            logger.info("  direction: %s, confidence: %s", prediction_json.get('direction'), prediction_json.get('confidence'))
+        elif prediction_json is None:
+            logger.error("  *** PREDICTION IS NONE — generate_prediction_report() likely failed ***")
+            prediction_json = _build_fallback_prediction(simulation_results, ticker)
+            logger.info("  *** Used fallback prediction instead ***")
+
         active_simulations[simulation_id].update({
             'status': 'completed',
             'prediction': prediction_json,
@@ -258,8 +269,18 @@ async def get_simulation_status(simulation_id: str):
     Status values: 'running' | 'completed' | 'failed'
     """
     if simulation_id not in active_simulations:
+        logger.warning("POLL DEBUG: %s NOT FOUND (known: %s)", simulation_id, list(active_simulations.keys())[-5:])
         raise HTTPException(status_code=404, detail="Simulation not found")
-    return active_simulations[simulation_id]
+
+    entry = active_simulations[simulation_id]
+    status = entry.get('status', 'unknown')
+    has_prediction = entry.get('prediction') is not None
+    logger.info("POLL DEBUG: %s → status=%s, has_prediction=%s", simulation_id, status, has_prediction)
+
+    if status == 'completed' and not has_prediction:
+        logger.error("POLL DEBUG: %s is COMPLETED but prediction is None/missing!", simulation_id)
+
+    return entry
 
 
 @router.get("/simulate/active")
