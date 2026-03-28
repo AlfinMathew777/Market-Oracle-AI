@@ -184,21 +184,26 @@ function App() {
         const result = await statusResp.json();
         console.log('Simulation status:', result.status);
 
-        if ((result.status === 'completed' || result.status === 'partial') && result.prediction) {
-          setPrediction(result.prediction);
-          setPredictionOpen(true);
+        if (result.status === 'completed' || result.status === 'partial') {
+          if (result.prediction) {
+            setPrediction(result.prediction);
+            setPredictionOpen(true);
 
-          setCorrelationArc({
-            show: true,
-            eventLat: requestBody.lat,
-            eventLng: requestBody.lon
-          });
+            setCorrelationArc({
+              show: true,
+              eventLat: requestBody.lat,
+              eventLng: requestBody.lon
+            });
 
-          if (arcTimeoutRef.current) clearTimeout(arcTimeoutRef.current);
-          arcTimeoutRef.current = setTimeout(() => {
-            setCorrelationArc({ show: false, eventLat: 0, eventLng: 0 });
-          }, 8000);
-          break;
+            if (arcTimeoutRef.current) clearTimeout(arcTimeoutRef.current);
+            arcTimeoutRef.current = setTimeout(() => {
+              setCorrelationArc({ show: false, eventLat: 0, eventLng: 0 });
+            }, 8000);
+          } else {
+            // Backend completed but prediction is null — show error instead of polling forever
+            setError('Simulation completed but no report was generated — please try again.');
+          }
+          break; // Always break on completed/partial regardless of prediction
         }
 
         if (result.status === 'failed') {

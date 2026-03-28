@@ -278,7 +278,11 @@ async def get_simulation_status(simulation_id: str):
     logger.info("POLL DEBUG: %s → status=%s, has_prediction=%s", simulation_id, status, has_prediction)
 
     if status == 'completed' and not has_prediction:
-        logger.error("POLL DEBUG: %s is COMPLETED but prediction is None/missing!", simulation_id)
+        logger.error("POLL DEBUG: %s is COMPLETED but prediction is None — injecting fallback", simulation_id)
+        ticker = entry.get('ticker', 'BHP.AX')
+        fallback = _build_fallback_prediction({}, ticker)
+        entry['prediction'] = fallback
+        active_simulations[simulation_id] = entry
 
     return entry
 
