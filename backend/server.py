@@ -35,6 +35,7 @@ from pathlib import Path
 from routes.data import router as data_router
 from routes.simulate import router as simulate_router
 from routes.predictions import router as predictions_router
+from routes.quant import router as quant_router  # NEW — quant engine endpoints
 
 # Import services
 from services.ais_service import start_ais_background_stream, get_port_hedland_status
@@ -164,16 +165,17 @@ _LOCAL_ORIGINS = [
     "http://localhost:3000", "http://127.0.0.1:3000",
     "http://localhost:3001", "http://127.0.0.1:3001",
 ]
+_PROD_ORIGINS = ["https://asx.marketoracle.ai"]
 
 if _FRONTEND_URL == "*":
     _ALLOWED_ORIGINS = ["*"]
     _ALLOW_CREDENTIALS = False  # credentials not allowed with wildcard
 elif _FRONTEND_URL:
     # Support comma-separated list of allowed origins
-    _ALLOWED_ORIGINS = [o.strip() for o in _FRONTEND_URL.split(",") if o.strip()] + _LOCAL_ORIGINS
+    _ALLOWED_ORIGINS = [o.strip() for o in _FRONTEND_URL.split(",") if o.strip()] + _LOCAL_ORIGINS + _PROD_ORIGINS
     _ALLOW_CREDENTIALS = True
 else:
-    _ALLOWED_ORIGINS = _LOCAL_ORIGINS
+    _ALLOWED_ORIGINS = _LOCAL_ORIGINS + _PROD_ORIGINS
     _ALLOW_CREDENTIALS = True
 
 logger.info("CORS allowed origins: %s", _ALLOWED_ORIGINS)
@@ -190,6 +192,7 @@ app.add_middleware(
 app.include_router(data_router)
 app.include_router(simulate_router)
 app.include_router(predictions_router)
+app.include_router(quant_router)  # NEW — /api/quant/* endpoints
 
 FRONTEND_BUILD = ROOT_DIR.parent / "frontend" / "build"
 
