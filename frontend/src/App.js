@@ -158,6 +158,7 @@ function App() {
       const POLL_INTERVAL_MS = 5000;
       const MAX_WAIT_MS = 600000; // 10 minutes
       const pollStart = Date.now();
+      let consecutive404s = 0;
 
       while (true) {
         await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
@@ -174,11 +175,22 @@ function App() {
           continue;
         }
 
-        // 5xx = server error (e.g. serialization failure) — stop polling, don't loop forever
+        // 5xx = server error — stop polling
         if (statusResp.status >= 500) {
           throw new Error(`Simulation status check failed (${statusResp.status}) — please try again`);
         }
-        // 404 / other transient errors — keep polling
+
+        // 404 = simulation lost from memory (backend restarted mid-run)
+        if (statusResp.status === 404) {
+          consecutive404s++;
+          // After 3 consecutive 404s (~15s), the backend restarted — simulation is lost
+          if (consecutive404s >= 3) {
+            throw new Error('Simulation lost — the server restarted mid-run. Please try again.');
+          }
+          continue;
+        }
+        consecutive404s = 0;
+
         if (!statusResp.ok) continue;
 
         const result = await statusResp.json();
