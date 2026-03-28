@@ -13,6 +13,7 @@ import AustralianEconomicContext from './components/AustralianEconomicContext';
 import ChokepointRiskPanel from './components/ChokepointRiskPanel';
 import TrackRecord from './components/TrackRecord';
 import ErrorBoundary from './components/ErrorBoundary';
+import MonteCarloEngine from './components/MonteCarlo/MonteCarloEngine';
 import { Globe as GlobeIcon, Map as MapIcon } from 'lucide-react';
 import './App.css';
 
@@ -39,7 +40,10 @@ function App() {
   // Sync activeTab with URL hash
   useEffect(() => {
     const handleHashChange = () => {
-      setActiveTab(window.location.hash === '#/track-record' ? 'track-record' : 'main');
+      const h = window.location.hash;
+      if (h === '#/track-record') setActiveTab('track-record');
+      else if (h === '#/simulation') setActiveTab('simulation');
+      else setActiveTab('main');
     };
     handleHashChange();
     window.addEventListener('hashchange', handleHashChange);
@@ -47,7 +51,9 @@ function App() {
   }, []);
 
   const navigateTo = (tab) => {
-    window.location.hash = tab === 'track-record' ? '#/track-record' : '#/';
+    if (tab === 'track-record') window.location.hash = '#/track-record';
+    else if (tab === 'simulation') window.location.hash = '#/simulation';
+    else window.location.hash = '#/';
     setActiveTab(tab);
   };
 
@@ -120,52 +126,80 @@ function App() {
 
       console.log('Starting simulation for:', requestBody);
 
-      // Retry once if the backend is cold-starting (Render free tier)
-      let response;
-      for (let attempt = 1; attempt <= 2; attempt++) {
-        try {
-          response = await fetch(`${BACKEND_URL}/api/simulate`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(requestBody),
-          });
-          break;
-        } catch (fetchErr) {
-          if (attempt === 2) throw fetchErr;
-          console.warn('Simulation fetch failed, retrying after 10s (backend may be waking)…');
-          await new Promise(r => setTimeout(r, 10000));
-        }
+      // Step 1: Start simulation as a background task — returns simulation_id immediately
+      let startResp;
+      try {
+        startResp = await fetch(`${BACKEND_URL}/api/simulate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestBody),
+        });
+      } catch (fetchErr) {
+        // Retry once on network error (backend cold-start)
+        console.warn('Simulation start failed, retrying after 10s…');
+        await new Promise(r => setTimeout(r, 10000));
+        startResp = await fetch(`${BACKEND_URL}/api/simulate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestBody),
+        });
       }
 
-      if (!response.ok) {
-        let detail = 'Simulation failed';
-        try { detail = (await response.json()).detail || detail; } catch (_) {}
+      if (!startResp.ok) {
+        let detail = 'Simulation failed to start';
+        try { detail = (await startResp.json()).detail || detail; } catch (_) {}
         throw new Error(detail);
       }
 
-      const result = await response.json();
-      console.log('Simulation result:', result);
+      const { simulation_id } = await startResp.json();
+      console.log('Simulation started:', simulation_id);
 
-      if (result.status === 'completed' && result.prediction) {
-        setPrediction(result.prediction);
-        setPredictionOpen(true);
-        
-        // Trigger correlation arc overlay
-        setCorrelationArc({
-          show: true,
-          eventLat: requestBody.lat,
-          eventLng: requestBody.lon
-        });
-        
-        // Auto-fade arc after 8 seconds
-        if (arcTimeoutRef.current) {
-          clearTimeout(arcTimeoutRef.current);
+      // Step 2: Poll until completed, failed, or 10-minute hard cap
+      const POLL_INTERVAL_MS = 5000;
+      const MAX_WAIT_MS = 600000; // 10 minutes
+      const pollStart = Date.now();
+
+      while (true) {
+        await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
+
+        if (Date.now() - pollStart > MAX_WAIT_MS) {
+          throw new Error('Simulation exceeded 10 minutes — please try again.');
         }
-        arcTimeoutRef.current = setTimeout(() => {
-          setCorrelationArc({ show: false, eventLat: 0, eventLng: 0 });
-        }, 8000);
-      } else {
-        throw new Error('Simulation did not complete successfully');
+
+        let statusResp;
+        try {
+          statusResp = await fetch(`${BACKEND_URL}/api/simulate/status/${simulation_id}`);
+        } catch (_) {
+          // Transient network error — keep polling
+          continue;
+        }
+
+        if (!statusResp.ok) continue;
+
+        const result = await statusResp.json();
+        console.log('Simulation status:', result.status);
+
+        if ((result.status === 'completed' || result.status === 'partial') && result.prediction) {
+          setPrediction(result.prediction);
+          setPredictionOpen(true);
+
+          setCorrelationArc({
+            show: true,
+            eventLat: requestBody.lat,
+            eventLng: requestBody.lon
+          });
+
+          if (arcTimeoutRef.current) clearTimeout(arcTimeoutRef.current);
+          arcTimeoutRef.current = setTimeout(() => {
+            setCorrelationArc({ show: false, eventLat: 0, eventLng: 0 });
+          }, 8000);
+          break;
+        }
+
+        if (result.status === 'failed') {
+          throw new Error(result.error || 'Simulation failed');
+        }
+        // status === 'running' → keep polling
       }
     } catch (err) {
       console.error('Simulation error:', err);
@@ -224,6 +258,12 @@ function App() {
           >
             Track Record
           </button>
+          <button
+            className={`app-tab-btn${activeTab === 'simulation' ? ' active' : ''}`}
+            onClick={() => navigateTo('simulation')}
+          >
+            Simulation
+          </button>
         </nav>
         {portHedlandData && (
           <div className="port-hedland-badge">
@@ -244,7 +284,18 @@ function App() {
         </div>
       )}
 
-      <div className="main-container" style={{ display: activeTab === 'track-record' ? 'none' : undefined }}>
+      {activeTab === 'simulation' && (
+        <ErrorBoundary>
+          <MonteCarloEngine
+            ticker={prediction?.ticker || 'BHP.AX'}
+            onSimComplete={(result) => {
+              // Optional: lift sim result to App state for future use
+            }}
+          />
+        </ErrorBoundary>
+      )}
+
+      <div className="main-container" style={{ display: (activeTab === 'track-record' || activeTab === 'simulation') ? 'none' : undefined }}>
         <div className="globe-section">
           <ErrorBoundary>
             <EventSidebar
@@ -381,7 +432,7 @@ function App() {
         </div>
       </div>
 
-      {activeTab !== 'track-record' && (
+      {activeTab === 'main' && (
         <ErrorBoundary>
           <SectorHeatmap />
         </ErrorBoundary>

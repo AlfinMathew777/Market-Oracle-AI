@@ -1,6 +1,6 @@
 """API route for running market simulations."""
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, BackgroundTasks
 from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List
 import asyncio
@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["simulation"])
 
-# Store active simulations
+# In-memory store: simulation_id → {status, prediction, error, started_at, ...}
 active_simulations = {}
 
 
@@ -67,162 +67,202 @@ class SimulationRequest(BaseModel):
         return v
 
 
-def _get_limiter_decorator():
-    from server import limiter
-    return limiter.limit("5/minute")
-
 @router.post("/simulate")
-async def run_simulation(request: Request, body: SimulationRequest):
+async def run_simulation(request: Request, body: SimulationRequest, background_tasks: BackgroundTasks):
     """
-    POST /api/simulate — rate-limited to 5/minute per IP; requires API key when configured.
+    POST /api/simulate — starts a background simulation, returns simulation_id immediately.
 
-    Runs 50-agent simulation for a conflict event to predict ASX ticker impact.
-    Timeout: 360 seconds (6 minutes) to cover 3-5 minute simulation time.
+    The client should poll GET /api/simulate/status/{simulation_id} every 5 seconds.
+    When status is 'completed' or 'partial', the prediction field contains the report.
     """
-    # Enforce API key (no-op when API_KEY env var is not set)
     from server import require_api_key
     require_api_key(request)
 
     simulation_id = f"sim_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
 
+    event_data = {
+        'country': body.country,
+        'location': body.event_description,
+        'event_type': body.event_type,
+        'fatalities': body.fatalities,
+        'event_date': body.date or datetime.now().strftime('%Y-%m-%d'),
+        'notes': body.event_description,
+        'latitude': body.lat,
+        'longitude': body.lon,
+        'event_id_cnty': body.event_id or f"evt_{simulation_id}"
+    }
+
+    active_simulations[simulation_id] = {
+        'status': 'running',
+        'started_at': datetime.now().isoformat(),
+        'prediction': None,
+        'error': None,
+    }
+
+    background_tasks.add_task(_run_simulation_background, simulation_id, body, event_data)
+
+    return {
+        "status": "started",
+        "simulation_id": simulation_id,
+    }
+
+
+async def _run_simulation_background(simulation_id: str, body: SimulationRequest, event_data: dict):
+    """
+    Runs the full simulation pipeline in the background.
+    Stores result (or partial result on timeout) into active_simulations.
+    The internal agent budget (180s) and Phase-7 fallback ensure a report always emerges.
+    """
+    start_time = datetime.now()
+
     try:
-        logger.info(f"Starting simulation {simulation_id}")
-        logger.info(f"Event: {body.country} - {body.event_type}")
-
-        # Mark simulation as running
-        active_simulations[simulation_id] = {
-            'status': 'running',
-            'started_at': datetime.now().isoformat()
-        }
-        
-        # Build event data for mapping
-        event_data = {
-            'country': body.country,
-            'location': body.event_description,
-            'event_type': body.event_type,
-            'fatalities': body.fatalities,
-            'event_date': body.date or datetime.now().strftime('%Y-%m-%d'),
-            'notes': body.event_description,
-            'latitude': body.lat,
-            'longitude': body.lon,
-            'event_id_cnty': body.event_id or f"evt_{simulation_id}"
-        }
-
-        # Map event to ticker — semantic (Zep) with rule-based fallback
+        # Ticker mapping
         if body.affected_tickers and len(body.affected_tickers) > 0:
             ticker = body.affected_tickers[0]
             ticker_confidence = 1.0
-            ticker_reasoning  = "user-specified"
-            logger.info(f"Using provided ticker: {ticker}")
+            ticker_reasoning = "user-specified"
         else:
             from services.semantic_ticker_mapper import map_event_to_ticker as semantic_mapper
-            ticker, ticker_confidence, ticker_reasoning = await semantic_mapper(event_data)
-            logger.info(
-                f"Ticker mapped: {ticker} (confidence={ticker_confidence:.2f}, {ticker_reasoning})"
+            ticker, ticker_confidence, ticker_reasoning = await asyncio.wait_for(
+                semantic_mapper(event_data), timeout=30.0
             )
         event_data["ticker_confidence"] = ticker_confidence
-        event_data["ticker_reasoning"]  = ticker_reasoning
-        
+        event_data["ticker_reasoning"] = ticker_reasoning
+
         ticker_info = get_ticker_info(ticker)
         if not ticker_info:
-            raise HTTPException(status_code=400, detail=f"Invalid ticker: {ticker}")
-        
-        # Run simulation (this is the Phase 1 simulation engine)
-        start_time = datetime.now()
+            active_simulations[simulation_id].update({
+                'status': 'failed',
+                'error': f"Invalid ticker: {ticker}",
+            })
+            return
 
-        # Inject live chokepoint context into event data
+        # Chokepoint context
         try:
             from services.chokepoint_service import get_chokepoint_simulation_context
-            chokepoint_context = get_chokepoint_simulation_context()
-            event_data["chokepoint_context"] = chokepoint_context
-            logger.info("Chokepoint context injected into simulation")
+            event_data["chokepoint_context"] = get_chokepoint_simulation_context()
         except Exception as cp_err:
-            logger.warning(f"Chokepoint context unavailable: {cp_err}")
+            logger.warning("Chokepoint context unavailable: %s", cp_err)
 
-        # Import simulation components
-        from scripts.test_core import Simulation
-        from llm_router import LLMRouter
-
-        # Ensure stdout/stderr use UTF-8 so LLM responses with unicode don't crash
+        # UTF-8 safety
         import sys, io
-        if hasattr(sys.stdout, 'buffer') and not isinstance(sys.stdout, io.TextIOWrapper):
-            sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace', line_buffering=True)
-        elif hasattr(sys.stdout, 'reconfigure'):
+        if hasattr(sys.stdout, 'reconfigure'):
             try:
                 sys.stdout.reconfigure(encoding='utf-8', errors='replace')
-            except Exception:
-                pass
-        if hasattr(sys.stderr, 'buffer') and not isinstance(sys.stderr, io.TextIOWrapper):
-            sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace', line_buffering=True)
-        elif hasattr(sys.stderr, 'reconfigure'):
-            try:
                 sys.stderr.reconfigure(encoding='utf-8', errors='replace')
             except Exception:
                 pass
 
+        from scripts.test_core import Simulation
+        from llm_router import LLMRouter
+
         llm_router = LLMRouter()
         simulation = Simulation(llm_router)
 
-        # Run simulation with timeout protection
+        # Store ticker so the status endpoint can return it early
+        active_simulations[simulation_id]['ticker'] = ticker
+
+        # Run simulation — internal timeouts guarantee completion:
+        #   180s agent budget → partial results if slow
+        #   60s Phase-7 judge → fallback verdict if slow
+        simulation_results = await simulation.run_simulation(
+            event_data=event_data,
+            ticker=ticker,
+            num_rounds=1,
+        )
+
+        # Generate report — 60s timeout, fallback on exception
         try:
-            # Use asyncio.wait_for with 360 second timeout
-            simulation_results = await asyncio.wait_for(
-                simulation.run_simulation(
-                    event_data=event_data,
-                    ticker=ticker,
-                    num_rounds=3  # 3 rounds for MVP speed
-                ),
-                timeout=360.0  # 6 minutes max
-            )
-            
-            # Generate prediction report
             prediction = await asyncio.wait_for(
                 simulation.generate_prediction_report(simulation_results),
-                timeout=60.0  # 1 minute for report generation
+                timeout=60.0,
             )
-            
-            execution_time = (datetime.now() - start_time).total_seconds()
-
-            # Persist to SQLite before responding
-            await _persist_simulation(simulation_id, ticker, prediction, event_data, execution_time)
-
-            # Update simulation status
-            active_simulations[simulation_id] = {
-                'status': 'completed',
-                'started_at': start_time.isoformat(),
-                'completed_at': datetime.now().isoformat(),
-                'execution_time': execution_time
-            }
-
-            logger.info(f"Simulation {simulation_id} completed in {execution_time:.1f}s")
-
-            return SimulationResponse(
-                status="completed",
-                simulation_id=simulation_id,
-                prediction=prediction,
-                execution_time_seconds=execution_time
-            )
-            
         except asyncio.TimeoutError:
-            logger.error(f"Simulation {simulation_id} timed out after 360 seconds")
-            active_simulations[simulation_id]['status'] = 'timeout'
-            raise HTTPException(
-                status_code=504,
-                detail="Simulation timed out. This may happen under heavy load. Please try again."
-            )
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error in simulation {simulation_id}: {str(e)}", exc_info=True)
-        active_simulations[simulation_id] = {
+            logger.warning("Report generation timed out — using raw simulation results")
+            prediction = _build_fallback_prediction(simulation_results, ticker)
+
+        execution_time = (datetime.now() - start_time).total_seconds()
+
+        await _persist_simulation(simulation_id, ticker, prediction, event_data, execution_time)
+
+        active_simulations[simulation_id].update({
+            'status': 'completed',
+            'prediction': prediction if isinstance(prediction, dict) else prediction.model_dump(),
+            'completed_at': datetime.now().isoformat(),
+            'execution_time': execution_time,
+        })
+        logger.info("Simulation %s completed in %.1fs", simulation_id, execution_time)
+
+    except asyncio.TimeoutError:
+        # Ticker mapping timed out — nothing to show
+        active_simulations[simulation_id].update({
             'status': 'failed',
-            'error': str(e)
-        }
-        raise HTTPException(
-            status_code=500,
-            detail=f"Simulation failed: {str(e)}"
-        )
+            'error': 'Ticker mapping timed out — please try again.',
+        })
+    except Exception as e:
+        logger.error("Simulation %s failed: %s", simulation_id, e, exc_info=True)
+        active_simulations[simulation_id].update({
+            'status': 'failed',
+            'error': str(e),
+        })
+
+
+def _build_fallback_prediction(sim_results: dict, ticker: str) -> dict:
+    """
+    Build a minimal prediction dict from raw simulation results
+    when the full report generator times out.
+    """
+    n_bull = sim_results.get('n_bull', 0)
+    n_bear = sim_results.get('n_bear', 0)
+    n_neut = sim_results.get('n_neut', 0)
+    total = n_bull + n_bear + n_neut or 1
+
+    if n_bull > n_bear:
+        direction = 'UP'
+    elif n_bear > n_bull:
+        direction = 'DOWN'
+    else:
+        direction = 'NEUTRAL'
+
+    confidence = round(abs(n_bull - n_bear) / total * (1 - n_neut / total), 3)
+
+    return {
+        'ticker': ticker,
+        'direction': direction,
+        'confidence': min(confidence, 0.85),
+        'time_horizon': '3d',
+        'summary': (
+            f"Partial report — {n_bull + n_bear + n_neut} agents completed before timeout. "
+            f"Bull: {n_bull} | Bear: {n_bear} | Neutral: {n_neut}."
+        ),
+        'trigger_event': 'Report generated from partial agent consensus',
+        'causal_chain': [],
+        'key_signals': [],
+        'agent_consensus': {'up': n_bull, 'down': n_bear, 'neutral': n_neut},
+        'is_partial': True,
+    }
+
+
+@router.get("/simulate/status/{simulation_id}")
+async def get_simulation_status(simulation_id: str):
+    """
+    Poll this endpoint after POST /api/simulate.
+    Returns status + prediction when ready.
+    Status values: 'running' | 'completed' | 'failed'
+    """
+    if simulation_id not in active_simulations:
+        raise HTTPException(status_code=404, detail="Simulation not found")
+    return active_simulations[simulation_id]
+
+
+@router.get("/simulate/active")
+async def list_active_simulations():
+    """List all active simulations."""
+    return {
+        "active_count": sum(1 for s in active_simulations.values() if s['status'] == 'running'),
+        "simulations": {k: {kk: vv for kk, vv in v.items() if kk != 'prediction'}
+                        for k, v in active_simulations.items()},
+    }
 
 
 @router.post("/simulate/chokepoint")
@@ -230,9 +270,8 @@ async def simulate_chokepoint_disruption(chokepoint_id: str, duration_days: int 
     """
     POST /api/simulate/chokepoint?chokepoint_id=malacca&duration_days=7
 
-    Fast prediction for a chokepoint disruption ? uses Australian Impact Engine
-    directly without running the full 50-agent simulation. Returns ASX predictions
-    and export value at risk within seconds.
+    Fast prediction for a chokepoint disruption — uses Australian Impact Engine
+    directly without running the full 50-agent simulation.
     """
     from services.chokepoint_service import CHOKEPOINTS
     from services.australian_impact_engine import predict_australian_impact
@@ -249,7 +288,6 @@ async def simulate_chokepoint_disruption(chokepoint_id: str, duration_days: int 
             "status": "completed",
             "chokepoint_id": chokepoint_id,
             "chokepoint_name": cp["name"],
-            # Chokepoint static details
             "chokepoint_details": {
                 "oil_flow_mbd": cp.get("oil_flow_mbd"),
                 "pct_global_supply": cp.get("pct_global_supply"),
@@ -259,33 +297,13 @@ async def simulate_chokepoint_disruption(chokepoint_id: str, duration_days: int 
                 "cargo_types": cp.get("cargo_types", []),
                 "countries_controlling": cp.get("countries_controlling", []),
             },
-            # Sector-level impact breakdown
             "sector_impacts": matrix_entry.get("australian_impact", {}),
             "gdp_impact_estimate": matrix_entry.get("gdp_impact_estimate"),
-            # Full impact engine output
             "impact": impact,
         }
     except Exception as e:
-        logger.error(f"Chokepoint simulation error: {e}")
+        logger.error("Chokepoint simulation error: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.get("/simulate/status/{simulation_id}")
-async def get_simulation_status(simulation_id: str):
-    """Get status of a running simulation."""
-    if simulation_id not in active_simulations:
-        raise HTTPException(status_code=404, detail="Simulation not found")
-    
-    return active_simulations[simulation_id]
-
-
-@router.get("/simulate/active")
-async def list_active_simulations():
-    """List all active simulations."""
-    return {
-        "active_count": sum(1 for s in active_simulations.values() if s['status'] == 'running'),
-        "simulations": active_simulations
-    }
 
 
 @router.get("/predict/history")
@@ -334,7 +352,6 @@ async def _persist_simulation(simulation_id, ticker, prediction, event_data, exe
         else:
             bull = bear = neut = 0
 
-        # direction from prediction may be an enum — normalise to string
         raw_dir = p.get("direction", "NEUTRAL")
         direction_str = raw_dir.value if hasattr(raw_dir, "value") else str(raw_dir)
 
