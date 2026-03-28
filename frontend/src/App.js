@@ -174,6 +174,11 @@ function App() {
           continue;
         }
 
+        // 5xx = server error (e.g. serialization failure) — stop polling, don't loop forever
+        if (statusResp.status >= 500) {
+          throw new Error(`Simulation status check failed (${statusResp.status}) — please try again`);
+        }
+        // 404 / other transient errors — keep polling
         if (!statusResp.ok) continue;
 
         const result = await statusResp.json();

@@ -185,9 +185,16 @@ async def _run_simulation_background(simulation_id: str, body: SimulationRequest
 
         await _persist_simulation(simulation_id, ticker, prediction, event_data, execution_time)
 
+        # Use model_dump(mode='json') so enums → strings, datetimes → ISO strings.
+        # Plain dict from _build_fallback_prediction is already JSON-safe.
+        if hasattr(prediction, 'model_dump'):
+            prediction_json = prediction.model_dump(mode='json')
+        else:
+            prediction_json = prediction
+
         active_simulations[simulation_id].update({
             'status': 'completed',
-            'prediction': prediction if isinstance(prediction, dict) else prediction.model_dump(),
+            'prediction': prediction_json,
             'completed_at': datetime.now().isoformat(),
             'execution_time': execution_time,
         })
