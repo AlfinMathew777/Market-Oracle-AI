@@ -279,7 +279,7 @@ def _get_mock_sentiment(topic: str) -> Dict:
             return {
                 **mock_data,
                 "source": "GDELT Mock Data (Rate Limited)",
-                "queried_at": datetime.utcnow().isoformat()
+                "queried_at": datetime.now(timezone.utc).isoformat()
             }
     
     # Default neutral mock
@@ -296,7 +296,7 @@ def _get_mock_sentiment(topic: str) -> Dict:
             {"title": f"Regional developments in {topic}", "tone": 0.0}
         ],
         "source": "GDELT Mock Data (Rate Limited)",
-        "queried_at": datetime.utcnow().isoformat()
+        "queried_at": datetime.now(timezone.utc).isoformat()
     }
 
 

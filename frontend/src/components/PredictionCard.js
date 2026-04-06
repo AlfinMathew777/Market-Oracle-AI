@@ -1,7 +1,7 @@
 import React from 'react';
 import './PredictionCard.css';
 
-function PredictionCard({ prediction, onClose }) {
+function PredictionCard({ prediction, tradeExecution, accuracyStats, livePrice, reasoningData, onClose }) {
   if (!prediction) return null;
 
   const getDirectionIcon = (direction) => {
@@ -31,6 +31,17 @@ function PredictionCard({ prediction, onClose }) {
   const confidenceDisplay = isNoSignal ? 'No clear signal' : `${confidencePercent}%`;
   const confidenceColor   = isNoSignal ? '#666666' : dirColor;
 
+  // Derive actionable recommendation (overridden by actual trade execution action if present)
+  const recommendation = tradeExecution?.action
+    || (prediction.direction === 'UP'   ? 'BUY'
+      : prediction.direction === 'DOWN' ? 'SELL'
+      : confidencePercent < 30         ? 'WAIT'
+      :                                  'HOLD');
+  const recColor = recommendation === 'BUY'  ? '#00ff88'
+                 : recommendation === 'SELL' ? '#ff3366'
+                 : recommendation === 'WAIT' ? '#ffaa00'
+                 :                            '#888888';
+
   return (
     <div className="prediction-modal-overlay" onClick={onClose}>
       <div className="prediction-modal" onClick={e => e.stopPropagation()}>
@@ -38,7 +49,9 @@ function PredictionCard({ prediction, onClose }) {
         {/* Modal header */}
         <div className="pred-modal-header">
           <div className="pred-modal-title">Prediction Report</div>
-          <div className="pred-modal-meta">{prediction.simulation_id}</div>
+          <div className="pred-modal-meta" style={{ color: '#666' }}>
+            ID: {prediction.simulation_id}
+          </div>
           <button className="pred-close-btn" onClick={onClose} title="Close">✕</button>
         </div>
 
@@ -54,12 +67,34 @@ function PredictionCard({ prediction, onClose }) {
             <div className="pred-horizon-badge">
               {prediction.time_horizon === 'd7' ? '7-Day Outlook' : prediction.time_horizon}
             </div>
+            <div className="pred-trade-action" style={{
+              background: `${recColor}18`,
+              color: recColor,
+              border: `1px solid ${recColor}44`,
+              padding: '4px 14px',
+              borderRadius: '6px',
+              fontFamily: 'monospace',
+              fontWeight: 800,
+              fontSize: '13px',
+              letterSpacing: '1.5px',
+            }}>
+              {recommendation}
+            </div>
           </div>
 
           <div className="pred-timestamp">
             Generated {new Date(prediction.generated_at).toLocaleString('en-AU', {
               timeZone: 'Australia/Sydney', dateStyle: 'medium', timeStyle: 'short'
             })} AEST
+            {livePrice && (
+              <span className="pred-live-price">
+                <span className="pred-live-dot" />
+                LIVE ${livePrice.price.toFixed(2)}
+                <span className={`pred-live-change ${livePrice.change_pct >= 0 ? 'pred-live-up' : 'pred-live-down'}`}>
+                  {livePrice.change_pct >= 0 ? '+' : ''}{livePrice.change_pct.toFixed(2)}%
+                </span>
+              </span>
+            )}
           </div>
 
           {/* Confidence */}
@@ -296,7 +331,280 @@ function PredictionCard({ prediction, onClose }) {
 
           </div>
 
+          {/* ── Quant Engine Analysis (Phase 3 addition — additive only) ────────── */}
+          {/* Shows when merge_predictions() has enriched the prediction with quant data. */}
+          {/* Gracefully absent when quant engine is offline — zero impact on existing UI. */}
+
+          {/* Quant unavailable note */}
+          {prediction.quant_unavailable === true && (
+            <div className="pred-quant-offline">
+              Quant analysis unavailable — using agent consensus only
+            </div>
+          )}
+
+          {/* Quant data sections — only render when fields are present */}
+          {(prediction.quant_vol_regime || prediction.quant_var_95 != null || prediction.quant_technical_score != null) && (
+            <div className="pred-section pred-quant-section">
+              <div className="pred-section-title">Quant Analysis</div>
+              <div className="pred-quant-grid">
+
+                {prediction.quant_vol_regime && (
+                  <div className="pred-quant-item">
+                    <span className="pred-quant-label">Vol Regime</span>
+                    <span className={`pred-vol-regime pred-vol-${prediction.quant_vol_regime.toLowerCase()}`}>
+                      {prediction.quant_vol_regime}
+                    </span>
+                  </div>
+                )}
+
+                {prediction.quant_var_95 != null && (
+                  <div className="pred-quant-item">
+                    <span className="pred-quant-label">VaR 95%</span>
+                    <span className="pred-quant-val">{(prediction.quant_var_95 * 100).toFixed(2)}%</span>
+                  </div>
+                )}
+
+                {prediction.quant_cvar_95 != null && (
+                  <div className="pred-quant-item">
+                    <span className="pred-quant-label">CVaR 95%</span>
+                    <span className="pred-quant-val">{(prediction.quant_cvar_95 * 100).toFixed(2)}%</span>
+                  </div>
+                )}
+
+                {prediction.quant_technical_score != null && (
+                  <div className="pred-quant-item">
+                    <span className="pred-quant-label">Tech Score</span>
+                    <span className={`pred-quant-val ${prediction.quant_technical_signal === 'BULLISH' ? 'pred-quant-bull' : prediction.quant_technical_signal === 'BEARISH' ? 'pred-quant-bear' : ''}`}>
+                      {(prediction.quant_technical_score * 100).toFixed(0)} / 100
+                      {prediction.quant_technical_signal ? ` · ${prediction.quant_technical_signal}` : ''}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Prediction sources bar chart */}
+          {prediction.prediction_sources && (
+            <div className="pred-section pred-sources-section">
+              <div className="pred-section-title">Prediction Sources</div>
+              {[
+                { name: 'Quant Engine', pct: prediction.prediction_sources.quant_pct  ?? 0, color: '#ff8800' },
+                { name: 'Agent Swarm',  pct: prediction.prediction_sources.agents_pct ?? 0, color: '#3399ff' },
+                { name: 'OSINT',        pct: prediction.prediction_sources.osint_pct  ?? 0, color: '#9966ff' },
+              ].map(({ name, pct, color }) => (
+                <div key={name} className="pred-source-row">
+                  <span className="pred-source-name">{name}</span>
+                  <div className="pred-source-bar-bg">
+                    <div className="pred-source-bar-fill" style={{ width: `${pct}%`, background: color }} />
+                  </div>
+                  <span className="pred-source-pct">{pct}%</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* ── Trade Execution ────────────────────────────────────────────── */}
+          {tradeExecution && (
+            <div className="pred-section pred-trade-section">
+              <div className="pred-section-title">
+                Trade Execution Plan
+                <span className={`pred-trade-grade pred-grade-${tradeExecution.setup_quality?.replace('+','plus')}`}>
+                  {tradeExecution.setup_quality} Setup
+                </span>
+              </div>
+
+              <div className="pred-trade-action-row">
+                <span className={`pred-trade-action pred-trade-action-${tradeExecution.action?.toLowerCase()}`}>
+                  {tradeExecution.action}
+                </span>
+                <span className="pred-trade-timeframe">{tradeExecution.timeframe}</span>
+                <span className="pred-trade-order">{tradeExecution.order_type} order</span>
+              </div>
+
+              <div className="pred-trade-levels">
+                <div className="pred-trade-level pred-trade-entry">
+                  <span className="pred-trade-level-label">Entry</span>
+                  <span className="pred-trade-level-val">${tradeExecution.entry_price?.toFixed(2)}</span>
+                  <span className="pred-trade-level-sub">zone ${tradeExecution.entry_zone_low?.toFixed(2)} – ${tradeExecution.entry_zone_high?.toFixed(2)}</span>
+                </div>
+                <div className="pred-trade-level pred-trade-stop">
+                  <span className="pred-trade-level-label">Stop Loss</span>
+                  <span className="pred-trade-level-val">${tradeExecution.stop_loss?.toFixed(2)}</span>
+                  <span className="pred-trade-level-sub">{tradeExecution.stop_loss_rationale}</span>
+                </div>
+                <div className="pred-trade-targets">
+                  {tradeExecution.take_profit_1 && (
+                    <div className="pred-trade-level pred-trade-tp">
+                      <span className="pred-trade-level-label">TP1</span>
+                      <span className="pred-trade-level-val">${tradeExecution.take_profit_1?.toFixed(2)}</span>
+                    </div>
+                  )}
+                  {tradeExecution.take_profit_2 && (
+                    <div className="pred-trade-level pred-trade-tp">
+                      <span className="pred-trade-level-label">TP2</span>
+                      <span className="pred-trade-level-val">${tradeExecution.take_profit_2?.toFixed(2)}</span>
+                    </div>
+                  )}
+                  {tradeExecution.take_profit_3 && (
+                    <div className="pred-trade-level pred-trade-tp">
+                      <span className="pred-trade-level-label">TP3</span>
+                      <span className="pred-trade-level-val">${tradeExecution.take_profit_3?.toFixed(2)}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="pred-trade-risk-row">
+                <div className="pred-trade-risk-item">
+                  <span className="pred-trade-risk-label">Risk / Reward</span>
+                  <span className="pred-trade-risk-val">{tradeExecution.risk_reward?.risk_reward_ratio?.toFixed(2)}:1</span>
+                </div>
+                <div className="pred-trade-risk-item">
+                  <span className="pred-trade-risk-label">Risk %</span>
+                  <span className="pred-trade-risk-val">{tradeExecution.risk_reward?.risk_percent?.toFixed(2)}%</span>
+                </div>
+                <div className="pred-trade-risk-item">
+                  <span className="pred-trade-risk-label">Position Size</span>
+                  <span className="pred-trade-risk-val">{tradeExecution.position_size_percent?.toFixed(1)}% of portfolio</span>
+                </div>
+                <div className="pred-trade-risk-item">
+                  <span className="pred-trade-risk-label">Max Loss</span>
+                  <span className="pred-trade-risk-val pred-trade-risk-danger">{tradeExecution.max_loss_percent?.toFixed(2)}%</span>
+                </div>
+              </div>
+
+              {tradeExecution.entry_conditions?.length > 0 && (
+                <div className="pred-trade-conditions">
+                  <div className="pred-trade-cond-title">Entry Conditions</div>
+                  <ul className="pred-trade-cond-list">
+                    {tradeExecution.entry_conditions.map((c, i) => <li key={i}>{c}</li>)}
+                  </ul>
+                </div>
+              )}
+
+              {tradeExecution.invalidation_conditions?.length > 0 && (
+                <div className="pred-trade-conditions">
+                  <div className="pred-trade-cond-title">Invalidation Conditions</div>
+                  <ul className="pred-trade-cond-list pred-trade-cond-invalid">
+                    {tradeExecution.invalidation_conditions.map((c, i) => <li key={i}>{c}</li>)}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Memory Context (from reasoning synthesizer) ────────────────── */}
+          {reasoningData?.memory_applied && (
+            <div className="pred-section pred-accuracy-section">
+              <div className="pred-section-title">Memory Context</div>
+              {reasoningData.memory_summary && (
+                <p style={{ margin: 0, fontSize: '12px', color: '#aaa', lineHeight: 1.6 }}>
+                  {reasoningData.memory_summary}
+                </p>
+              )}
+              {reasoningData.confidence_adjustment != null && reasoningData.confidence_adjustment !== 0 && (
+                <p style={{ margin: '6px 0 0 0', fontSize: '11px', color: '#ffaa00' }}>
+                  ⚖ Confidence adjusted {reasoningData.confidence_adjustment > 0 ? '+' : ''}{reasoningData.confidence_adjustment} pts based on historical accuracy
+                </p>
+              )}
+              {reasoningData.signal_broadcast && (
+                <p style={{ margin: '4px 0 0 0', fontSize: '11px', color: '#3399ff' }}>
+                  📡 Signal broadcast to subscribers
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* ── Accuracy Stats ─────────────────────────────────────────────── */}
+          {accuracyStats && accuracyStats.total_predictions > 0 && (
+            <div className="pred-section pred-accuracy-section">
+              <div className="pred-section-title">
+                Historical Accuracy — {prediction.ticker}
+              </div>
+              <div className="pred-accuracy-grid">
+                <div className="pred-acc-item">
+                  <span className="pred-acc-val" style={{
+                    color: (accuracyStats.accuracy_pct ?? 0) >= 60 ? '#00ff88'
+                         : (accuracyStats.accuracy_pct ?? 0) >= 40 ? '#ffcc00'
+                         : '#ff3366'
+                  }}>
+                    {accuracyStats.accuracy_pct ?? 0}%
+                  </span>
+                  <span className="pred-acc-label">Accuracy</span>
+                </div>
+                <div className="pred-acc-item">
+                  <span className="pred-acc-val">{accuracyStats.resolved_predictions ?? 0}</span>
+                  <span className="pred-acc-label">Resolved</span>
+                </div>
+                <div className="pred-acc-item">
+                  <span className="pred-acc-val" style={{ color: '#00ff88' }}>{accuracyStats.correct ?? 0}</span>
+                  <span className="pred-acc-label">Correct</span>
+                </div>
+                <div className="pred-acc-item">
+                  <span className="pred-acc-val" style={{ color: '#ff3366' }}>
+                    {(accuracyStats.incorrect ?? 0)}
+                  </span>
+                  <span className="pred-acc-label">Incorrect</span>
+                </div>
+                {accuracyStats.avg_confidence != null && (
+                  <div className="pred-acc-item">
+                    <span className="pred-acc-val">{accuracyStats.avg_confidence}%</span>
+                    <span className="pred-acc-label">Avg Conf</span>
+                  </div>
+                )}
+                <div className="pred-acc-item">
+                  <span className="pred-acc-val">{accuracyStats.total_predictions ?? 0}</span>
+                  <span className="pred-acc-label">Total</span>
+                </div>
+              </div>
+              {accuracyStats.total_predictions < 5 && (
+                <div className="pred-acc-note">Building track record — more predictions needed for reliable stats</div>
+              )}
+            </div>
+          )}
+
+          {/* ── Memory Context ─────────────────────────────────────────── */}
+          {reasoningData && (
+            <div className="pred-section pred-memory-section">
+              <div className="pred-section-title">Memory Context</div>
+              {reasoningData.memory_applied && reasoningData.memory_summary
+                ? (
+                  <>
+                    <p className="pred-memory-summary">{reasoningData.memory_summary}</p>
+                    {reasoningData.confidence_adjustment !== 0 && reasoningData.confidence_adjustment != null && (
+                      <div className="pred-memory-calibration">
+                        Confidence calibration: {reasoningData.confidence_adjustment > 0 ? '+' : ''}{reasoningData.confidence_adjustment} pts based on past accuracy
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <p style={{ margin: 0, fontSize: '12px', color: '#555', fontStyle: 'italic' }}>
+                    No historical memory yet — first prediction for this ticker/event type.
+                  </p>
+                )
+              }
+            </div>
+          )}
+
           <div className="pred-disclaimer">⚠ Analytical intelligence only. Not financial advice.</div>
+
+          {/* ── Prediction tracking footer ─────────────────────────────── */}
+          {reasoningData && (
+            <div className="pred-tracking-footer">
+              {reasoningData.prediction_id && (
+                <span className="pred-tracking-id">ID: {reasoningData.prediction_id}</span>
+              )}
+              {reasoningData.signal_broadcast
+                ? <span className="pred-tracking-broadcast">📡 Broadcast</span>
+                : <span style={{ fontSize: '10px', color: '#444' }}>No broadcast</span>
+              }
+              {reasoningData.memory_applied
+                ? <span className="pred-tracking-memory">🧠 Memory applied</span>
+                : <span style={{ fontSize: '10px', color: '#444' }}>No memory</span>
+              }
+            </div>
+          )}
         </div>
       </div>
     </div>

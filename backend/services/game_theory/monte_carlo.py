@@ -8,9 +8,13 @@ All simulations run in < 100ms (acceptable latency).
 seed=42 for reproducibility — same inputs produce same output.
 """
 
+import logging
+
 import numpy as np
 from dataclasses import dataclass
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -153,7 +157,7 @@ def run_confidence_monte_carlo(
         )
 
     except Exception as e:
-        print(f"[MC CONFIDENCE] Error: {e}")
+        logger.error("[MC CONFIDENCE] Error: %s", e)
         return MonteCarloConfidence(
             mean_confidence=0,
             confidence_std=0,
@@ -227,7 +231,7 @@ def run_price_range_monte_carlo(
         )
 
     except Exception as e:
-        print(f"[MC PRICE] Error: {e}")
+        logger.error("[MC PRICE] Error: %s", e)
         return MonteCarloPriceRange(
             current_price=current_price,
             expected_price_7d=current_price,
@@ -303,7 +307,7 @@ def run_chokepoint_monte_carlo(
         )
 
     except Exception as e:
-        print(f"[MC CHOKEPOINT] Error: {e}")
+        logger.error("[MC CHOKEPOINT] Error: %s", e)
         return MonteCarloChokepointImpact(
             expected_duration_days=7,
             expected_exports_aud=int(base_exports_at_risk),

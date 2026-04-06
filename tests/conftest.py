@@ -1,5 +1,13 @@
-import pytest
+import sys
 import os
+from pathlib import Path
+
+# Ensure backend/ is on sys.path so tests can import backend modules directly
+_backend = Path(__file__).parent.parent / "backend"
+if str(_backend) not in sys.path:
+    sys.path.insert(0, str(_backend))
+
+import pytest
 
 
 def pytest_configure(config):

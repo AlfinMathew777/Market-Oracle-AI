@@ -1,0 +1,38 @@
+
+> frontend@0.1.0 start
+> craco start
+
+(node:23116) [DEP0176] DeprecationWarning: fs.F_OK is deprecated, use fs.constants.F_OK instead
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:23116) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
+(node:23116) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
+Starting the development server...
+
+(node:23116) [DEP_WEBPACK_COMPILATION_ASSETS] DeprecationWarning: Compilation.assets will be frozen in future, all modifications are deprecated.
+BREAKING CHANGE: No more changes should happen to Compilation.assets after sealing the Compilation.
+	Do changes to assets earlier, e. g. in Compilation.hooks.processAssets.
+	Make sure to select an appropriate stage from Compilation.PROCESS_ASSETS_STAGE_*.
+Compiled successfully!
+
+You can now view frontend in the browser.
+
+  Local:            http://localhost:3000
+  On Your Network:  http://192.168.1.101:3000
+
+Note that the development build is not optimized.
+To create a production build, use npm run build.
+
+webpack compiled [1m[32msuccessfully[39m[22m
+(node:23116) [DEP0060] DeprecationWarning: The `util._extend` API is deprecated. Please use Object.assign() instead.
+Compiling...
+Compiled successfully!
+webpack compiled [1m[32msuccessfully[39m[22m
+Compiling...
+Compiled successfully!
+webpack compiled [1m[32msuccessfully[39m[22m
+Compiling...
+Compiled successfully!
+webpack compiled [1m[32msuccessfully[39m[22m
+Compiling...
+Compiled successfully!
+webpack compiled [1m[32msuccessfully[39m[22m

@@ -83,8 +83,8 @@ async def release_lock(key: str) -> None:
     try:
         async with httpx.AsyncClient(timeout=3.0) as c:
             await c.get(f"{UPSTASH_URL}/del/{key}", headers=_HEADERS)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("Redis release_lock failed for %s (best-effort): %s", key, e)
 
 
 async def incr(key: str, ttl: int = 86400) -> int:

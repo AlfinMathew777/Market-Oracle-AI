@@ -36,6 +36,10 @@ from routes.data import router as data_router
 from routes.simulate import router as simulate_router
 from routes.predictions import router as predictions_router
 from routes.quant import router as quant_router  # NEW — quant engine endpoints
+from routes.reasoning import router as reasoning_router
+from routes.trade_execution import router as trade_router
+from routes.accuracy import router as accuracy_router
+from routes.stream import router as stream_router
 
 # Import services
 from services.ais_service import start_ais_background_stream, get_port_hedland_status
@@ -122,6 +126,13 @@ async def _hourly_tasks():
                 logger.info("Accuracy check: resolved %d predictions", n)
         except Exception as e:
             logger.warning("Hourly accuracy check failed: %s", e)
+        try:
+            from services.accuracy_tracker import resolve_pending_predictions
+            n2 = await resolve_pending_predictions()
+            if n2:
+                logger.info("Reasoning accuracy check: resolved %d predictions", n2)
+        except Exception as e:
+            logger.warning("Reasoning accuracy check failed: %s", e)
 
 
 @asynccontextmanager
@@ -193,6 +204,10 @@ app.include_router(data_router)
 app.include_router(simulate_router)
 app.include_router(predictions_router)
 app.include_router(quant_router)  # NEW — /api/quant/* endpoints
+app.include_router(reasoning_router)  # Reasoning Synthesizer — /api/reasoning/*
+app.include_router(trade_router)       # Trade execution — /api/trade/*
+app.include_router(accuracy_router)    # Accuracy tracking — /api/accuracy/*
+app.include_router(stream_router)      # Real-time streaming — /api/stream/*
 
 FRONTEND_BUILD = ROOT_DIR.parent / "frontend" / "build"
 

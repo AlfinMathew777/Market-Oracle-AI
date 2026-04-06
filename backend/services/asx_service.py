@@ -116,8 +116,8 @@ class ASXService:
                             sym_hist = hist_df["Close"].dropna()
                         for date, close in sym_hist.items():
                             history_5d.append({'date': date.strftime('%Y-%m-%d'), 'close': round(float(close), 2)})
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug("Could not parse history for %s: %s", symbol, e)
 
                     prices.append({
                         'ticker': symbol,

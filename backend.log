@@ -1,0 +1,213 @@
+INFO:     Will watch for changes in these directories: ['C:\\Users\\HP\\Market-Oracle-AI\\backend']
+INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
+INFO:     Started reloader process [14516] using WatchFiles
+INFO:server:CORS allowed origins: ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:3001', 'http://127.0.0.1:3001', 'https://asx.marketoracle.ai']
+INFO:     Started server process [4776]
+INFO:     Waiting for application startup.
+INFO:server:AussieIntel starting...
+INFO:database:Database initialised at .\aussieintel.db
+INFO:services.ais_service:? AISStream background thread started
+INFO:server:Startup complete — cache pre-warm and accuracy checks running in background
+INFO:     Application startup complete.
+INFO:services.asx_service:Batch-fetching 17 ASX tickers via yfinance...
+INFO:services.ais_service:Connecting to AISStream WebSocket (attempt 1/5)...
+INFO:services.acled_service:? ACLED OAuth token obtained
+INFO:services.acled_service:Fetching live ACLED events for 17 countries...
+INFO:services.ais_service:? AISStream connected - monitoring Port Hedland vessels
+ERROR:services.acled_service:ACLED error: 403 Client Error: Forbidden for url: https://acleddata.com/api/acled/read?_format=json&country=China%3AOR%3Acountry%3DIran%3AOR%3Acountry%3DDemocratic+Republic+of+Congo%3AOR%3Acountry%3DTaiwan%3AOR%3Acountry%3DSudan%3AOR%3Acountry%3DArgentina%3AOR%3Acountry%3DChile%3AOR%3Acountry%3DPapua+New+Guinea%3AOR%3Acountry%3DIndonesia%3AOR%3Acountry%3DMyanmar%3AOR%3Acountry%3DUkraine%3AOR%3Acountry%3DRussia%3AOR%3Acountry%3DIsrael%3AOR%3Acountry%3DYemen%3AOR%3Acountry%3DAustralia%3AOR%3Acountry%3DUnited+States%3AOR%3Acountry%3DSingapore&fields=event_id_cnty%7Cevent_date%7Cevent_type%7Ccountry%7Clocation%7Clatitude%7Clongitude%7Cfatalities%7Cnotes&limit=50&event_date=2026-01-05&event_date_where=%3E%3D ? falling back to demo
+INFO:server:Cache pre-warmed: ACLED events
+INFO:services.asx_service:? BHP.AX: $51.23 (-2.53%)
+INFO:services.asx_service:? RIO.AX: $161.62 (-3.27%)
+INFO:services.asx_service:? FMG.AX: $20.25 (-3.98%)
+INFO:routes.data:Redis miss — fetching macro context live
+INFO:services.asx_service:? WDS.AX: $34.93 (-0.46%)
+INFO:services.asx_service:? STO.AX: $8.08 (+1.38%)
+INFO:services.asx_service:? MIN.AX: $52.68 (-6.58%)
+INFO:services.asx_service:? PLS.AX: $5.09 (-3.96%)
+INFO:services.gdelt_service:Querying GDELT API for topic: 'Strait of Hormuz shipping tanker Iran'
+WARNING:services.macro_service:FRED API failed, using fallback
+INFO:services.asx_service:? CBA.AX: $172.80 (+0.52%)
+ERROR:services.gdelt_service:GDELT API error: Expecting value: line 1 column 1 (char 0)
+INFO:services.gdelt_service:Querying GDELT API for topic: 'Strait of Malacca shipping piracy China'
+INFO:services.asx_service:? WBC.AX: $39.85 (-0.52%)
+ERROR:yfinance:HTTP Error 404: {"quoteSummary":{"result":null,"error":{"code":"Not Found","description":"Quote not found for symbol: IRON.AX"}}}
+INFO:services.asx_service:? ANZ.AX: $36.63 (+0.71%)
+ERROR:services.gdelt_service:GDELT API error: Expecting value: line 1 column 1 (char 0)
+INFO:services.gdelt_service:Querying GDELT API for topic: 'Bab el-Mandeb Houthi Red Sea shipping'
+ERROR:services.macro_service:Error fetching Brent Crude: name 'FRED_API_KEY' is not defined
+ERROR:services.macro_service:Error fetching Gold price: name 'FRED_API_KEY' is not defined
+INFO:routes.data:Redis miss — fetching FRED macro live
+INFO:services.asx_service:? NAB.AX: $41.80 (-0.29%)
+INFO:services.asx_service:? NST.AX: $21.91 (-0.86%)
+ERROR:services.fred_service:FRED error fetching RBAAONBMIND: 400 Client Error: Bad Request for url: https://api.stlouisfed.org/fred/series/observations?series_id=RBAAONBMIND&api_key=d7ab722d4145d2c01d09fe0d87260ddb&file_type=json&limit=1&sort_order=desc
+ERROR:services.gdelt_service:GDELT API error: Expecting value: line 1 column 1 (char 0)
+INFO:services.gdelt_service:Querying GDELT API for topic: 'Suez Canal shipping blockage Egypt'
+INFO:services.asx_service:? EVN.AX: $13.02 (-4.62%)
+INFO:services.fred_service:FRED: aud_usd = 0.689
+INFO:services.asx_service:? WES.AX: $73.34 (-0.12%)
+INFO:services.fred_service:FRED: unemployment_rate = 4.07532
+INFO:services.asx_service:? WOW.AX: $37.01 (+1.26%)
+INFO:services.asx_service:? LYC.AX: $19.41 (-1.22%)
+INFO:services.fred_service:FRED: long_term_rate = 4.77
+INFO:services.fred_service:FRED: cpi = 130.671
+INFO:services.asx_service:? ^AXJO: $8579.50 (-1.06%)
+INFO:services.asx_service:? Batch fetch complete: 17 tickers cached for 5 min
+INFO:services.fred_service:FRED: gdp_growth = 607475000000.0
+ERROR:services.fred_service:FRED error fetching NAEXKP01AUQ189S: 400 Client Error: Bad Request for url: https://api.stlouisfed.org/fred/series/observations?series_id=NAEXKP01AUQ189S&api_key=d7ab722d4145d2c01d09fe0d87260ddb&file_type=json&limit=1&sort_order=desc
+INFO:services.abs_service:? FRED live data merged into Australian macro indicators
+INFO:     127.0.0.1:0 - "GET /api/data/macro-context HTTP/1.1" 200 OK
+INFO:server:Cache pre-warmed: ASX prices
+INFO:     127.0.0.1:0 - "GET /api/data/australian-macro HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /api/data/chokepoints?enriched=false HTTP/1.1" 200 OK
+INFO:routes.data:Cache miss — fetching live events
+INFO:services.acled_service:Fetching live ACLED events for 17 countries...
+ERROR:services.acled_service:ACLED error: 403 Client Error: Forbidden for url: https://acleddata.com/api/acled/read?_format=json&country=China%3AOR%3Acountry%3DIran%3AOR%3Acountry%3DDemocratic+Republic+of+Congo%3AOR%3Acountry%3DTaiwan%3AOR%3Acountry%3DSudan%3AOR%3Acountry%3DArgentina%3AOR%3Acountry%3DChile%3AOR%3Acountry%3DPapua+New+Guinea%3AOR%3Acountry%3DIndonesia%3AOR%3Acountry%3DMyanmar%3AOR%3Acountry%3DUkraine%3AOR%3Acountry%3DRussia%3AOR%3Acountry%3DIsrael%3AOR%3Acountry%3DYemen%3AOR%3Acountry%3DAustralia%3AOR%3Acountry%3DUnited+States%3AOR%3Acountry%3DSingapore&fields=event_id_cnty%7Cevent_date%7Cevent_type%7Ccountry%7Clocation%7Clatitude%7Clongitude%7Cfatalities%7Cnotes&limit=50&event_date=2026-01-05&event_date_where=%3E%3D ? falling back to demo
+INFO:routes.data:ACLED unavailable — fetching RSS live events
+INFO:routes.data:Redis miss — fetching ASX prices live
+INFO:services.asx_service:Returning cached ASX prices
+INFO:services.gdelt_service:Querying GDELT API for topic: 'China steel production'
+INFO:     127.0.0.1:0 - "GET /api/data/asx-prices HTTP/1.1" 200 OK
+INFO:services.fred_service:Returning cached FRED data
+INFO:services.news_service:Fetching MarketAux sentiment for 1 tickers...
+INFO:services.gdelt_service:Querying GDELT API for topic: 'Australia iron ore'
+INFO:routes.data:Redis miss — fetching FRED macro live
+INFO:services.fred_service:Returning cached FRED data
+INFO:services.abs_service:? FRED live data merged into Australian macro indicators
+INFO:routes.data:Redis miss — fetching macro context live
+INFO:services.news_service:MarketAux: 1 articles, avg sentiment: 0.483, signal: BULLISH
+WARNING:services.macro_service:FRED API failed, using fallback
+WARNING:services.gdelt_service:No GDELT articles found for topic: Suez Canal shipping blockage Egypt
+INFO:services.gdelt_service:Querying GDELT API for topic: 'Cape of Good Hope shipping reroute'
+ERROR:yfinance:HTTP Error 404: {"quoteSummary":{"result":null,"error":{"code":"Not Found","description":"Quote not found for symbol: IRON.AX"}}}
+ERROR:services.macro_service:Error fetching Brent Crude: name 'FRED_API_KEY' is not defined
+ERROR:services.macro_service:Error fetching Gold price: name 'FRED_API_KEY' is not defined
+INFO:     127.0.0.1:0 - "GET /api/data/australian-macro HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /api/data/macro-context HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /api/data/chokepoints?enriched=false HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /api/predict/history?limit=50 HTTP/1.1" 200 OK
+WARNING:services.gdelt_service:GDELT rate limit hit - checking for stale cache
+INFO:services.gdelt_service:Cached rate-limited response for 'China steel production'
+INFO:services.gdelt_service:Querying GDELT API for topic: 'China iron ore imports'
+WARNING:services.gdelt_service:GDELT rate limit hit - checking for stale cache
+INFO:services.gdelt_service:Cached rate-limited response for 'Australia iron ore'
+INFO:     127.0.0.1:52541 - "GET /api/health HTTP/1.1" 200 OK
+INFO:routes.data:Redis miss — fetching ASX prices live
+INFO:services.asx_service:Returning cached ASX prices
+INFO:     127.0.0.1:0 - "GET /api/data/asx-prices HTTP/1.1" 200 OK
+INFO:routes.data:Redis miss — fetching FRED macro live
+INFO:services.fred_service:Returning cached FRED data
+INFO:services.abs_service:? FRED live data merged into Australian macro indicators
+INFO:     127.0.0.1:0 - "GET /api/data/australian-macro HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /main.e35e70fb25f450e9faec.hot-update.json HTTP/1.1" 200 OK
+INFO:routes.data:Redis miss — fetching macro context live
+ERROR:services.gdelt_service:GDELT API error: Expecting value: line 1 column 1 (char 0)
+INFO:services.gdelt_service:Querying GDELT API for topic: 'Lombok Strait Indonesia shipping iron ore'
+WARNING:services.gdelt_service:GDELT rate limit hit - checking for stale cache
+INFO:services.gdelt_service:Cached rate-limited response for 'China iron ore imports'
+INFO:services.gdelt_service:Querying GDELT API for topic: 'China manufacturing PMI'
+WARNING:services.macro_service:FRED API failed, using fallback
+ERROR:yfinance:HTTP Error 404: {"quoteSummary":{"result":null,"error":{"code":"Not Found","description":"Quote not found for symbol: IRON.AX"}}}
+ERROR:services.macro_service:Error fetching Brent Crude: name 'FRED_API_KEY' is not defined
+ERROR:services.macro_service:Error fetching Gold price: name 'FRED_API_KEY' is not defined
+INFO:     127.0.0.1:0 - "GET /api/data/macro-context HTTP/1.1" 200 OK
+INFO:routes.data:Cache miss — fetching live events
+INFO:services.acled_service:Fetching live ACLED events for 17 countries...
+WARNING:services.gdelt_service:GDELT rate limit hit - checking for stale cache
+INFO:services.gdelt_service:Cached rate-limited response for 'Lombok Strait Indonesia shipping iron ore'
+INFO:services.gdelt_service:Querying GDELT API for topic: 'Panama Canal drought water level shipping'
+WARNING:services.gdelt_service:GDELT rate limit hit - checking for stale cache
+INFO:services.gdelt_service:Cached rate-limited response for 'China manufacturing PMI'
+INFO:services.gdelt_service:Querying GDELT API for topic: 'China economic slowdown'
+ERROR:services.acled_service:ACLED error: 403 Client Error: Forbidden for url: https://acleddata.com/api/acled/read?_format=json&country=China%3AOR%3Acountry%3DIran%3AOR%3Acountry%3DDemocratic+Republic+of+Congo%3AOR%3Acountry%3DTaiwan%3AOR%3Acountry%3DSudan%3AOR%3Acountry%3DArgentina%3AOR%3Acountry%3DChile%3AOR%3Acountry%3DPapua+New+Guinea%3AOR%3Acountry%3DIndonesia%3AOR%3Acountry%3DMyanmar%3AOR%3Acountry%3DUkraine%3AOR%3Acountry%3DRussia%3AOR%3Acountry%3DIsrael%3AOR%3Acountry%3DYemen%3AOR%3Acountry%3DAustralia%3AOR%3Acountry%3DUnited+States%3AOR%3Acountry%3DSingapore&fields=event_id_cnty%7Cevent_date%7Cevent_type%7Ccountry%7Clocation%7Clatitude%7Clongitude%7Cfatalities%7Cnotes&limit=50&event_date=2026-01-05&event_date_where=%3E%3D ? falling back to demo
+INFO:routes.data:ACLED unavailable — fetching RSS live events
+INFO:routes.data:Redis miss — fetching FRED macro live
+INFO:services.fred_service:Returning cached FRED data
+INFO:services.abs_service:? FRED live data merged into Australian macro indicators
+INFO:     127.0.0.1:0 - "GET /api/data/chokepoint-impact?chokepoints=hormuz,malacca,bab_el_mandeb,suez,lombok&duration_days=7 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /api/data/chokepoints?enriched=false HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /api/data/australian-macro HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /api/data/chokepoints?enriched=false HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /api/predict/history?limit=50 HTTP/1.1" 200 OK
+WARNING:services.gdelt_service:GDELT rate limit hit - checking for stale cache
+INFO:services.gdelt_service:Cached rate-limited response for 'Panama Canal drought water level shipping'
+INFO:services.gdelt_service:Querying GDELT API for topic: 'Bosphorus Turkey Russia oil shipping'
+INFO:services.gdelt_service:GDELT cache HIT for 'China steel production' (age: 7s)
+INFO:services.gdelt_service:GDELT cache HIT for 'China iron ore imports' (age: 4s)
+INFO:routes.data:Redis miss — fetching macro context live
+INFO:services.gdelt_service:GDELT cache HIT for 'China manufacturing PMI' (age: 1s)
+INFO:services.gdelt_service:Querying GDELT API for topic: 'China economic slowdown'
+WARNING:services.macro_service:FRED API failed, using fallback
+ERROR:yfinance:HTTP Error 404: {"quoteSummary":{"result":null,"error":{"code":"Not Found","description":"Quote not found for symbol: IRON.AX"}}}
+ERROR:services.macro_service:Error fetching Brent Crude: name 'FRED_API_KEY' is not defined
+ERROR:services.macro_service:Error fetching Gold price: name 'FRED_API_KEY' is not defined
+INFO:     127.0.0.1:0 - "GET /api/data/macro-context HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /api/data/chokepoints?enriched=false HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /api/data/chokepoints?enriched=false HTTP/1.1" 200 OK
+INFO:services.acled_service:RSS live events fetched: 7 events from feeds
+INFO:     127.0.0.1:50155 - "GET /api/data/acled HTTP/1.1" 200 OK
+INFO:routes.data:Redis miss — fetching ASX prices live
+INFO:services.asx_service:Returning cached ASX prices
+INFO:     127.0.0.1:50155 - "GET /api/data/asx-prices HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /api/data/chokepoint-impact?chokepoints=hormuz,malacca,bab_el_mandeb,suez,lombok&duration_days=7 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50155 - "GET /api/data/port-hedland HTTP/1.1" 200 OK
+INFO:services.gdelt_service:GDELT result: 19 articles, avg tone: 0.00, sentiment: neutral
+INFO:services.gdelt_service:GDELT result cached for 'China economic slowdown' (TTL: 3600s)
+INFO:     127.0.0.1:0 - "GET /api/data/china-demand HTTP/1.1" 200 OK
+INFO:services.gdelt_service:GDELT result: 1 articles, avg tone: 0.00, sentiment: neutral
+INFO:services.gdelt_service:GDELT result cached for 'Bosphorus Turkey Russia oil shipping' (TTL: 3600s)
+INFO:services.gdelt_service:Querying GDELT API for topic: 'Baltic Sea NATO Russia shipping'
+INFO:services.acled_service:RSS live events fetched: 7 events from feeds
+INFO:     127.0.0.1:49793 - "GET /api/data/acled HTTP/1.1" 200 OK
+INFO:routes.data:Redis miss — fetching ASX prices live
+INFO:services.asx_service:Returning cached ASX prices
+INFO:     127.0.0.1:49793 - "GET /api/data/asx-prices HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49793 - "GET /api/data/port-hedland HTTP/1.1" 200 OK
+INFO:services.gdelt_service:GDELT result: 19 articles, avg tone: 0.00, sentiment: neutral
+INFO:services.gdelt_service:GDELT result cached for 'China economic slowdown' (TTL: 3600s)
+INFO:     127.0.0.1:0 - "GET /api/data/china-demand HTTP/1.1" 200 OK
+WARNING:services.gdelt_service:No GDELT articles found for topic: Baltic Sea NATO Russia shipping
+WARNING:services.chokepoint_monitor_service:Baltic Dry Index fetch failed: 400 Client Error: Bad Request for url: https://api.stlouisfed.org/fred/series/observations?series_id=BDRIY&api_key=d7ab722d4145d2c01d09fe0d87260ddb&sort_order=desc&limit=1&file_type=json
+INFO:server:Cache pre-warmed: Chokepoints
+INFO:routes.data:Redis miss — fetching ASX prices live
+INFO:services.asx_service:Returning cached ASX prices
+INFO:     127.0.0.1:0 - "GET /api/data/asx-prices HTTP/1.1" 200 OK
+INFO:routes.data:Redis miss — fetching ASX prices live
+INFO:services.asx_service:Returning cached ASX prices
+INFO:     127.0.0.1:0 - "GET /api/data/asx-prices HTTP/1.1" 200 OK
+INFO:routes.data:Redis miss — fetching macro context live
+WARNING:services.macro_service:FRED API failed, using fallback
+ERROR:yfinance:HTTP Error 404: {"quoteSummary":{"result":null,"error":{"code":"Not Found","description":"Quote not found for symbol: IRON.AX"}}}
+ERROR:services.macro_service:Error fetching Brent Crude: name 'FRED_API_KEY' is not defined
+ERROR:services.macro_service:Error fetching Gold price: name 'FRED_API_KEY' is not defined
+INFO:     127.0.0.1:0 - "GET /api/data/macro-context HTTP/1.1" 200 OK
+INFO:routes.data:Redis miss — fetching FRED macro live
+INFO:services.fred_service:Returning cached FRED data
+INFO:services.abs_service:? FRED live data merged into Australian macro indicators
+INFO:     127.0.0.1:0 - "GET /api/data/australian-macro HTTP/1.1" 200 OK
+INFO:routes.data:Redis miss — fetching ASX prices live
+INFO:services.asx_service:Returning cached ASX prices
+INFO:routes.data:Cache miss — fetching live events
+INFO:services.acled_service:Fetching live ACLED events for 17 countries...
+INFO:services.gdelt_service:GDELT cache HIT for 'China steel production' (age: 118s)
+INFO:services.gdelt_service:GDELT cache HIT for 'China iron ore imports' (age: 115s)
+INFO:services.gdelt_service:GDELT cache HIT for 'China manufacturing PMI' (age: 112s)
+INFO:services.gdelt_service:GDELT cache HIT for 'China economic slowdown' (age: 103s)
+ERROR:services.acled_service:ACLED error: 403 Client Error: Forbidden for url: https://acleddata.com/api/acled/read?_format=json&country=China%3AOR%3Acountry%3DIran%3AOR%3Acountry%3DDemocratic+Republic+of+Congo%3AOR%3Acountry%3DTaiwan%3AOR%3Acountry%3DSudan%3AOR%3Acountry%3DArgentina%3AOR%3Acountry%3DChile%3AOR%3Acountry%3DPapua+New+Guinea%3AOR%3Acountry%3DIndonesia%3AOR%3Acountry%3DMyanmar%3AOR%3Acountry%3DUkraine%3AOR%3Acountry%3DRussia%3AOR%3Acountry%3DIsrael%3AOR%3Acountry%3DYemen%3AOR%3Acountry%3DAustralia%3AOR%3Acountry%3DUnited+States%3AOR%3Acountry%3DSingapore&fields=event_id_cnty%7Cevent_date%7Cevent_type%7Ccountry%7Clocation%7Clatitude%7Clongitude%7Cfatalities%7Cnotes&limit=50&event_date=2026-01-05&event_date_where=%3E%3D ? falling back to demo
+INFO:routes.data:ACLED unavailable — fetching RSS live events
+INFO:     127.0.0.1:0 - "GET /api/data/asx-prices HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /api/data/chokepoints?enriched=false HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /api/data/china-demand HTTP/1.1" 200 OK
+INFO:routes.data:Redis miss — fetching macro context live
+WARNING:services.macro_service:FRED API failed, using fallback
+ERROR:yfinance:HTTP Error 404: {"quoteSummary":{"result":null,"error":{"code":"Not Found","description":"Quote not found for symbol: IRON.AX"}}}
+ERROR:services.macro_service:Error fetching Brent Crude: name 'FRED_API_KEY' is not defined
+ERROR:services.macro_service:Error fetching Gold price: name 'FRED_API_KEY' is not defined
+INFO:routes.data:Redis miss — fetching FRED macro live
+INFO:services.fred_service:Returning cached FRED data
+INFO:services.abs_service:? FRED live data merged into Australian macro indicators
+INFO:     127.0.0.1:0 - "GET /api/data/macro-context HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /api/data/australian-macro HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /api/data/chokepoints?enriched=false HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /api/predict/history?limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /api/data/chokepoints?enriched=false HTTP/1.1" 200 OK
+INFO:     127.0.0.1:0 - "GET /api/data/chokepoint-impact?chokepoints=hormuz,malacca,bab_el_mandeb,suez,lombok&duration_days=7 HTTP/1.1" 200 OK

@@ -16,7 +16,7 @@ frontend code that renders confidence, causal_chain, agent_consensus, etc.
 from pydantic import BaseModel, Field
 from typing import List, Optional
 from enum import Enum
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 class DirectionEnum(str, Enum):
@@ -91,7 +91,7 @@ class PredictionCard(BaseModel):
     # ── Metadata ──────────────────────────────────────────────────────────────
     simulation_id:    str
     trigger_event_id: Optional[str]    = None
-    generated_at:     datetime         = Field(default_factory=datetime.utcnow)
+    generated_at:     datetime         = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     # ── Optional narrative fields ─────────────────────────────────────────────
     contrarian_view: Optional[str]       = None

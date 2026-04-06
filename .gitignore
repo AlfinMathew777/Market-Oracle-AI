@@ -89,6 +89,11 @@ frontend/node_modules/.cache/default-development/6.pack
 frontend/node_modules/.cache/default-development/5.pack
 frontend/node_modules/.cache/default-development/0.pack
 -e 
-# Environment files
+# Environment files — NEVER COMMIT
+.env
+**/.env
 *.env
 *.env.*
+.env.local
+.env.production
+.env.*.local

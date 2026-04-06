@@ -36,7 +36,7 @@ import asyncio
 import json
 import uuid
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional, Tuple
 from dotenv import load_dotenv
 
@@ -54,6 +54,14 @@ logger = logging.getLogger(__name__)
 
 # ── Configurable agent count ───────────────────────────────────────────────────
 NUM_AGENTS = int(os.getenv("NUM_AGENTS", "45"))
+
+# ── Simulation timeout limits ──────────────────────────────────────────────────
+# 180s budget for agents.  Worst-case total pipeline:
+#   180s (agents) + 60s (Phase 7) + 60s (report generation) = 300s
+# This keeps the full response under the 330s frontend AbortController timeout
+# and the 360s backend asyncio.wait_for timeout in simulate.py.
+_SIMULATION_TOTAL_TIMEOUT_SECS = 180   # stop remaining agents at 3 min, use partial results
+_MIN_VIABLE_AGENT_RESPONSES    = 10    # minimum responses to generate a prediction
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1057,6 +1065,16 @@ class AdversarialAgent:
                 session_id=f"agent_{self.agent_id}_{self.persona}",
             )
             vote, reason = _parse_vote(response, self.persona)
+        except asyncio.TimeoutError:
+            agent_label = f"{self.persona} (Agent {self.agent_id})"
+            logger.warning("%s: Response timeout — skipped", agent_label)
+            if self.persona == "macro_bull":
+                vote = "bullish"
+            elif self.persona == "geo_bear":
+                vote = "bearish"
+            else:
+                vote = "neutral"
+            reason = "Response timeout — skipped"
         except Exception as e:
             logger.warning("Agent %d (%s) error: %s", self.agent_id, self.persona, e)
             # Forced-vote personas (macro_bull, geo_bear) must not silently become
@@ -1194,6 +1212,7 @@ class Simulation:
           8. return results dict
         """
         logger.info("=== SIMULATION %s START (ticker=%s) ===", self.simulation_id, ticker)
+        _sim_loop_start = asyncio.get_event_loop().time()
 
         # ── STEP 1: Fetch live market context + lessons ────────────────────────
         from services.market_context import fetch_market_context
@@ -1299,12 +1318,42 @@ class Simulation:
             f"Description: {event_data.get('notes', event_data.get('location', 'No description'))}"
         )
 
-        # ── STEP 4: Run 45 agents in parallel ─────────────────────────────────
+        # ── STEP 4: Run agents with per-agent and total-simulation timeouts ────
         logger.info("Running %d adversarial agents in parallel ...", len(self.agents))
-        all_votes = await asyncio.gather(*[
-            agent.vote(self.llm_router, event_context, context_block)
+        _elapsed_before_agents = asyncio.get_event_loop().time() - _sim_loop_start
+        _budget = max(1.0, _SIMULATION_TOTAL_TIMEOUT_SECS - _elapsed_before_agents)
+
+        _agent_tasks = [
+            asyncio.ensure_future(
+                agent.vote(self.llm_router, event_context, context_block)
+            )
             for agent in self.agents
-        ])
+        ]
+        _done, _pending = await asyncio.wait(_agent_tasks, timeout=_budget)
+
+        if _pending:
+            for _t in _pending:
+                _t.cancel()
+            try:
+                await asyncio.gather(*_pending, return_exceptions=True)
+            except Exception:
+                pass
+            logger.warning(
+                "Simulation timeout reached — generating prediction from %d/%d agents",
+                len(_done), len(_agent_tasks),
+            )
+
+        all_votes = []
+        for _t in _agent_tasks:
+            if _t.done() and not _t.cancelled():
+                try:
+                    all_votes.append(_t.result())
+                except Exception:
+                    pass
+
+        n_responded = len(all_votes)
+        if n_responded < _MIN_VIABLE_AGENT_RESPONSES:
+            logger.warning("Low confidence — only %d agents responded", n_responded)
 
         # ── STEP 5: Tally votes ───────────────────────────────────────────────
         bullish_votes = [v for v in all_votes if v["vote"] == "bullish"]
@@ -1336,19 +1385,33 @@ class Simulation:
             top_critical_news = "None"
 
         chain_questions = get_causal_chain_questions(ticker)
-        judge_result = await self._run_judge(
-            ticker, n_bull, n_bear, n_neut,
-            bullish_votes[:3], bearish_votes[:3],
-            [v for v in all_votes if v["persona"] == "quant"][:3],
-            [v for v in all_votes if v["persona"] == "neutral_fund"][:3],
-            context_block, lessons_str, event_context,
-            has_news=bool(news_items),
-            market_session=market_session,
-            top_critical_news=top_critical_news,
-            axjo_change_pct=axjo_change_pct,
-            spx_change_pct=spx_change_pct,
-            chain_questions=chain_questions,
-        )
+        # ── Phase 7 total timeout: cap at 60s so the full simulation completes
+        # well under 4 minutes even if the Groq/Anthropic quota is exhausted
+        # after 30+ agent calls. Fallback derives verdict from raw vote counts.
+        try:
+            judge_result = await asyncio.wait_for(
+                self._run_judge(
+                    ticker, n_bull, n_bear, n_neut,
+                    bullish_votes[:3], bearish_votes[:3],
+                    [v for v in all_votes if v["persona"] == "quant"][:3],
+                    [v for v in all_votes if v["persona"] == "neutral_fund"][:3],
+                    context_block, lessons_str, event_context,
+                    has_news=bool(news_items),
+                    market_session=market_session,
+                    top_critical_news=top_critical_news,
+                    axjo_change_pct=axjo_change_pct,
+                    spx_change_pct=spx_change_pct,
+                    chain_questions=chain_questions,
+                ),
+                timeout=60.0,
+            )
+        except asyncio.TimeoutError:
+            logger.error(
+                "Phase 7 Judge timed out after 60s — using raw vote fallback "
+                "(bull=%d bear=%d neut=%d)",
+                n_bull, n_bear, n_neut,
+            )
+            judge_result = _fallback_judge_result(n_bull, n_bear, n_neut)
 
         # ── STEP 8: Select ticker-relevant trigger + apply confidence modifier ──
         raw_trigger   = judge_result.get("trigger_event", "")
@@ -1584,6 +1647,27 @@ class Simulation:
         def _fmt_reasons(votes: list) -> str:
             return "\n".join(f"  - {v['reason']}" for v in votes) if votes else "  (none)"
 
+        def _extract_key_signals(votes: list) -> str:
+            """Deduplicate economic signal terms mentioned across agent reasons."""
+            _SIGNAL_TERMS = [
+                "iron ore", "china pmi", "china demand", "aud/usd", "audusd",
+                "rsi", "macd", "brent", "oil price", "rate cut", "rate hike",
+                "rba", "inflation", "port hedland", "pilbara", "fed",
+                "interest rate", "selloff", "rally", "oversold", "overbought",
+                "downtrend", "uptrend", "volume", "support", "resistance",
+                "earnings", "dividend", "stimulus", "tariff", "sanctions",
+                "shipping", "lng", "gas price", "gdp", "unemployment",
+                "credit", "yield", "spread", "consecutive", "distribution",
+                "accumulation", "momentum",
+            ]
+            found = {
+                term
+                for v in votes
+                for term in _SIGNAL_TERMS
+                if term in v.get("reason", "").lower()
+            }
+            return "\n".join(f"  - {t}" for t in sorted(found)) if found else "  (none detected)"
+
         lessons_block = f"=== LESSONS FROM PAST PREDICTIONS ===\n{lessons_str}\n=== END LESSONS ==="
 
         no_catalyst_note = ""
@@ -1596,6 +1680,7 @@ class Simulation:
             )
 
         # ── Call 1: Blind Judge — arguments only, no vote tally ───────────────
+        _all_samples = sample_bull + sample_bear + sample_quant + sample_fund
         blind_user = (
             f"{context_block}\n"
             f"{no_catalyst_note}\n"
@@ -1604,7 +1689,8 @@ class Simulation:
             f"BULL ARGUMENTS:\n{_fmt_reasons(sample_bull)}\n\n"
             f"BEAR ARGUMENTS:\n{_fmt_reasons(sample_bear)}\n\n"
             f"QUANT SIGNALS:\n{_fmt_reasons(sample_quant)}\n\n"
-            f"FUNDAMENTAL ANALYSTS:\n{_fmt_reasons(sample_fund)}\n"
+            f"FUNDAMENTAL ANALYSTS:\n{_fmt_reasons(sample_fund)}\n\n"
+            f"KEY SIGNALS MENTIONED (deduplicated across all agents):\n{_extract_key_signals(_all_samples)}\n"
             f"=== END ARGUMENTS ===\n\n"
             f"Evaluate argument quality only. Return three lines as instructed."
         )
@@ -1739,9 +1825,16 @@ class Simulation:
         key_signals = _build_key_signals(market_ctx, n_bull, n_bear, n_neut, direction)
 
         # ── Contrarian and risk factors via LLM (cheap single call) ──────────
-        contrarian_view, risk_factors = await self._gen_contrarian_and_risks(
-            ticker, ticker_info, event_data, direction, n_bull, n_bear, n_neut, context_block
-        )
+        try:
+            contrarian_view, risk_factors = await asyncio.wait_for(
+                self._gen_contrarian_and_risks(
+                    ticker, ticker_info, event_data, direction, n_bull, n_bear, n_neut, context_block
+                ),
+                timeout=30.0,
+            )
+        except asyncio.TimeoutError:
+            logger.warning("Contrarian/risks call timed out after 30s — skipping")
+            contrarian_view, risk_factors = None, None
 
         # ── Assemble PredictionCard ───────────────────────────────────────────
         direction_enum = DirectionEnum(direction)
@@ -1756,7 +1849,7 @@ class Simulation:
             "agent_consensus": AgentConsensus(up=n_bull, down=n_bear, neutral=n_neut),
             "simulation_id":  simulation_results["simulation_id"],
             "trigger_event_id": event_data.get("event_id_cnty"),
-            "generated_at":   datetime.utcnow(),
+            "generated_at":   datetime.now(timezone.utc),
             "contrarian_view": contrarian_view,
             "risk_factors":   risk_factors,
             # New fields (Upgrade 6)
@@ -1850,6 +1943,34 @@ class Simulation:
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
+
+def _fallback_judge_result(n_bull: int, n_bear: int, n_neut: int) -> Dict[str, Any]:
+    """
+    Emergency fallback when Phase 7 Judge/Reconciler calls time out or exhaust
+    all providers. Derives verdict purely from raw agent vote counts so the
+    simulation can still return a prediction.
+    """
+    majority = "bullish" if n_bull > n_bear else ("bearish" if n_bear > n_bull else "neutral")
+    return {
+        "verdict":               majority,
+        "confidence_modifier":   0,
+        "override_flag":         "PHASE7_TIMEOUT",
+        "reasoning":             (
+            f"Phase 7 timed out — raw consensus: "
+            f"{n_bull} bullish / {n_bear} bearish / {n_neut} neutral."
+        ),
+        "trigger_event":         "No data — Phase 7 timeout",
+        "cost_impact":           "No data — Phase 7 timeout",
+        "revenue_impact":        "No data — Phase 7 timeout",
+        "demand_signal":         "No data — Phase 7 timeout",
+        "sentiment_signal":      "No data — Phase 7 timeout",
+        "blind_judge_verdict":   majority,
+        "blind_judge_confidence": "low",
+        "blind_judge_reasoning": "Phase 7 timed out — fallback to raw vote consensus.",
+        "strongest_evidence":    "",
+        "weakest_argument":      "",
+    }
+
 
 def _build_causal_chain(judge: Dict[str, Any], direction: str) -> List[CausalChainStep]:
     """Build 6-step structured causal chain from Judge output."""
@@ -1957,7 +2078,7 @@ async def save_to_prediction_log(
                 (
                     simulation_id, ticker, direction.lower(),
                     confidence,
-                    datetime.utcnow().isoformat(),
+                    datetime.now(timezone.utc).isoformat(),
                     primary_reason[:500],
                     market_ctx.get("iron_ore_price"),
                     market_ctx.get("audusd_rate"),

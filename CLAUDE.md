@@ -99,7 +99,56 @@ FRONTEND_URL=https://asx.marketoracle.ai
 REACT_APP_BACKEND_URL=https://your-railway-app.railway.app
 ```
 
+## Reasoning Synthesizer Agent
+
+### Purpose
+Final-stage aggregation agent. Produces structured JSON predictions with causal chain analysis.
+Runs AFTER all 45-50 specialist agents have voted.
+
+### Location
+- Agent: `backend/agents/reasoning_synthesizer.py`
+- Models: `backend/models/reasoning_output.py`
+- Route: `backend/routes/reasoning.py`
+- Tests: `tests/test_reasoning_synthesizer.py`
+
+### API
+```
+POST /api/reasoning/synthesize
+GET  /api/reasoning/health
+```
+
+### Key Design Decisions
+- Uses `LLMRouter.call_primary()` — Gemini-first for structured report generation
+- Async throughout; fallback output on any LLM/parse failure
+- Geography constraint baked into system prompt: Lombok/Makassar NOT Malacca
+- Confidence scores calibrated per documented anchors (not LLM-generated)
+
 ## Deploy URLs
 - Frontend: https://asx.marketoracle.ai (Vercel)
 - Backend: Railway (auto-deploy on push to main)
 - GitHub: https://github.com/AlfinMathew777/Market-Oracle-AI
+
+## Security
+
+### Authentication
+LLM endpoints require API key via `X-API-Key` header or `?api_key=` query param:
+- `POST /api/reasoning/synthesize` — auth required, 10 req/min
+- `POST /api/trade/generate` — auth required, 10 req/min
+
+Set `MARKET_ORACLE_API_KEYS=your-key` in Railway. Multiple keys: `key1,key2`.
+In dev without a key set, one is auto-generated and logged on startup.
+
+### Rate Limiter
+In-memory per-client limiter (suitable for single Railway instance).
+For multi-instance deploys, switch to Redis-backed limiter.
+
+### Middleware
+- `backend/middleware/auth.py` — `verify_api_key` FastAPI dependency
+- `backend/middleware/rate_limit.py` — `llm_rate_limit` FastAPI dependency
+
+### Key Rotation Log
+| Date | Key | Action |
+|------|-----|--------|
+| 2026-04-06 | EMERGENT_LLM_KEY (sk-emergent-9EfCeA20...) | Exposed in git history — **rotate immediately** |
+| 2026-04-06 | FRED_API_KEY (845738...) | Exposed in git history — rotate at fred.stlouisfed.org |
+| 2026-04-06 | MARKETAUX_API_KEY (UNZzV1IH...) | Exposed in git history — rotate at marketaux.com |

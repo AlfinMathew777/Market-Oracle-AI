@@ -9,7 +9,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import asyncio
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Dict
 from dotenv import load_dotenv
 
@@ -145,7 +145,7 @@ Fill in realistic causal chain steps."""
     )
     
     prediction_dict = parse_json_response(response)
-    prediction_dict['generated_at'] = datetime.utcnow().isoformat()
+    prediction_dict['generated_at'] = datetime.now(timezone.utc).isoformat()
     prediction_dict['trigger_event_id'] = event['event_id_cnty']
     
     prediction = PredictionCard(**prediction_dict)

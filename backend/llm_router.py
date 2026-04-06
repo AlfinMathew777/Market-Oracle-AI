@@ -71,7 +71,7 @@ class LLMRouter:
             raise ValueError("No LLM API keys found. Set at least one of: GROQ_API_KEY, GEMINI_API_KEY, OPENROUTER_API_KEY")
 
         # Limit concurrent calls to avoid burst rate-limit hits (Groq: 30 RPM)
-        self._semaphore = asyncio.Semaphore(8)
+        self._semaphore = asyncio.Semaphore(10)
 
         logger.info(
             "LLM Router initialized — active providers: %s",
@@ -137,15 +137,18 @@ class LLMRouter:
                 "X-Title": "AussieIntel",
             }
 
-        response = await client.chat.completions.create(
-            model=model,
-            messages=[
-                {"role": "system", "content": system_message},
-                {"role": "user",   "content": user_prompt},
-            ],
-            temperature=0.7,
-            max_tokens=2048,
-            extra_headers=extra_headers,
+        response = await asyncio.wait_for(
+            client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": system_message},
+                    {"role": "user",   "content": user_prompt},
+                ],
+                temperature=0.7,
+                max_tokens=2048,
+                extra_headers=extra_headers,
+            ),
+            timeout=30.0,  # Per-agent API call timeout
         )
         return response.choices[0].message.content
 
@@ -155,8 +158,8 @@ class LLMRouter:
             from services.redis_client import incr
             today = date.today().isoformat()
             await incr(f"llm:calls:{provider_name}:{today}")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("LLM call tracking failed for %s (best-effort): %s", provider_name, e)
 
 
 # ── JSON parsing utility ──────────────────────────────────────────────────────

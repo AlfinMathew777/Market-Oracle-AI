@@ -28,7 +28,7 @@ function EventSidebar({ events, onEventSelect, isSimulating, selectedEvent }) {
     try {
       // Determine relevant tickers based on event
       const tickers = inferTickersFromEvent(event);
-      const topic = event.properties.description || event.properties.event_type;
+      const topic = event.properties.notes || event.properties.description || event.properties.event_type;
       
       const response = await fetch(
         `${BACKEND_URL}/api/data/pre-simulation-sentiment?tickers=${tickers.join(',')}&topic=${encodeURIComponent(topic)}`
@@ -223,17 +223,17 @@ function EventSidebar({ events, onEventSelect, isSimulating, selectedEvent }) {
       <div className="events-list">
         {events.map((event) => (
           <div
-            key={event.properties.id}
+            key={event.properties.event_id_cnty || event.properties.id}
             className={`event-card ${isSimulating ? 'disabled' : ''}`}
             onClick={() => handleEventClick(event)}
-            data-testid={`event-card-${event.properties.id}`}
+            data-testid={`event-card-${event.properties.event_id_cnty || event.properties.id}`}
           >
-            <div className="event-country">{event.properties.country.toUpperCase()}</div>
-            <div className="event-description">{event.properties.description}</div>
+            <div className="event-country">{(event.properties.country || 'Unknown').toUpperCase()}</div>
+            <div className="event-description">{event.properties.notes || event.properties.description || event.properties.event_type}</div>
             <div className="event-meta">
               <span>{event.properties.event_type}</span>
               <span>·</span>
-              <span>{event.properties.date}</span>
+              <span>{event.properties.event_date || event.properties.date}</span>
               {event.properties.fatalities > 0 && (
                 <>
                   <span>·</span>

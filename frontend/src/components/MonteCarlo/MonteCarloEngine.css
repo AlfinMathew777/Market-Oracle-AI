@@ -1,0 +1,433 @@
+/* MonteCarloEngine.css — co-located with MonteCarloEngine.jsx
+   Follows existing dark theme: #05050f bg, rgba(51,102,255,0.3) blue borders,
+   #ff8800 orange accent, #6699ff label color. No new design tokens introduced.
+*/
+
+/* ── Page wrapper ─────────────────────────────────────────────────────────── */
+.mc-page {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: #05050f;
+  overflow-y: auto;
+  padding: 24px;
+  gap: 20px;
+}
+
+/* ── Page header ─────────────────────────────────────────────────────────── */
+.mc-header {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  border-bottom: 1px solid rgba(51, 102, 255, 0.2);
+  padding-bottom: 16px;
+}
+
+.mc-header h2 {
+  font-size: 20px;
+  font-weight: 700;
+  color: #fff;
+  margin: 0;
+  letter-spacing: 0.5px;
+}
+
+.mc-header-sub {
+  font-size: 12px;
+  color: #666;
+  margin: 0;
+}
+
+/* ── Top row: controls + canvas ───────────────────────────────────────────── */
+.mc-top-row {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+/* ── Control panel ────────────────────────────────────────────────────────── */
+.mc-controls {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(51, 102, 255, 0.25);
+  border-radius: 10px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.mc-controls-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.35);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin: 0;
+}
+
+.mc-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.mc-label {
+  font-size: 11px;
+  color: #6699ff;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+}
+
+.mc-input {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(51, 102, 255, 0.3);
+  border-radius: 6px;
+  color: #fff;
+  font-size: 13px;
+  font-family: 'Courier New', monospace;
+  padding: 7px 10px;
+  outline: none;
+  transition: border-color 0.15s;
+  width: 100%;
+}
+
+.mc-input:focus {
+  border-color: rgba(51, 102, 255, 0.7);
+}
+
+.mc-input-hint {
+  font-size: 10px;
+  color: #555;
+}
+
+/* Run button */
+.mc-run-btn {
+  width: 100%;
+  padding: 10px;
+  background: linear-gradient(135deg, rgba(255, 136, 0, 0.2), rgba(255, 136, 0, 0.1));
+  border: 1px solid rgba(255, 136, 0, 0.5);
+  border-radius: 8px;
+  color: #ff8800;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: background 0.2s, box-shadow 0.2s;
+  margin-top: 4px;
+}
+
+.mc-run-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, rgba(255, 136, 0, 0.3), rgba(255, 136, 0, 0.15));
+  box-shadow: 0 0 16px rgba(255, 136, 0, 0.2);
+}
+
+.mc-run-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* API status badge */
+.mc-api-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  margin-top: 2px;
+}
+
+.mc-api-badge.ok {
+  background: rgba(0, 255, 136, 0.07);
+  color: #00ff88;
+  border: 1px solid rgba(0, 255, 136, 0.2);
+}
+
+.mc-api-badge.offline {
+  background: rgba(255, 136, 0, 0.07);
+  color: #ff8800;
+  border: 1px solid rgba(255, 136, 0, 0.2);
+}
+
+.mc-api-badge.loading {
+  background: rgba(51, 102, 255, 0.07);
+  color: #6699ff;
+  border: 1px solid rgba(51, 102, 255, 0.2);
+}
+
+.mc-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+/* ── Canvas panel ─────────────────────────────────────────────────────────── */
+.mc-canvas-panel {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(51, 102, 255, 0.2);
+  border-radius: 10px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mc-canvas-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.35);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin: 0;
+}
+
+.mc-canvas {
+  width: 100%;
+  height: 280px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.3);
+  display: block;
+}
+
+.mc-legend {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.mc-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.mc-legend-line {
+  width: 20px;
+  height: 2px;
+  border-radius: 1px;
+}
+
+/* ── Results row ──────────────────────────────────────────────────────────── */
+.mc-results-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
+}
+
+.mc-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(51, 102, 255, 0.2);
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+
+.mc-card-title {
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.35);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin: 0 0 10px 0;
+}
+
+/* Probability bars */
+.mc-prob-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.mc-prob-label {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.6);
+  width: 80px;
+  flex-shrink: 0;
+}
+
+.mc-prob-bar-bg {
+  flex: 1;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.07);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.mc-prob-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+
+.mc-prob-val {
+  font-size: 12px;
+  font-family: 'Courier New', monospace;
+  color: #fff;
+  width: 36px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* Risk metrics */
+.mc-risk-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.mc-risk-row:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.mc-risk-label {
+  font-size: 12px;
+  color: #6699ff;
+}
+
+.mc-risk-val {
+  font-size: 14px;
+  font-family: 'Courier New', monospace;
+  font-weight: 700;
+  color: #ff8800;
+}
+
+/* Vol regime badge */
+.mc-regime-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  margin-bottom: 10px;
+}
+
+.mc-regime-badge.LOW    { background: rgba(0,255,136,0.1);   color: #00ff88; border: 1px solid #00ff88; }
+.mc-regime-badge.NORMAL { background: rgba(51,153,255,0.1);  color: #3399ff; border: 1px solid #3399ff; }
+.mc-regime-badge.HIGH   { background: rgba(255,136,0,0.1);   color: #ff8800; border: 1px solid #ff8800; }
+.mc-regime-badge.EXTREME{ background: rgba(255,51,51,0.1);   color: #ff3333; border: 1px solid #ff3333; }
+
+.mc-factor-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 12px;
+  margin-bottom: 6px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.mc-factor-val {
+  font-family: 'Courier New', monospace;
+  color: #fff;
+}
+
+/* ── Prediction sources ───────────────────────────────────────────────────── */
+.mc-sources {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(51, 102, 255, 0.2);
+  border-radius: 10px;
+  padding: 16px 20px;
+}
+
+.mc-sources-title {
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.35);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin: 0 0 12px 0;
+}
+
+.mc-source-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.mc-source-row:last-child { margin-bottom: 0; }
+
+.mc-source-name {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.55);
+  width: 80px;
+  flex-shrink: 0;
+}
+
+.mc-source-bar-bg {
+  flex: 1;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.mc-source-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+}
+
+.mc-source-pct {
+  font-size: 12px;
+  font-family: 'Courier New', monospace;
+  color: rgba(255, 255, 255, 0.7);
+  width: 36px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* ── Empty / loading states ───────────────────────────────────────────────── */
+.mc-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 10px;
+  color: rgba(255, 255, 255, 0.25);
+  font-size: 13px;
+  padding: 40px;
+  text-align: center;
+}
+
+.mc-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgba(51, 102, 255, 0.15);
+  border-top-color: #3366ff;
+  border-radius: 50%;
+  animation: mc-spin 0.9s linear infinite;
+}
+
+@keyframes mc-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Responsive ───────────────────────────────────────────────────────────── */
+@media (max-width: 1100px) {
+  .mc-top-row {
+    grid-template-columns: 1fr;
+  }
+  .mc-results-row {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .mc-page {
+    padding: 14px;
+  }
+  .mc-results-row {
+    grid-template-columns: 1fr;
+  }
+}

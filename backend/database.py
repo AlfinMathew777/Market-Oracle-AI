@@ -108,6 +108,50 @@ async def init_db() -> None:
                     created_at              TEXT NOT NULL DEFAULT (datetime('now'))
                 );
 
+                -- ── UPGRADE 6: reasoning_predictions ─────────────────────────
+                -- Full predictions from the Reasoning Synthesizer with outcome tracking
+                CREATE TABLE IF NOT EXISTS reasoning_predictions (
+                    id                   TEXT PRIMARY KEY,
+                    stock_ticker         TEXT NOT NULL,
+                    prediction_timestamp TEXT NOT NULL DEFAULT (datetime('now')),
+                    direction            TEXT NOT NULL,
+                    recommendation       TEXT NOT NULL,
+                    confidence_score     INTEGER NOT NULL,
+                    price_at_prediction  REAL NOT NULL,
+
+                    -- Trade execution (if generated)
+                    entry_price          REAL,
+                    stop_loss            REAL,
+                    take_profit_1        REAL,
+                    take_profit_2        REAL,
+                    take_profit_3        REAL,
+
+                    -- Outcome tracking
+                    outcome_status       TEXT NOT NULL DEFAULT 'PENDING',
+                    outcome_timestamp    TEXT,
+                    actual_return_pct    REAL,
+                    hit_tp1              INTEGER DEFAULT 0,
+                    hit_tp2              INTEGER DEFAULT 0,
+                    hit_tp3              INTEGER DEFAULT 0,
+                    hit_stop_loss        INTEGER DEFAULT 0,
+
+                    -- Price checkpoints
+                    price_1d             REAL,
+                    price_7d             REAL,
+                    price_30d            REAL,
+
+                    -- Context (stored as JSON text)
+                    event_classification TEXT,
+                    causal_chain         TEXT,
+                    market_context       TEXT,
+                    agent_consensus      TEXT,
+                    reasoning_output     TEXT NOT NULL,
+                    trade_execution      TEXT,
+
+                    created_at           TEXT NOT NULL DEFAULT (datetime('now')),
+                    updated_at           TEXT NOT NULL DEFAULT (datetime('now'))
+                );
+
                 -- ── Indexes ───────────────────────────────────────────────────
                 CREATE INDEX IF NOT EXISTS idx_sim_ticker   ON simulations(ticker);
                 CREATE INDEX IF NOT EXISTS idx_sim_created  ON simulations(created_at DESC);
@@ -117,6 +161,11 @@ async def init_db() -> None:
                 CREATE INDEX IF NOT EXISTS idx_log_predicted_at ON prediction_log(predicted_at DESC);
                 CREATE INDEX IF NOT EXISTS idx_log_unresolved ON prediction_log(actual_direction)
                     WHERE actual_direction IS NULL;
+
+                CREATE INDEX IF NOT EXISTS idx_rp_ticker    ON reasoning_predictions(stock_ticker);
+                CREATE INDEX IF NOT EXISTS idx_rp_timestamp ON reasoning_predictions(prediction_timestamp DESC);
+                CREATE INDEX IF NOT EXISTS idx_rp_outcome   ON reasoning_predictions(outcome_status);
+                CREATE INDEX IF NOT EXISTS idx_rp_direction ON reasoning_predictions(direction);
             """)
             await db.commit()
 
@@ -663,3 +712,214 @@ async def update_prediction_resolution(
         logger.info("Resolution saved for %s: %s (correct=%s)", prediction_id, actual_direction, prediction_correct)
     except Exception as e:
         logger.error("update_prediction_resolution failed for %s: %s", prediction_id, e)
+
+
+# ── reasoning_predictions table ───────────────────────────────────────────────
+
+async def save_reasoning_prediction(
+    prediction_id: str,
+    stock_ticker: str,
+    direction: str,
+    recommendation: str,
+    confidence_score: int,
+    price_at_prediction: float,
+    reasoning_output: dict,
+    trade_execution: Optional[Dict[str, Any]] = None,
+    entry_price: Optional[float] = None,
+    stop_loss: Optional[float] = None,
+    take_profit_1: Optional[float] = None,
+    take_profit_2: Optional[float] = None,
+    take_profit_3: Optional[float] = None,
+    event_classification: Optional[Dict[str, Any]] = None,
+    causal_chain: Optional[Dict[str, Any]] = None,
+    market_context: Optional[Dict[str, Any]] = None,
+    agent_consensus: Optional[Dict[str, Any]] = None,
+) -> None:
+    """Persist a Reasoning Synthesizer prediction for accuracy tracking."""
+    try:
+        import json
+        await init_db()
+        async with get_db() as db:
+            await db.execute(
+                """INSERT OR REPLACE INTO reasoning_predictions
+                   (id, stock_ticker, direction, recommendation, confidence_score,
+                    price_at_prediction, entry_price, stop_loss,
+                    take_profit_1, take_profit_2, take_profit_3,
+                    event_classification, causal_chain, market_context, agent_consensus,
+                    reasoning_output, trade_execution)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (
+                    prediction_id, stock_ticker, direction, recommendation, confidence_score,
+                    price_at_prediction, entry_price, stop_loss,
+                    take_profit_1, take_profit_2, take_profit_3,
+                    json.dumps(event_classification) if event_classification else None,
+                    json.dumps(causal_chain) if causal_chain else None,
+                    json.dumps(market_context) if market_context else None,
+                    json.dumps(agent_consensus) if agent_consensus else None,
+                    json.dumps(reasoning_output),
+                    json.dumps(trade_execution) if trade_execution else None,
+                ),
+            )
+            await db.commit()
+        logger.info("Saved reasoning prediction %s for %s", prediction_id, stock_ticker)
+    except Exception as e:
+        logger.error("save_reasoning_prediction failed for %s: %s", prediction_id, e)
+
+
+async def update_reasoning_outcome(
+    prediction_id: str,
+    outcome_status: str,
+    actual_return_pct: float,
+    hit_tp1: bool,
+    hit_tp2: bool,
+    hit_tp3: bool,
+    hit_stop_loss: bool,
+) -> None:
+    """Update outcome for a reasoning prediction after price check."""
+    try:
+        from datetime import timezone
+        await init_db()
+        async with get_db() as db:
+            await db.execute(
+                """UPDATE reasoning_predictions
+                   SET outcome_status=?, outcome_timestamp=?, actual_return_pct=?,
+                       hit_tp1=?, hit_tp2=?, hit_tp3=?, hit_stop_loss=?,
+                       updated_at=datetime('now')
+                   WHERE id=?""",
+                (
+                    outcome_status,
+                    datetime.now(timezone.utc).isoformat(),
+                    round(actual_return_pct, 4),
+                    int(hit_tp1), int(hit_tp2), int(hit_tp3), int(hit_stop_loss),
+                    prediction_id,
+                ),
+            )
+            await db.commit()
+        logger.info("Updated outcome for reasoning prediction %s: %s", prediction_id, outcome_status)
+    except Exception as e:
+        logger.error("update_reasoning_outcome failed for %s: %s", prediction_id, e)
+
+
+async def get_reasoning_accuracy_stats(
+    ticker: Optional[str] = None,
+    direction: Optional[str] = None,
+    days: int = 90,
+) -> Dict[str, Any]:
+    """Return accuracy stats for reasoning predictions."""
+    try:
+        await init_db()
+        from datetime import timedelta
+        since = (datetime.now() - timedelta(days=days)).isoformat()
+
+        conditions = ["prediction_timestamp >= ?"]
+        params: list = [since]
+        if ticker:
+            conditions.append("stock_ticker = ?")
+            params.append(ticker)
+        if direction:
+            conditions.append("direction = ?")
+            params.append(direction)
+
+        where = " AND ".join(conditions)
+
+        async with get_db() as db:
+            db.row_factory = lambda c, r: dict(zip([col[0] for col in c.description], r))
+
+            async with db.execute(
+                f"""SELECT
+                    COUNT(*) as total,
+                    COUNT(CASE WHEN outcome_status != 'PENDING' THEN 1 END) as resolved,
+                    COUNT(CASE WHEN outcome_status = 'CORRECT'     THEN 1 END) as correct,
+                    COUNT(CASE WHEN outcome_status = 'INCORRECT'   THEN 1 END) as incorrect,
+                    COUNT(CASE WHEN outcome_status = 'PARTIAL'     THEN 1 END) as partial,
+                    COUNT(CASE WHEN outcome_status = 'STOPPED_OUT' THEN 1 END) as stopped_out,
+                    AVG(CASE WHEN outcome_status != 'PENDING' THEN actual_return_pct END) as avg_return,
+                    AVG(confidence_score) as avg_confidence
+                FROM reasoning_predictions WHERE {where}""",
+                params,
+            ) as cur:
+                row = await cur.fetchone()
+
+        resolved = row["resolved"] or 0
+        correct = row["correct"] or 0
+        accuracy = round(correct / resolved * 100, 2) if resolved > 0 else 0.0
+
+        return {
+            "scope": ticker or direction or "overall",
+            "total_predictions": row["total"] or 0,
+            "resolved_predictions": resolved,
+            "correct": correct,
+            "incorrect": row["incorrect"] or 0,
+            "partial": row["partial"] or 0,
+            "stopped_out": row["stopped_out"] or 0,
+            "accuracy_pct": accuracy,
+            "avg_return_pct": round(row["avg_return"] or 0, 4),
+            "avg_confidence": round(row["avg_confidence"] or 0, 2),
+        }
+    except Exception as e:
+        logger.error("get_reasoning_accuracy_stats failed: %s", e)
+        return {"scope": ticker or "overall", "error": str(e)}
+
+
+async def get_reasoning_predictions_for_memory(
+    ticker: str,
+    direction: str,
+    days: int = 180,
+    limit: int = 10,
+) -> List[Dict[str, Any]]:
+    """Fetch past resolved predictions for the prediction memory system."""
+    try:
+        import json
+        await init_db()
+        from datetime import timedelta
+        since = (datetime.now() - timedelta(days=days)).isoformat()
+
+        async with get_db() as db:
+            db.row_factory = lambda c, r: dict(zip([col[0] for col in c.description], r))
+            async with db.execute(
+                """SELECT id, stock_ticker, direction, confidence_score,
+                          outcome_status, actual_return_pct, event_classification,
+                          causal_chain, prediction_timestamp
+                   FROM reasoning_predictions
+                   WHERE stock_ticker = ? AND direction = ?
+                     AND outcome_status != 'PENDING'
+                     AND prediction_timestamp >= ?
+                   ORDER BY prediction_timestamp DESC
+                   LIMIT ?""",
+                (ticker, direction, since, limit),
+            ) as cur:
+                rows = await cur.fetchall()
+
+        for row in rows:
+            if row.get("event_classification"):
+                try:
+                    row["event_classification"] = json.loads(row["event_classification"])
+                except Exception as e:
+                    logger.debug("Failed to parse event_classification JSON for row %s: %s", row.get("id"), e)
+        return rows
+    except Exception as e:
+        logger.error("get_reasoning_predictions_for_memory failed: %s", e)
+        return []
+
+
+async def get_pending_reasoning_predictions(limit: int = 100) -> List[Dict[str, Any]]:
+    """Return PENDING predictions older than 1 day for outcome resolution."""
+    try:
+        await init_db()
+        async with get_db() as db:
+            db.row_factory = lambda c, r: dict(zip([col[0] for col in c.description], r))
+            async with db.execute(
+                """SELECT id, stock_ticker, direction, price_at_prediction,
+                          stop_loss, take_profit_1, take_profit_2, take_profit_3,
+                          prediction_timestamp
+                   FROM reasoning_predictions
+                   WHERE outcome_status = 'PENDING'
+                     AND prediction_timestamp < datetime('now', '-1 day')
+                   ORDER BY prediction_timestamp ASC
+                   LIMIT ?""",
+                (limit,),
+            ) as cur:
+                return await cur.fetchall()
+    except Exception as e:
+        logger.error("get_pending_reasoning_predictions failed: %s", e)
+        return []

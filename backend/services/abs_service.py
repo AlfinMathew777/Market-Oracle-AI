@@ -8,7 +8,7 @@ This service provides comprehensive Australian macroeconomic indicators.
 
 import os
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict
 
 logger = logging.getLogger(__name__)
@@ -70,7 +70,7 @@ class ABSService:
             logger.warning(f"FRED unavailable, using baseline: {e}")
 
         macro_data['source'] = source
-        macro_data['fetched_at'] = datetime.utcnow().isoformat()
+        macro_data['fetched_at'] = datetime.now(timezone.utc).isoformat()
         return macro_data
     
     def _error_response(self, error_msg: str) -> Dict:
@@ -79,5 +79,5 @@ class ABSService:
             'status': 'error',
             'message': f'Australian macro data unavailable: {error_msg}',
             'source': 'N/A',
-            'fetched_at': datetime.utcnow().isoformat()
+            'fetched_at': datetime.now(timezone.utc).isoformat()
         }

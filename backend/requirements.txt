@@ -1,3 +1,10 @@
+# ── Quant Engine additions (Phase 1 — do not remove) ──────────────────────
+scipy>=1.13.0
+statsmodels>=0.14.2
+scikit-learn>=1.4.0
+arch>=7.0.0
+ta>=0.11.0
+# ── End quant engine additions ─────────────────────────────────────────────
 aiosqlite>=0.20.0
 zep-cloud>=2.0.0
 slowapi==0.1.9

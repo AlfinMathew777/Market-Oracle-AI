@@ -17,7 +17,28 @@ import MonteCarloEngine from './components/MonteCarlo/MonteCarloEngine';
 import { Globe as GlobeIcon, Map as MapIcon } from 'lucide-react';
 import './App.css';
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8001';
+const API_KEY     = process.env.REACT_APP_API_KEY || '';
+console.log('[app] BACKEND_URL =', BACKEND_URL);
+
+// Fetch wrapper — adds timeout and injects X-API-Key on every backend request
+async function directFetch(url, options = {}, timeoutMs = 30000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const headers = {
+    ...(options.headers || {}),
+    ...(API_KEY ? { 'X-API-Key': API_KEY } : {}),
+  };
+  try {
+    const resp = await window.fetch(url, { ...options, headers, signal: controller.signal });
+    clearTimeout(timer);
+    return resp;
+  } catch (err) {
+    clearTimeout(timer);
+    if (err.name === 'AbortError') throw new Error(`Request timed out after ${timeoutMs / 1000}s`);
+    throw err;
+  }
+}
 
 function App() {
   const [acledEvents, setAcledEvents] = useState([]);
@@ -35,7 +56,27 @@ function App() {
   const [activeTab, setActiveTab] = useState('main'); // 'main' or 'track-record'
   const [chokepointReport, setChokepointReport] = useState(null);  // full chokepoint sim result
   const [lastSimScores, setLastSimScores] = useState({});           // cpId → {topPredictions, generatedAt}
-  const arcTimeoutRef = useRef(null);
+
+  // ── New feature state ──────────────────────────────────────────────────────
+  const [tradeExecution, setTradeExecution] = useState(null);
+  const [accuracyStats, setAccuracyStats] = useState(null);
+  const [livePrice, setLivePrice] = useState(null);
+  const [reasoningData, setReasoningData] = useState(null);
+
+  const arcTimeoutRef   = useRef(null);
+  const isSimulatingRef = useRef(false); // ref-based guard — immune to React closure staleness
+  const abortPollRef    = useRef(false); // set true to cancel current poll loop
+  const wsRef           = useRef(null);  // WebSocket reference for live prices
+
+  // Safety net: whenever prediction arrives, force-open card and clear simulation overlay
+  useEffect(() => {
+    if (prediction) {
+      setPredictionOpen(true);
+      setIsSimulating(false);
+      setSimulationStartTime(null);
+      isSimulatingRef.current = false;
+    }
+  }, [prediction]);
 
   // Sync activeTab with URL hash
   useEffect(() => {
@@ -104,7 +145,152 @@ function App() {
     }
   };
 
+  // Close WebSocket when component unmounts or ticker changes
+  useEffect(() => {
+    return () => {
+      if (wsRef.current) { wsRef.current.close(); wsRef.current = null; }
+    };
+  }, []);
+
+  // Fetch trade execution + accuracy stats, open WebSocket for live prices
+  const enrichPrediction = async (pred) => {
+    const ticker = pred.ticker;
+    const currentPrice = pred.monte_carlo_price?.current_price || pred.ticker_price || 0;
+    const directionMap = { UP: 'BULLISH', DOWN: 'BEARISH', NEUTRAL: 'NEUTRAL' };
+    const recMap       = { UP: 'BUY', DOWN: 'SELL', NEUTRAL: 'WAIT' };
+
+    // 1. Trade execution — always attempt when price is known (NEUTRAL maps to WAIT)
+    if (currentPrice > 0) {
+      try {
+        const res = await directFetch(`${BACKEND_URL}/api/trade/generate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            prediction_id:    pred.simulation_id || 'sim',
+            stock_ticker:     ticker,
+            current_price:    currentPrice,
+            direction:        directionMap[pred.direction] || 'NEUTRAL',
+            recommendation:   recMap[pred.direction] || 'WAIT',
+            confidence_score: Math.round((pred.confidence || 0) * 100),
+            risk_tolerance:   'moderate',
+          }),
+        }, 10000);
+        if (res.ok) {
+          const te = await res.json();
+          setTradeExecution(te);
+          console.log('[enrich] trade execution received', te.action);
+        }
+      } catch (e) {
+        console.warn('[enrich] trade execution failed:', e.message);
+      }
+    }
+
+    // 2. Accuracy stats
+    try {
+      const res = await directFetch(`${BACKEND_URL}/api/accuracy/summary?ticker=${encodeURIComponent(ticker)}&days=90`, {}, 8000);
+      if (res.ok) {
+        const stats = await res.json();
+        setAccuracyStats(stats);
+        console.log('[enrich] accuracy stats received', stats.accuracy_pct, '%');
+      }
+    } catch (e) {
+      console.warn('[enrich] accuracy stats failed:', e.message);
+    }
+
+    // 3. Reasoning synthesizer — memory context, prediction storage, signal broadcast
+    try {
+      const agentVotes = {
+        bullish: pred.agent_consensus?.up ?? 0,
+        bearish: pred.agent_consensus?.down ?? 0,
+        neutral: pred.agent_consensus?.neutral ?? 0,
+      };
+      const eventDesc = selectedEvent?.properties?.description
+        || selectedEvent?.properties?.notes
+        || selectedEvent?.properties?.event_type
+        || '';
+      const res = await directFetch(`${BACKEND_URL}/api/reasoning/synthesize`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          stock_ticker:            ticker,
+          news_headline:           eventDesc,
+          news_summary:            eventDesc,
+          market_signals:          { current_price: currentPrice },
+          agent_votes:             agentVotes,
+          generate_trade_execution: false,  // trade already fetched separately
+          use_memory:               true,
+          broadcast_signal:         true,
+          risk_tolerance:           'moderate',
+        }),
+      }, 20000);
+      if (res.ok) {
+        const rd = await res.json();
+        setReasoningData({
+          memory_applied:        rd.memory_applied,
+          memory_summary:        rd.memory_summary,
+          confidence_adjustment: rd.confidence_adjustment,
+          signal_broadcast:      rd.signal_broadcast,
+          prediction_id:         rd.prediction_id,
+        });
+        console.log('[enrich] reasoning data received, memory_applied=', rd.memory_applied);
+      }
+    } catch (e) {
+      console.warn('[enrich] reasoning synthesizer failed:', e.message);
+    }
+
+    // 3. WebSocket live prices
+    if (wsRef.current) { wsRef.current.close(); wsRef.current = null; }
+    try {
+      const wsUrl = BACKEND_URL.replace(/^http/, 'ws') + `/api/stream/prices?tickers=${encodeURIComponent(ticker)}`;
+      const ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
+      ws.onmessage = (evt) => {
+        try {
+          const msg = JSON.parse(evt.data);
+          if (msg.type === 'price' && msg.ticker === ticker) {
+            setLivePrice({ price: msg.price, change_pct: msg.change_pct, ts: msg.timestamp });
+          }
+        } catch (_) {}
+      };
+      ws.onerror = () => console.warn('[ws] price stream error for', ticker);
+      ws.onclose = () => console.log('[ws] price stream closed for', ticker);
+    } catch (e) {
+      console.warn('[enrich] WebSocket failed:', e.message);
+    }
+  };
+
   const handleEventClick = async (event) => {
+    // Ref-based guard: immune to React closure staleness — updated synchronously
+    if (isSimulatingRef.current) {
+      console.log('[sim] ignored — already simulating');
+      return;
+    }
+    isSimulatingRef.current = true;
+    abortPollRef.current = false;
+
+    // Validate event structure
+    const coords = event?.geometry?.coordinates;
+    const props  = event?.properties;
+    if (!coords || coords.length < 2 || !props) {
+      console.error('[sim] malformed event object', event);
+      isSimulatingRef.current = false;
+      setError('Could not start simulation — event data is missing.');
+      return;
+    }
+
+    const requestBody = {
+      event_id:          props.id || props.event_id_cnty || null,
+      event_description: props.description || props.notes || props.event_type || 'Unknown event',
+      event_type:        props.event_type || 'Unknown',
+      lat:               coords[1],
+      lon:               coords[0],
+      country:           props.country || 'Unknown',
+      fatalities:        props.fatalities ?? 0,
+      date:              props.date || props.event_date || null,
+    };
+
+    console.log('[sim] requestBody:', requestBody);
+
     setSelectedEvent(event);
     setPrediction(null);
     setError(null);
@@ -113,120 +299,117 @@ function App() {
     setSimMinimized(false);
 
     try {
-      const requestBody = {
-        event_id: event.properties.id,
-        event_description: event.properties.description,
-        event_type: event.properties.event_type,
-        lat: event.geometry.coordinates[1],
-        lon: event.geometry.coordinates[0],
-        country: event.properties.country,
-        fatalities: event.properties.fatalities,
-        date: event.properties.date
-      };
-
-      console.log('Starting simulation for:', requestBody);
-
-      // Step 1: Start simulation as a background task — returns simulation_id immediately
+      // ── Step 1: POST — returns simulation_id immediately ──
       let startResp;
       try {
-        startResp = await fetch(`${BACKEND_URL}/api/simulate`, {
+        startResp = await directFetch(`${BACKEND_URL}/api/simulate`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(requestBody),
-        });
+        }, 30000);
+        console.log('[sim] POST status:', startResp.status);
       } catch (fetchErr) {
-        // Retry once on network error (backend cold-start)
-        console.warn('Simulation start failed, retrying after 10s…');
-        await new Promise(r => setTimeout(r, 10000));
-        startResp = await fetch(`${BACKEND_URL}/api/simulate`, {
+        console.warn('[sim] POST failed, retrying in 5s:', fetchErr.message);
+        await new Promise(r => setTimeout(r, 5000));
+        startResp = await directFetch(`${BACKEND_URL}/api/simulate`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(requestBody),
-        });
+        }, 30000);
+        console.log('[sim] POST retry status:', startResp.status);
       }
 
       if (!startResp.ok) {
-        let detail = 'Simulation failed to start';
+        let detail = `Simulation failed to start (HTTP ${startResp.status})`;
         try { detail = (await startResp.json()).detail || detail; } catch (_) {}
+        console.error('[sim] POST error:', detail);
         throw new Error(detail);
       }
 
       const { simulation_id } = await startResp.json();
-      console.log('Simulation started:', simulation_id);
+      if (!simulation_id) throw new Error('No simulation_id returned from backend');
+      console.log('[sim] simulation_id:', simulation_id);
 
-      // Step 2: Poll until completed, failed, or 10-minute hard cap
-      const POLL_INTERVAL_MS = 5000;
-      const MAX_WAIT_MS = 600000; // 10 minutes
-      const pollStart = Date.now();
-      let consecutive404s = 0;
+      // ── Step 2: Poll until done ──
+      const POLL_MS  = 5000;
+      const MAX_MS   = 600000;
+      const start    = Date.now();
+      let   n404     = 0;
+      let   poll     = 0;
 
       while (true) {
-        await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
+        await new Promise(r => setTimeout(r, POLL_MS));
 
-        if (Date.now() - pollStart > MAX_WAIT_MS) {
+        if (abortPollRef.current) {
+          console.log('[sim] poll aborted');
+          break;
+        }
+        if (Date.now() - start > MAX_MS) {
           throw new Error('Simulation exceeded 10 minutes — please try again.');
         }
 
-        let statusResp;
+        poll++;
+        console.log(`[sim] poll #${poll} → ${simulation_id}`);
+
+        let res;
         try {
-          statusResp = await fetch(`${BACKEND_URL}/api/simulate/status/${simulation_id}`);
-        } catch (_) {
-          // Transient network error — keep polling
+          res = await directFetch(`${BACKEND_URL}/api/simulate/status/${simulation_id}`, {}, 15000);
+        } catch (e) {
+          console.warn('[sim] network error on poll, retrying:', e.message);
           continue;
         }
 
-        // 5xx = server error — stop polling
-        if (statusResp.status >= 500) {
-          throw new Error(`Simulation status check failed (${statusResp.status}) — please try again`);
-        }
+        console.log(`[sim] poll #${poll} HTTP ${res.status}`);
 
-        // 404 = simulation lost from memory (backend restarted mid-run)
-        if (statusResp.status === 404) {
-          consecutive404s++;
-          // After 3 consecutive 404s (~15s), the backend restarted — simulation is lost
-          if (consecutive404s >= 3) {
-            throw new Error('Simulation lost — the server restarted mid-run. Please try again.');
-          }
+        if (res.status >= 500) throw new Error(`Server error ${res.status} on status check`);
+
+        if (res.status === 404) {
+          n404++;
+          if (n404 >= 3) throw new Error('Simulation lost — server restarted. Please try again.');
           continue;
         }
-        consecutive404s = 0;
+        n404 = 0;
+        if (!res.ok) { console.warn('[sim] unexpected status', res.status); continue; }
 
-        if (!statusResp.ok) continue;
+        const data = await res.json();
+        console.log(`[sim] poll #${poll}: status=${data.status} has_prediction=${!!data.prediction}`);
 
-        const result = await statusResp.json();
-        console.log('Simulation status:', result.status);
-
-        if (result.status === 'completed' || result.status === 'partial') {
-          if (result.prediction) {
-            setPrediction(result.prediction);
+        if (data.status === 'completed' || data.status === 'partial') {
+          if (data.prediction) {
+            console.log('[sim] prediction received ✓');
+            setPrediction(data.prediction);
+            setTradeExecution(null);
+            setAccuracyStats(null);
+            setLivePrice(null);
+            setReasoningData(null);
             setPredictionOpen(true);
-
-            setCorrelationArc({
-              show: true,
-              eventLat: requestBody.lat,
-              eventLng: requestBody.lon
-            });
-
+            // Fire enrichment calls in background — non-blocking
+            enrichPrediction(data.prediction);
+            setCorrelationArc({ show: true, eventLat: requestBody.lat, eventLng: requestBody.lon });
             if (arcTimeoutRef.current) clearTimeout(arcTimeoutRef.current);
-            arcTimeoutRef.current = setTimeout(() => {
-              setCorrelationArc({ show: false, eventLat: 0, eventLng: 0 });
-            }, 8000);
+            arcTimeoutRef.current = setTimeout(
+              () => setCorrelationArc({ show: false, eventLat: 0, eventLng: 0 }),
+              8000
+            );
           } else {
-            // Backend completed but prediction is null — show error instead of polling forever
+            console.error('[sim] completed but prediction is null', data);
             setError('Simulation completed but no report was generated — please try again.');
           }
-          break; // Always break on completed/partial regardless of prediction
+          break;
         }
 
-        if (result.status === 'failed') {
-          throw new Error(result.error || 'Simulation failed');
+        if (data.status === 'failed') {
+          throw new Error(data.error || 'Simulation failed');
         }
-        // status === 'running' → keep polling
+
+        console.log('[sim] still running…');
       }
     } catch (err) {
-      console.error('Simulation error:', err);
+      console.error('[sim] error:', err.message);
       setError(err.message || 'Simulation failed');
     } finally {
+      console.log('[sim] done — clearing state');
+      isSimulatingRef.current = false;
       setIsSimulating(false);
       setSimulationStartTime(null);
     }
@@ -379,7 +562,7 @@ function App() {
             )}
           </div>
 
-          {isSimulating && simulationStartTime && (
+          {isSimulating && simulationStartTime && !prediction && (
             <SimulationProgress
               startTime={simulationStartTime}
               ticker={prediction?.ticker || 'BHP.AX'}
@@ -466,7 +649,14 @@ function App() {
 
       {prediction && predictionOpen && (
         <ErrorBoundary>
-          <PredictionCard prediction={prediction} onClose={() => setPredictionOpen(false)} />
+          <PredictionCard
+            prediction={prediction}
+            tradeExecution={tradeExecution}
+            accuracyStats={accuracyStats}
+            livePrice={livePrice}
+            reasoningData={reasoningData}
+            onClose={() => setPredictionOpen(false)}
+          />
         </ErrorBoundary>
       )}
 
