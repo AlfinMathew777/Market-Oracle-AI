@@ -77,11 +77,15 @@ function TrackRecord() {
   };
 
   const rowClass = (row) => {
+    if (row.excluded_from_stats) return 'tr-row tr-excluded';
     if (row.prediction_correct === null || row.prediction_correct === undefined) return 'tr-row tr-pending';
     return row.prediction_correct ? 'tr-row tr-correct' : 'tr-row tr-wrong';
   };
 
   const resultBadge = (row) => {
+    if (row.excluded_from_stats) {
+      return <span className="tr-badge tr-badge-excluded" title={row.exclusion_reason || 'Low confidence — excluded from stats'}>—</span>;
+    }
     if (row.prediction_correct === null || row.prediction_correct === undefined) {
       return <span className="tr-badge tr-badge-pending">⏳</span>;
     }
@@ -99,13 +103,14 @@ function TrackRecord() {
     );
   }
 
-  const resolved = stats?.resolved_predictions || 0;
-  const correct  = stats?.correct_predictions  || 0;
-  const total    = stats?.total_predictions    || 0;
-  const accPct   = stats?.direction_accuracy_pct || 0;
-  const avgConf  = stats?.avg_confidence || 0;
-  const streak   = stats?.streak || {};
-  const confBands = stats?.accuracy_by_confidence_band || {};
+  const resolved     = stats?.resolved_predictions || 0;
+  const correct      = stats?.correct_predictions  || 0;
+  const total        = stats?.total_predictions    || 0;
+  const accPct       = stats?.direction_accuracy_pct || 0;
+  const avgConf      = stats?.avg_confidence || 0;
+  const streak       = stats?.streak || {};
+  const confBands    = stats?.accuracy_by_confidence_band || {};
+  const excludedCount = stats?.excluded_count || 0;
 
   return (
     <div className="tr-page">
@@ -115,7 +120,7 @@ function TrackRecord() {
         <div className="tr-header-title">
           <span className="tr-logo-dot">◆</span>
           MARKET ORACLE AI — PUBLIC TRACK RECORD
-          <span className="tr-subtitle">Updated daily after ASX close · All predictions</span>
+          <span className="tr-subtitle">Updated daily after ASX close · Quality predictions only</span>
         </div>
 
         <div className="tr-stat-grid">
@@ -144,6 +149,12 @@ function TrackRecord() {
             <div className="tr-stat-sub">system-scored</div>
           </div>
         </div>
+
+        {excludedCount > 0 && (
+          <div className="tr-exclusion-note">
+            ℹ {excludedCount} low-confidence (&lt;5%) predictions excluded from stats — logged for traceability, grayed below
+          </div>
+        )}
       </div>
 
       {/* ── Section B: History Table ── */}

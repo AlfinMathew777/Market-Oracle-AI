@@ -59,6 +59,17 @@
   margin-left: auto;
 }
 
+.tr-exclusion-note {
+  margin-top: 16px;
+  padding: 8px 12px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 6px;
+  font-size: 11px;
+  color: #556;
+  letter-spacing: 0.2px;
+}
+
 .tr-stat-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -185,15 +196,18 @@
 .tr-wrong   { background: rgba(255,51,102,0.04); }
 .tr-wrong:hover   { background: rgba(255,51,102,0.07); }
 .tr-pending { background: transparent; }
+.tr-excluded { opacity: 0.35; background: transparent; }
+.tr-excluded:hover { opacity: 0.55; }
 .tr-ticker  { font-family: 'Courier New', monospace; font-weight: 700; color: #fff; }
-.tr-pending-text { color: #333; font-style: italic; font-size: 11px; }
-.tr-empty   { text-align: center; color: #444; padding: 32px; font-size: 13px; }
+.tr-pending-text { color: #778899; font-style: italic; font-size: 11px; }
+.tr-empty   { text-align: center; color: #778899; padding: 32px; font-size: 13px; }
 
 /* ── Badges ── */
 .tr-badge { font-size: 14px; }
-.tr-badge-pending { opacity: 0.5; }
-.tr-badge-correct {}
-.tr-badge-wrong   {}
+.tr-badge-pending  { opacity: 0.5; }
+.tr-badge-correct  {}
+.tr-badge-wrong    {}
+.tr-badge-excluded { color: #445; font-size: 12px; }
 
 /* ── Trend badges ── */
 .tr-trend-badge {

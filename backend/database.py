@@ -178,6 +178,8 @@ async def init_db() -> None:
             ("actual_close_price",   "REAL"),
             ("resolved_at",          "TEXT"),
             ("resolution_notes",     "TEXT"),
+            ("excluded_from_stats",  "INTEGER DEFAULT 0"),
+            ("exclusion_reason",     "TEXT"),
         ]
         async with aiosqlite.connect(DB_PATH) as db:
             for col, col_type in new_cols:
@@ -190,6 +192,60 @@ async def init_db() -> None:
 
         _initialized = True
         logger.info("Database initialised at %s", DB_PATH)
+
+
+# ── Prediction quality gate ────────────────────────────────────────────────────
+
+# Predictions below this confidence are "noise" — the system is saying it
+# cannot form a view. They are logged for traceability but excluded from
+# public accuracy stats.
+_MIN_STAT_CONFIDENCE = 0.05   # 5%
+
+
+def _is_garbage_prediction(direction: str, confidence: float) -> Optional[str]:
+    """
+    Return an exclusion reason string if this prediction is garbage, else None.
+
+    Garbage means the system had no real signal:
+      - Confidence exactly 0 (minimum-confidence guard forced neutral)
+      - Confidence < 5% AND direction is neutral (no view at all)
+      - Confidence < 5% regardless of direction (below noise floor)
+    """
+    if confidence <= 0.0:
+        return "Zero confidence — no signal (minimum confidence guard triggered)"
+    if confidence < _MIN_STAT_CONFIDENCE:
+        return f"Confidence {confidence*100:.1f}% below minimum {_MIN_STAT_CONFIDENCE*100:.0f}% threshold"
+    return None
+
+
+async def mark_existing_garbage_predictions() -> int:
+    """
+    One-time backfill: mark pre-existing garbage predictions as excluded.
+    Safe to call on every startup (only updates rows not already marked).
+    Returns count of newly marked rows.
+    """
+    try:
+        await init_db()
+        async with get_db() as db:
+            result = await db.execute(
+                """UPDATE prediction_log
+                   SET excluded_from_stats = 1,
+                       exclusion_reason = CASE
+                           WHEN confidence <= 0.0 THEN 'Zero confidence — no signal (minimum confidence guard triggered)'
+                           ELSE 'Confidence below 5% minimum threshold'
+                       END
+                   WHERE confidence < ?
+                     AND (excluded_from_stats IS NULL OR excluded_from_stats = 0)""",
+                (_MIN_STAT_CONFIDENCE,),
+            )
+            await db.commit()
+            n = result.rowcount
+        if n:
+            logger.info("Marked %d existing garbage predictions as excluded_from_stats", n)
+        return n
+    except Exception as e:
+        logger.error("mark_existing_garbage_predictions failed: %s", e)
+        return 0
 
 
 # ── simulations table ──────────────────────────────────────────────────────────
@@ -442,13 +498,26 @@ async def save_prediction_log(
     agent_neutral: int = 0,
     trend_label: Optional[str] = None,
 ) -> None:
-    """Save a full prediction to prediction_log. Called non-blocking after every simulation."""
+    """Save a full prediction to prediction_log. Called non-blocking after every simulation.
+
+    Predictions below the minimum confidence threshold are logged for traceability
+    but automatically excluded from public accuracy stats via excluded_from_stats=1.
+    """
     try:
         await init_db()
         # Normalize direction to lowercase for consistency with reflection script
         pred_dir = {"UP": "bullish", "DOWN": "bearish", "NEUTRAL": "neutral"}.get(
             direction.upper(), direction.lower()
         )
+
+        # Quality gate: detect and flag garbage predictions at write time
+        exclusion_reason = _is_garbage_prediction(pred_dir, confidence)
+        excluded = 1 if exclusion_reason else 0
+        if excluded:
+            logger.info(
+                "prediction_log [%s] %s marked excluded: %s", simulation_id, ticker, exclusion_reason
+            )
+
         async with get_db() as db:
             await db.execute(
                 """INSERT OR REPLACE INTO prediction_log
@@ -456,8 +525,9 @@ async def save_prediction_log(
                     primary_reason,
                     iron_ore_at_prediction, audusd_at_prediction,
                     brent_at_prediction, bhp_price_at_prediction,
-                    agent_bullish, agent_bearish, agent_neutral, trend_label)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    agent_bullish, agent_bearish, agent_neutral, trend_label,
+                    excluded_from_stats, exclusion_reason)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (
                     simulation_id, ticker, pred_dir, confidence,
                     datetime.now(timezone.utc).isoformat(),
@@ -468,11 +538,14 @@ async def save_prediction_log(
                     market_ctx.get("ticker_price"),
                     agent_bullish, agent_bearish, agent_neutral,
                     trend_label,
+                    excluded,
+                    exclusion_reason,
                 )
             )
             await db.commit()
-        logger.info("Saved prediction_log entry: %s (%s %s %.0f%%)",
-                    simulation_id, ticker, pred_dir, confidence * 100)
+        logger.info("Saved prediction_log entry: %s (%s %s %.0f%%)%s",
+                    simulation_id, ticker, pred_dir, confidence * 100,
+                    " [EXCLUDED]" if excluded else "")
     except Exception as e:
         logger.error("save_prediction_log failed for %s: %s", simulation_id, e)
 
@@ -529,7 +602,9 @@ async def get_detailed_accuracy_stats(
         from datetime import timedelta
         since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
 
-        base_where = "WHERE prediction_correct IS NOT NULL AND predicted_at >= ?"
+        # Only count quality predictions (excluded_from_stats = 0 or NULL for old rows)
+        _quality = "(excluded_from_stats IS NULL OR excluded_from_stats = 0)"
+        base_where = f"WHERE prediction_correct IS NOT NULL AND predicted_at >= ? AND {_quality}"
         params: list = [since]
         if ticker:
             base_where += " AND ticker = ?"
@@ -538,8 +613,8 @@ async def get_detailed_accuracy_stats(
         async with get_db() as db:
             db.row_factory = lambda c, r: dict(zip([col[0] for col in c.description], r))
 
-            # Total predictions (including unresolved) within the same window
-            total_where = "WHERE predicted_at >= ?" + (" AND ticker=?" if ticker else "")
+            # Total quality predictions (including unresolved) within the same window
+            total_where = f"WHERE predicted_at >= ? AND {_quality}" + (" AND ticker=?" if ticker else "")
             total_params = [since, ticker] if ticker else [since]
             async with db.execute(
                 f"SELECT COUNT(*) as n FROM prediction_log {total_where}", total_params
@@ -610,6 +685,18 @@ async def get_detailed_accuracy_stats(
             ) as cur:
                 streak_rows = await cur.fetchall()
 
+            # Excluded predictions count (for UI transparency note)
+            excl_where = (
+                f"WHERE predicted_at >= ? AND excluded_from_stats = 1"
+                + (" AND ticker=?" if ticker else "")
+            )
+            excl_params = [since, ticker] if ticker else [since]
+            async with db.execute(
+                f"SELECT COUNT(*) as n FROM prediction_log {excl_where}", excl_params
+            ) as cur:
+                excl_row = await cur.fetchone()
+            excluded_count = excl_row["n"] if excl_row else 0
+
         # Calculate streaks
         current_streak = 0
         streak_direction = "correct"
@@ -663,6 +750,7 @@ async def get_detailed_accuracy_stats(
             "correct_predictions":  correct,
             "direction_accuracy_pct": round(correct / resolved * 100, 1) if resolved > 0 else 0,
             "avg_confidence":       round(avg_conf * 100, 1),
+            "excluded_count":       excluded_count,
             "accuracy_by_direction": accuracy_by_direction,
             "accuracy_by_confidence_band": accuracy_by_confidence_band,
             "streak": {
@@ -676,7 +764,7 @@ async def get_detailed_accuracy_stats(
         return {
             "total_predictions": 0, "resolved_predictions": 0,
             "correct_predictions": 0, "direction_accuracy_pct": 0,
-            "avg_confidence": 0,
+            "avg_confidence": 0, "excluded_count": 0,
             "accuracy_by_direction": {}, "accuracy_by_confidence_band": {},
             "streak": {"current_streak": 0, "streak_direction": "correct", "best_streak": 0},
         }

@@ -226,17 +226,24 @@ async def lifespan(app: FastAPI):
     asyncio.create_task(_hourly_tasks())
     asyncio.create_task(_news_refresh_loop())
 
-    # Resolve any prediction_log entries whose 7-day horizon has already elapsed
-    async def _boot_resolve():
+    # Mark existing garbage predictions and resolve pending ones at boot
+    async def _boot_cleanup():
+        try:
+            from database import mark_existing_garbage_predictions
+            n_excl = await mark_existing_garbage_predictions()
+            if n_excl:
+                logger.info("Boot: excluded %d garbage predictions from stats", n_excl)
+        except Exception as e:
+            logger.warning("Boot garbage marking failed: %s", e)
         try:
             from services.prediction_resolver import auto_resolve_pending_predictions
-            n = await auto_resolve_pending_predictions(limit=200)
-            if n:
-                logger.info("Boot: resolved %d pending predictions", n)
+            n_res = await auto_resolve_pending_predictions(limit=200)
+            if n_res:
+                logger.info("Boot: resolved %d pending predictions", n_res)
         except Exception as e:
             logger.warning("Boot prediction resolve failed: %s", e)
 
-    asyncio.create_task(_boot_resolve())
+    asyncio.create_task(_boot_cleanup())
 
     logger.info("Startup complete — cache pre-warm and accuracy checks running in background")
     yield
