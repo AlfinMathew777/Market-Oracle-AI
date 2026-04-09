@@ -79,16 +79,22 @@
 }
 
 .mc-input {
-  background: rgba(255, 255, 255, 0.05);
+  background: #0d1117;
   border: 1px solid rgba(51, 102, 255, 0.3);
   border-radius: 6px;
-  color: #fff;
+  color: #e6edf3;
   font-size: 13px;
   font-family: 'Courier New', monospace;
   padding: 7px 10px;
   outline: none;
   transition: border-color 0.15s;
   width: 100%;
+  appearance: auto;
+}
+
+.mc-input option {
+  background: #0d1117;
+  color: #e6edf3;
 }
 
 .mc-input:focus {

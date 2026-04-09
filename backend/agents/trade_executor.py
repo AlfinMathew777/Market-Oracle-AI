@@ -45,12 +45,20 @@ class TradeExecutor:
 
         Returns None for HOLD/WAIT recommendations or NEUTRAL direction.
         """
-        if request.recommendation in ("HOLD", "WAIT"):
-            logger.info("Skipping execution for %s: %s", request.stock_ticker, request.recommendation)
+        if request.recommendation in ("HOLD", "WAIT", "AVOID"):
+            logger.info("Skipping execution for %s: recommendation is %s",
+                        request.stock_ticker, request.recommendation)
             return None
 
         if request.direction == "NEUTRAL":
             logger.info("Skipping execution for %s: NEUTRAL direction", request.stock_ticker)
+            return None
+
+        if request.confidence_score < 55:
+            logger.info(
+                "Skipping execution for %s: confidence %d%% < 55%% threshold",
+                request.stock_ticker, request.confidence_score,
+            )
             return None
 
         risk_params = self.RISK_MULTIPLIERS[request.risk_tolerance]

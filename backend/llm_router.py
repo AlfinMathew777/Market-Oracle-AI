@@ -104,7 +104,7 @@ class LLMRouter:
     # ── Internal ──────────────────────────────────────────────────────────────
 
     async def _call_with_fallback(self, providers: list, system_message: str, user_prompt: str) -> str:
-        """Try each provider in order; advance on 429 / missing key."""
+        """Try each provider in order; advance on 429 / timeout / missing key."""
         last_error = None
         for provider in providers:
             if not provider["key"]:
@@ -113,13 +113,20 @@ class LLMRouter:
                 result = await self._call_single(provider, system_message, user_prompt)
                 await self._track_call(provider["name"])
                 return result
+            except asyncio.TimeoutError as e:
+                # Per-call timeout — advance to next provider rather than failing completely
+                logger.warning(
+                    "Provider %s timed out — trying next tier", provider["name"]
+                )
+                last_error = e
+                continue
             except Exception as e:
                 msg = str(e)
                 if any(x in msg for x in ("429", "rate", "quota", "overloaded")):
                     logger.warning("Provider %s rate-limited — trying next tier", provider["name"])
                     last_error = e
                     continue
-                raise   # non-rate-limit errors propagate immediately
+                raise   # non-rate-limit / non-timeout errors propagate immediately
         raise Exception(f"All LLM providers exhausted. Last error: {last_error}")
 
     async def _call_single(self, provider: dict, system_message: str, user_prompt: str) -> str:
@@ -148,7 +155,7 @@ class LLMRouter:
                 max_tokens=2048,
                 extra_headers=extra_headers,
             ),
-            timeout=30.0,  # Per-agent API call timeout
+            timeout=45.0,  # Per-provider timeout — on expiry, fallback chain advances to next tier
         )
         return response.choices[0].message.content
 

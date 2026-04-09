@@ -454,10 +454,11 @@ async def _fetch_brent() -> Dict[str, Any]:
 
 
 async def _fetch_ticker_technicals(ticker: str) -> Dict[str, Any]:
-    """Ticker price, intraday price change %, volume ratio, RSI(14), MACD signal."""
+    """Ticker price, intraday price change %, volume ratio, RSI(14), MACD signal, price_series."""
     result: Dict[str, Any] = {
         "price": 47.0, "price_change_pct": None, "volume_vs_avg": 1.0,
-        "rsi": None, "macd_signal": "NEUTRAL", "status": STALE
+        "rsi": None, "macd_signal": "NEUTRAL", "status": STALE,
+        "price_series": None,
     }
 
     # Price + volume + intraday change via yfinance
@@ -530,23 +531,27 @@ async def _fetch_ticker_technicals(ticker: str) -> Dict[str, Any]:
         except Exception as e:
             logger.warning("RSI AV: %s", e)
 
-    # RSI fallback: compute RSI(14) from yfinance history when AV key absent or returned nothing
-    if result["rsi"] is None:
+    # RSI fallback: compute RSI(14) from yfinance history when AV key absent or returned nothing.
+    # Also stores the Close price series for MC volatility calibration.
+    if result["rsi"] is None or result["price_series"] is None:
         try:
             import yfinance as yf
             hist = yf.Ticker(ticker).history(period="3mo")
             if not hist.empty and len(hist) >= 15:
                 close    = hist["Close"]
-                delta    = close.diff()
-                gain     = delta.clip(lower=0)
-                loss     = (-delta).clip(lower=0)
-                avg_gain = gain.rolling(14).mean()
-                avg_loss = loss.rolling(14).mean()
-                rs       = avg_gain / avg_loss.replace(0, float("nan"))
-                rsi_ser  = 100 - (100 / (1 + rs))
-                last_rsi = rsi_ser.dropna().iloc[-1]
-                result["rsi"] = round(float(last_rsi), 1)
-                logger.info("[RSI] %s yfinance RSI(14)=%.1f", ticker, result["rsi"])
+                # Store price series for MC calibration (regardless of RSI status)
+                result["price_series"] = close
+                if result["rsi"] is None:
+                    delta    = close.diff()
+                    gain     = delta.clip(lower=0)
+                    loss     = (-delta).clip(lower=0)
+                    avg_gain = gain.rolling(14).mean()
+                    avg_loss = loss.rolling(14).mean()
+                    rs       = avg_gain / avg_loss.replace(0, float("nan"))
+                    rsi_ser  = 100 - (100 / (1 + rs))
+                    last_rsi = rsi_ser.dropna().iloc[-1]
+                    result["rsi"] = round(float(last_rsi), 1)
+                    logger.info("[RSI] %s yfinance RSI(14)=%.1f", ticker, result["rsi"])
         except Exception as e:
             logger.warning("[RSI] yfinance fallback failed for %s: %s", ticker, e)
 
@@ -1612,6 +1617,7 @@ Brent Crude: ${brent['price']}/bbl | Change: {_chg(brent['change_pct'])}{_stale(
         "ticker_volume_vs_avg":    tech.get("volume_vs_avg"),
         "ticker_rsi":              ticker_rsi,
         "ticker_macd_signal":  tech["macd_signal"],
+        "ticker_price_series":     tech.get("price_series"),  # pandas Series for MC calibration
         "news_items":          news,
         "lessons":             lessons,
         "context_block":       context_block,

@@ -3,7 +3,7 @@ import Globe from 'globe.gl';
 import './Globe.css';
 
 const CHOKEPOINT_MARKERS = [
-  { id: 'hormuz',        lat: 26.6,  lng: 56.3,   name: 'Hormuz',        risk: 85, color: '#ff2222', mbd: 20.9, cargo: 'Oil · LNG · LPG' },
+  { id: 'hormuz',        lat: 26.6,  lng: 56.3,   name: 'Hormuz',        risk: 85, color: '#ff2222', mbd: 20.9, cargo: 'Oil · LNG · LPG', ceasefire: true },
   { id: 'malacca',       lat: 2.5,   lng: 101.5,  name: 'Malacca',       risk: 72, color: '#ff2222', mbd: 23.2, cargo: 'Iron ore · Oil · Coal' },
   { id: 'bab_el_mandeb', lat: 12.6,  lng: 43.4,   name: 'Bab el-Mandeb', risk: 65, color: '#ff8800', mbd: 4.2,  cargo: 'Oil · LNG · Containers' },
   { id: 'suez',          lat: 30.5,  lng: 32.3,   name: 'Suez',          risk: 58, color: '#ff8800', mbd: 4.9,  cargo: 'Oil · LNG · Containers' },
@@ -50,9 +50,15 @@ function ChokepointGlobePopup({ cp, simScore, onSimulate, onClose, simulating })
           <div className="cp-globe-name">{cp.name}</div>
           <div className="cp-globe-cargo">{cp.cargo}</div>
         </div>
-        <span className="cp-globe-risk-badge" style={{ color: riskLabelColor, borderColor: riskLabelColor }}>
-          {riskLabel}
-        </span>
+        {cp.ceasefire ? (
+          <span className="cp-globe-risk-badge" style={{ color: '#3fb950', borderColor: '#3fb950' }}>
+            🕊️ CEASEFIRE
+          </span>
+        ) : (
+          <span className="cp-globe-risk-badge" style={{ color: riskLabelColor, borderColor: riskLabelColor }}>
+            {riskLabel}
+          </span>
+        )}
       </div>
 
       {/* Score gauge + last sim */}

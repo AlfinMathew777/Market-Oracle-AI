@@ -1,76 +1,182 @@
+/* ═══════════════════════════════════════════════════════════════
+   TickerStrip — War Room ASX Price Feed
+   ═══════════════════════════════════════════════════════════════ */
+
 .ticker-strip {
-  background: linear-gradient(135deg, rgba(10, 10, 30, 0.9), rgba(20, 20, 50, 0.9));
-  border: 1px solid rgba(51, 102, 255, 0.3);
-  border-radius: 12px;
+  background: rgba(13, 17, 23, 0.8);
+  border: 1px solid var(--mo-border);
+  border-radius: var(--mo-r-lg);
   padding: 16px;
-  margin-bottom: 20px;
+  position: relative;
+  display: block;
+}
+
+/* Accent top border */
+.ticker-strip::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--mo-accent), transparent);
+  opacity: 0.6;
 }
 
 .ticker-strip h3 {
-  margin: 0 0 12px 0;
-  font-size: 14px;
-  color: #aaa;
+  margin: 0 0 14px 0;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--mo-text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 2px;
+  font-family: var(--mo-font-ui);
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
+/* Live indicator dot */
+.ticker-strip h3::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--mo-bullish);
+  box-shadow: 0 0 8px var(--mo-bullish);
+  animation: tickerPulse 2s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+@keyframes tickerPulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
+
+/* ── Ticker list ─────────────────────────────────────────────────────────── */
 .ticker-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 4px;
+  overflow-y: auto;
+  max-height: 460px;
+}
+
+.ticker-list::-webkit-scrollbar { width: 3px; }
+.ticker-list::-webkit-scrollbar-track { background: transparent; }
+.ticker-list::-webkit-scrollbar-thumb {
+  background: rgba(88, 166, 255, 0.2);
+  border-radius: 2px;
 }
 
 .ticker-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px 12px;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 6px;
-  transition: all 0.2s;
+  padding: 9px 12px;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid transparent;
+  border-radius: var(--mo-r-sm);
+  transition: background var(--mo-t-fast), border-color var(--mo-t-fast);
+  position: relative;
+  overflow: hidden;
 }
 
 .ticker-item:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(88, 166, 255, 0.06);
+  border-color: rgba(88, 166, 255, 0.15);
 }
 
+/* ── Flash animations on price change ─────────────────────────────────────── */
+@keyframes flashGreen {
+  0%   { background: rgba(63, 185, 80, 0.25); }
+  100% { background: rgba(255, 255, 255, 0.025); }
+}
+
+@keyframes flashRed {
+  0%   { background: rgba(248, 81, 73, 0.25); }
+  100% { background: rgba(255, 255, 255, 0.025); }
+}
+
+.ticker-item.flash-up {
+  animation: flashGreen 0.6s ease-out forwards;
+  border-color: rgba(63, 185, 80, 0.3) !important;
+}
+
+.ticker-item.flash-down {
+  animation: flashRed 0.6s ease-out forwards;
+  border-color: rgba(248, 81, 73, 0.3) !important;
+}
+
+/* ── Ticker labels ───────────────────────────────────────────────────────── */
 .ticker-symbol {
-  font-size: 14px;
-  font-weight: 600;
-  color: #6699ff;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--mo-text-secondary);
+  font-family: var(--mo-font-mono);
+  letter-spacing: 0.5px;
+  min-width: 52px;
 }
 
 .ticker-info {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
 }
 
 .ticker-price {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
-  color: white;
+  color: var(--mo-text-primary);
+  font-family: var(--mo-font-mono);
+  letter-spacing: 0.3px;
 }
 
 .ticker-change {
-  font-size: 12px;
-  font-weight: 500;
-  padding: 2px 6px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
   border-radius: 4px;
+  font-family: var(--mo-font-mono);
+  letter-spacing: 0.3px;
+  min-width: 56px;
+  text-align: right;
 }
 
 .ticker-change.positive {
-  color: #00ff88;
-  background: rgba(0, 255, 136, 0.1);
+  color: var(--mo-bullish);
+  background: rgba(63, 185, 80, 0.1);
 }
 
 .ticker-change.negative {
-  color: #ff3366;
-  background: rgba(255, 51, 102, 0.1);
+  color: var(--mo-bearish);
+  background: rgba(248, 81, 73, 0.1);
 }
 
+/* ── Loading state ───────────────────────────────────────────────────────── */
 .loading {
-  color: #888;
-  font-size: 13px;
+  color: var(--mo-text-muted);
+  font-size: 12px;
   text-align: center;
+  padding: 20px 0;
+  font-family: var(--mo-font-ui);
+}
+
+/* Loading shimmer */
+.ticker-shimmer {
+  height: 36px;
+  border-radius: var(--mo-r-sm);
+  background: linear-gradient(
+    90deg,
+    rgba(255,255,255,0.03) 25%,
+    rgba(255,255,255,0.07) 50%,
+    rgba(255,255,255,0.03) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  margin-bottom: 4px;
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
 }

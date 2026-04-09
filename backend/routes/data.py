@@ -21,6 +21,10 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/data", tags=["data"])
 
+# In-memory news cache — fallback when Redis is not configured (local dev)
+_news_mem_cache: list = []
+_news_mem_ts: float = 0.0
+
 # Services used as live fallbacks when Redis cache is cold
 acled_service = ACLEDService()
 asx_service   = ASXService()
@@ -175,7 +179,67 @@ async def get_gdelt_sentiment(topic: str):
 @router.get("/news")
 async def get_news(query: Optional[str] = None, limit: int = 20):
     """GET /api/data/news?query=China+iron+ore&limit=20 — Australian + global news."""
+    global _news_mem_cache, _news_mem_ts
+    import time as _time
+
+    # Try Redis first, then in-memory fallback
     articles = await cache_get("news:australia:v1") or []
+
+    # Use in-memory cache if Redis miss but we have fresh data (< 15 min)
+    if not articles and _news_mem_cache and (_time.time() - _news_mem_ts) < 900:
+        articles = _news_mem_cache
+        logger.debug("News: using in-memory cache (%d articles)", len(articles))
+
+    # Cache cold — run seed inline so caller gets fresh data
+    if not articles:
+        logger.info("News cache cold — running inline seed")
+        try:
+            import sys, os
+            sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            from scripts.seed_au_news import fetch_feed
+            import httpx
+
+            RSS_FEEDS = [
+                {"url": "https://www.afr.com/rss",                          "source": "AFR",           "region": "AU"},
+                {"url": "https://www.smh.com.au/rss/business.xml",          "source": "SMH Business",  "region": "AU"},
+                {"url": "https://www.abc.net.au/news/feed/2942460/rss.xml", "source": "ABC Business",  "region": "AU"},
+                {"url": "https://stockhead.com.au/feed/",                   "source": "Stockhead",     "region": "AU"},
+                {"url": "https://www.miningweekly.com/rss",                 "source": "Mining Weekly", "region": "AU"},
+                {"url": "https://oilprice.com/rss/main",                    "source": "OilPrice",      "region": "GLOBAL"},
+                {"url": "https://www.mining.com/feed/",                     "source": "Mining.com",    "region": "GLOBAL"},
+                {"url": "https://feeds.bbci.co.uk/news/world/rss.xml",      "source": "BBC World",     "region": "GEO"},
+            ]
+
+            async with httpx.AsyncClient(
+                headers={"User-Agent": "AussieIntel/1.0 news-aggregator"},
+                limits=httpx.Limits(max_connections=10),
+                timeout=httpx.Timeout(10.0),
+            ) as client:
+                tasks = [fetch_feed(client, feed) for feed in RSS_FEEDS]
+                results = await asyncio.gather(*tasks, return_exceptions=True)
+
+            all_articles = []
+            for r in results:
+                if isinstance(r, list):
+                    all_articles.extend(r)
+
+            seen: set = set()
+            unique = []
+            for a in all_articles:
+                if a["id"] not in seen:
+                    seen.add(a["id"])
+                    unique.append(a)
+
+            unique.sort(key=lambda a: a["fetchedAt"], reverse=True)
+
+            if unique:
+                await cache_set("news:australia:v1", unique, ttl=900)
+                _news_mem_cache = unique
+                _news_mem_ts = _time.time()
+                articles = unique
+                logger.info("Inline news seed: %d articles", len(articles))
+        except Exception as e:
+            logger.warning("Inline news seed failed: %s", e)
 
     if query:
         keywords = [k.lower() for k in query.split()]

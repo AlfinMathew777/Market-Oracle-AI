@@ -17,7 +17,7 @@ import MonteCarloEngine from './components/MonteCarlo/MonteCarloEngine';
 import { Globe as GlobeIcon, Map as MapIcon } from 'lucide-react';
 import './App.css';
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8001';
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
 const API_KEY     = process.env.REACT_APP_API_KEY || '';
 console.log('[app] BACKEND_URL =', BACKEND_URL);
 
@@ -115,6 +115,8 @@ function App() {
   }, []);
 
   const fetchInitialData = async () => {
+    // Each source is independent — one failure does not block the others
+
     try {
       const acledResponse = await fetch(`${BACKEND_URL}/api/data/acled`);
       const acledData = await acledResponse.json();
@@ -122,26 +124,31 @@ function App() {
         setAcledEvents(acledData.data.features);
         localStorage.setItem('acled_events', JSON.stringify(acledData.data.features));
       }
+    } catch (err) {
+      console.error('ACLED fetch failed:', err);
+      const cached = localStorage.getItem('acled_events');
+      if (cached) try { setAcledEvents(JSON.parse(cached)); } catch (_) {}
+    }
 
+    try {
       const asxResponse = await fetch(`${BACKEND_URL}/api/data/asx-prices`);
       const asxData = await asxResponse.json();
       if (asxData.status === 'success') {
         setAsxPrices(asxData.data);
         localStorage.setItem('asx_prices', JSON.stringify(asxData.data));
       }
+    } catch (err) {
+      console.error('ASX prices fetch failed:', err);
+      const cached = localStorage.getItem('asx_prices');
+      if (cached) try { setAsxPrices(JSON.parse(cached)); } catch (_) {}
+    }
 
+    try {
       const portResponse = await fetch(`${BACKEND_URL}/api/data/port-hedland`);
       const portData = await portResponse.json();
-      if (portData.status === 'success') {
-        setPortHedlandData(portData.data);
-      }
+      if (portData.status === 'success') setPortHedlandData(portData.data);
     } catch (err) {
-      console.error('Error fetching initial data:', err);
-      const cachedAcled = localStorage.getItem('acled_events');
-      const cachedAsx = localStorage.getItem('asx_prices');
-      if (cachedAcled) setAcledEvents(JSON.parse(cachedAcled));
-      if (cachedAsx) setAsxPrices(JSON.parse(cachedAsx));
-      setError('Using cached data (offline mode)');
+      console.error('Port Hedland fetch failed:', err);
     }
   };
 
@@ -159,8 +166,14 @@ function App() {
     const directionMap = { UP: 'BULLISH', DOWN: 'BEARISH', NEUTRAL: 'NEUTRAL' };
     const recMap       = { UP: 'BUY', DOWN: 'SELL', NEUTRAL: 'WAIT' };
 
-    // 1. Trade execution — always attempt when price is known (NEUTRAL maps to WAIT)
-    if (currentPrice > 0) {
+    // 1. Trade execution — only attempt when signal is actionable.
+    // Use the backend-filtered recommendation (pred.recommendation) NOT raw direction.
+    // Grade F/D signals must not generate a trade plan.
+    const filteredRec = pred.recommendation || pred.signal_recommendation || recMap[pred.direction] || 'WAIT';
+    const isActionable = pred.is_actionable !== false
+      && filteredRec !== 'HOLD' && filteredRec !== 'WAIT' && filteredRec !== 'AVOID'
+      && !['D', 'F'].includes(pred.signal_grade);
+    if (currentPrice > 0 && isActionable) {
       try {
         const res = await directFetch(`${BACKEND_URL}/api/trade/generate`, {
           method: 'POST',
@@ -170,7 +183,7 @@ function App() {
             stock_ticker:     ticker,
             current_price:    currentPrice,
             direction:        directionMap[pred.direction] || 'NEUTRAL',
-            recommendation:   recMap[pred.direction] || 'WAIT',
+            recommendation:   filteredRec,
             confidence_score: Math.round((pred.confidence || 0) * 100),
             risk_tolerance:   'moderate',
           }),
@@ -183,6 +196,8 @@ function App() {
       } catch (e) {
         console.warn('[enrich] trade execution failed:', e.message);
       }
+    } else if (!isActionable) {
+      console.log('[enrich] trade execution skipped — signal not actionable (grade:', pred.signal_grade, 'rec:', filteredRec, ')');
     }
 
     // 2. Accuracy stats
@@ -226,11 +241,14 @@ function App() {
       if (res.ok) {
         const rd = await res.json();
         setReasoningData({
-          memory_applied:        rd.memory_applied,
-          memory_summary:        rd.memory_summary,
-          confidence_adjustment: rd.confidence_adjustment,
-          signal_broadcast:      rd.signal_broadcast,
-          prediction_id:         rd.prediction_id,
+          memory_applied:          rd.memory_applied,
+          memory_summary:          rd.memory_summary,
+          confidence_adjustment:   rd.confidence_adjustment,
+          signal_broadcast:        rd.signal_broadcast,
+          prediction_id:           rd.prediction_id,
+          processing_time_ms:      rd.processing_time_ms,
+          adjustments_applied:     rd.prediction?.adjustments_applied || [],
+          reasoning_quality_issues: rd.prediction?.reasoning_quality_issues || [],
         });
         console.log('[enrich] reasoning data received, memory_applied=', rd.memory_applied);
       }
@@ -300,22 +318,24 @@ function App() {
 
     try {
       // ── Step 1: POST — returns simulation_id immediately ──
+      // 60s timeout: Railway cold-start after inactivity can take 20-45s.
+      // The POST handler itself returns in <1s once the instance is warm.
       let startResp;
       try {
         startResp = await directFetch(`${BACKEND_URL}/api/simulate`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(requestBody),
-        }, 30000);
+        }, 60000);
         console.log('[sim] POST status:', startResp.status);
       } catch (fetchErr) {
-        console.warn('[sim] POST failed, retrying in 5s:', fetchErr.message);
-        await new Promise(r => setTimeout(r, 5000));
+        console.warn('[sim] POST failed, retrying in 3s:', fetchErr.message);
+        await new Promise(r => setTimeout(r, 3000));
         startResp = await directFetch(`${BACKEND_URL}/api/simulate`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(requestBody),
-        }, 30000);
+        }, 60000);
         console.log('[sim] POST retry status:', startResp.status);
       }
 
@@ -493,9 +513,7 @@ function App() {
         <ErrorBoundary>
           <MonteCarloEngine
             ticker={prediction?.ticker || 'BHP.AX'}
-            onSimComplete={(result) => {
-              // Optional: lift sim result to App state for future use
-            }}
+            onSimComplete={() => {}}
           />
         </ErrorBoundary>
       )}
@@ -507,11 +525,12 @@ function App() {
               events={acledEvents}
               onEventSelect={handleEventClick}
               isSimulating={isSimulating}
+              selectedEvent={selectedEvent}
             />
           </ErrorBoundary>
 
-          <div 
-            className="map-view-container" 
+          <div
+            className="map-view-container"
             data-testid="map-view-container"
             style={{
               position: 'absolute',

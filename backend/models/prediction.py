@@ -189,6 +189,29 @@ class PredictionCard(BaseModel):
     monte_carlo_confidence: Optional[dict] = None  # MonteCarloConfidence fields as dict
     monte_carlo_price:      Optional[dict] = None  # MonteCarloPriceRange fields as dict
 
+    # Signal quality grading (A/B/C/D/F) from signal_filter.py
+    signal_grade:            Optional[str]  = None  # "A" | "B" | "C" | "D" | "F"
+    signal_grade_label:      Optional[str]  = None  # e.g. "A — Strong Signal"
+    signal_recommendation:   Optional[str]  = None  # "BUY" | "SELL" | "HOLD" | "WAIT"
+    signal_grade_reason:     Optional[str]  = None  # Explanation when signal is suppressed
+
+    # Full signal filter result fields
+    recommendation:          Optional[str]       = None   # Same as signal_recommendation (canonical name)
+    original_recommendation: Optional[str]       = None   # What direction alone would produce
+    is_actionable:           Optional[bool]      = None   # False when signal is blocked
+    signal_block_reasons:    Optional[List[str]] = None   # Reasons the signal was blocked
+    signal_warnings:         Optional[List[str]] = None   # Non-fatal quality warnings
+    signal_filter_summary:   Optional[str]       = None   # Human-readable one-liner
+
+    # Confidence audit trail — shows every penalty/bonus applied during the pipeline
+    confidence_audit:        Optional[dict] = None  # step-by-step confidence values
+
+    # Price target validation (ATR-based cap check on MC expected_change_pct)
+    price_target_validation: Optional[dict] = None  # validate_price_target() output
+
+    # Aggregated signal quality report — grade, issues, actionability
+    quality_assessment: Optional[dict] = None  # grade (A/B/C/D), issues[], is_actionable, summary
+
     model_config = {
         "json_schema_extra": {
             "example": {

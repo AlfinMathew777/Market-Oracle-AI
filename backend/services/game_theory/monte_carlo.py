@@ -21,7 +21,8 @@ logger = logging.getLogger(__name__)
 class MonteCarloConfidence:
     mean_confidence: float
     confidence_std: float
-    direction_stability_pct: float
+    direction_stability_pct: float   # bearish_wins % (raw MC metric)
+    dominant_stability_pct: float    # dominant direction win rate (display metric)
     is_stable: bool
     dominant_direction: str
     conviction_label: str  # "HIGH" / "MEDIUM" / "LOW"
@@ -40,6 +41,18 @@ class MonteCarloPriceRange:
     prob_up_5pct: float
     prob_down_10pct: float
     prob_up_10pct: float
+    # CVaR risk metrics (defaults keep existing callers backward-compatible)
+    var_95: float = 0.0
+    cvar_95: float = 0.0
+    var_99: float = 0.0
+    cvar_99: float = 0.0
+    expected_return: float = 0.0
+    prob_profit: float = 0.0
+    risk_adjusted_score: float = 0.0
+    tail_risk_ratio: float = 1.0
+    risk_level: str = "MEDIUM"
+    var_interpretation: str = ""
+    cvar_interpretation: str = ""
 
 
 @dataclass
@@ -78,6 +91,7 @@ def run_confidence_monte_carlo(
                 mean_confidence=0,
                 confidence_std=0,
                 direction_stability_pct=50,
+                dominant_stability_pct=50,
                 is_stable=False,
                 dominant_direction="neutral",
                 conviction_label="LOW",
@@ -138,19 +152,35 @@ def run_confidence_monte_carlo(
         # Bootstrap resampling naturally creates high confidence std for skewed
         # vote distributions even when the signal is genuinely strong — so
         # direction_stability is the more reliable stability signal.
-        is_stable = direction_stability > 70
-
-        if direction_stability > 75:
-            conviction = "HIGH"
-        elif direction_stability > 65:
-            conviction = "MEDIUM"
+        #
+        # IMPORTANT: direction_stability = bearish_wins / n_simulations * 100.
+        # A stable BULLISH signal has bearish_wins near 0% (dominant direction wins ~100%).
+        # A stable BEARISH signal has bearish_wins near 100%.
+        # A stable signal means the dominant direction wins consistently (>70%).
+        # Bug fix: previously only checked >70% which always failed for bullish signals.
+        if dominant == "bearish":
+            is_stable = direction_stability > 70
         else:
-            conviction = "LOW"
+            is_stable = direction_stability < 30  # bullish wins >70% of the time
+
+        if dominant == "bearish":
+            conviction = "HIGH" if direction_stability > 75 else ("MEDIUM" if direction_stability > 65 else "LOW")
+        else:
+            conviction = "HIGH" if direction_stability < 25 else ("MEDIUM" if direction_stability < 35 else "LOW")
+
+        # dominant_stability_pct = how often the dominant direction won.
+        # For bullish: dominant wins = 100 - bearish_wins_pct
+        # For bearish: dominant wins = bearish_wins_pct
+        dominant_stability = (
+            round(100 - direction_stability, 1) if dominant == "bullish"
+            else round(direction_stability, 1)
+        )
 
         return MonteCarloConfidence(
             mean_confidence=round(mean, 1),
             confidence_std=round(std, 1),
             direction_stability_pct=round(direction_stability, 1),
+            dominant_stability_pct=dominant_stability,
             is_stable=is_stable,
             dominant_direction=dominant,
             conviction_label=conviction,
@@ -162,6 +192,7 @@ def run_confidence_monte_carlo(
             mean_confidence=0,
             confidence_std=0,
             direction_stability_pct=50,
+            dominant_stability_pct=50,
             is_stable=False,
             dominant_direction="neutral",
             conviction_label="LOW",
@@ -174,27 +205,30 @@ def run_price_range_monte_carlo(
     ticker: str = "BHP.AX",
     days: int = 7,
     n_simulations: int = 10000,
+    price_series=None,
 ) -> MonteCarloPriceRange:
     """
-    Simulates 10,000 possible price paths over next 7 days.
+    Simulates 10,000 possible price paths over next N days.
     Returns probability-weighted price range.
 
     direction_probability: 0–1 where >0.5 means bearish call.
+    price_series: optional pandas Series of daily closes for volatility calibration.
+                  When provided, EWMA-blended volatility replaces the hardcoded table.
     """
     try:
         rng = np.random.default_rng(seed=42)
 
-        # Model daily volatility — calibrated so 90% CI spans ~10% over 7 days.
-        # (Tighter than realised vol to produce readable user-facing price ranges.)
-        DAILY_VOL = {
-            "BHP.AX": 0.011,
-            "CBA.AX": 0.007,
-            "RIO.AX": 0.012,
-            "FMG.AX": 0.015,
-            "WDS.AX": 0.009,
-            "STO.AX": 0.010,
-        }
-        vol = DAILY_VOL.get(ticker, 0.011)
+        # Calibrate volatility from recent price history when available;
+        # fall back to the hardcoded per-ticker table otherwise.
+        timeframe = f"{days}_day"
+        if price_series is not None and len(price_series) >= 22:
+            from services.game_theory.volatility_calibration import calibrate_daily_vol
+            vol, regime = calibrate_daily_vol(price_series, timeframe=timeframe)
+            logger.info("[MC PRICE] %s calibrated vol=%.5f regime=%s", ticker, vol, regime)
+        else:
+            from services.game_theory.volatility_calibration import fallback_daily_vol
+            vol = fallback_daily_vol(ticker)
+            logger.info("[MC PRICE] %s using fallback vol=%.5f", ticker, vol)
 
         # Directional bias: direction_probability > 0.5 = bearish = negative drift.
         # Coefficient chosen so prob_down_5pct > 50% at direction_prob ≈ 0.69.
@@ -205,6 +239,37 @@ def run_price_range_monte_carlo(
         daily_returns = rng.normal(daily_bias, vol, size=(n_simulations, days))
         cumulative_returns = np.cumprod(1 + daily_returns, axis=1)
         final_prices = current_price * cumulative_returns[:, -1]
+
+        # Fractional returns for CVaR (reuse the same simulation paths)
+        frac_returns = cumulative_returns[:, -1] - 1
+
+        # ── CVaR risk metrics ─────────────────────────────────────────────
+        from services.game_theory.cvar_optimizer import CVaROptimizer
+        cvar_opt = CVaROptimizer()
+        var_95 = round(cvar_opt.calculate_var(frac_returns, 0.95), 2)
+        cvar_95 = round(cvar_opt.calculate_cvar(frac_returns, 0.95), 2)
+        var_99 = round(cvar_opt.calculate_var(frac_returns, 0.99), 2)
+        cvar_99 = round(cvar_opt.calculate_cvar(frac_returns, 0.99), 2)
+
+        expected_return = round(float(np.mean(frac_returns)) * 100, 2)
+        prob_profit = round(float(np.mean(frac_returns > 0)) * 100, 1)
+
+        risk_adjusted_score = round(
+            expected_return / abs(cvar_95) if abs(cvar_95) > 0.01 else 0.0, 3
+        )
+        tail_risk_ratio = round(
+            abs(cvar_95) / abs(var_95) if abs(var_95) > 0.01 else 1.0, 2
+        )
+
+        cvar_abs = abs(cvar_95)
+        if cvar_abs < 3:
+            risk_level = "LOW"
+        elif cvar_abs < 7:
+            risk_level = "MEDIUM"
+        elif cvar_abs < 12:
+            risk_level = "HIGH"
+        else:
+            risk_level = "VERY HIGH"
 
         return MonteCarloPriceRange(
             current_price=round(current_price, 2),
@@ -228,6 +293,17 @@ def run_price_range_monte_carlo(
             prob_up_10pct=round(
                 float(np.mean(final_prices > current_price * 1.10)) * 100, 1
             ),
+            var_95=var_95,
+            cvar_95=cvar_95,
+            var_99=var_99,
+            cvar_99=cvar_99,
+            expected_return=expected_return,
+            prob_profit=prob_profit,
+            risk_adjusted_score=risk_adjusted_score,
+            tail_risk_ratio=tail_risk_ratio,
+            risk_level=risk_level,
+            var_interpretation=f"95% confident loss won't exceed {abs(var_95):.1f}%",
+            cvar_interpretation=f"In worst 5% of scenarios, avg loss is {abs(cvar_95):.1f}%",
         )
 
     except Exception as e:

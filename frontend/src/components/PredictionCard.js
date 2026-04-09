@@ -1,6 +1,50 @@
 import React from 'react';
 import './PredictionCard.css';
 
+// Keywords that flag a signal as irrelevant for a given sector.
+// Backend already filters before LLM call; this is a UI safety net.
+const SECTOR_SIGNAL_BLOCKLIST = {
+  Financials:   ['iron ore', 'iron_ore', 'copper', 'freight', 'diesel', 'pilbara', 'lng', 'aluminium'],
+  Materials:    ['nim', 'mortgage', 'credit growth', 'rba cash rate', 'plasma'],
+  Energy:       ['nim', 'mortgage', 'iron ore', 'copper', 'plasma'],
+  Healthcare:   ['iron ore', 'nim', 'mortgage', 'freight', 'diesel'],
+  'Consumer Staples': ['iron ore', 'china pmi', 'nim', 'mortgage'],
+  Technology:   ['iron ore', 'china pmi', 'nim', 'mortgage', 'diesel', 'freight'],
+  'Real Estate': ['iron ore', 'china pmi', 'nim', 'plasma'],
+  // Rare earths: iron ore and base metals are not relevant
+  'Rare Earths':  ['iron ore', 'iron_ore', 'copper', 'coal', 'steel', 'pilbara', 'nim', 'mortgage', 'china pmi'],
+  // Lithium: iron ore not relevant (except MIN.AX which maps to Materials)
+  Lithium:      ['iron ore', 'iron_ore', 'copper', 'coal', 'steel', 'nim', 'mortgage'],
+};
+
+const TICKER_SECTOR = {
+  'BHP.AX': 'Materials', 'RIO.AX': 'Materials', 'FMG.AX': 'Materials', 'MIN.AX': 'Materials',
+  'WDS.AX': 'Energy', 'STO.AX': 'Energy',
+  'CBA.AX': 'Financials', 'NAB.AX': 'Financials', 'WBC.AX': 'Financials', 'ANZ.AX': 'Financials',
+  'CSL.AX': 'Healthcare',
+  'WOW.AX': 'Consumer Staples', 'COL.AX': 'Consumer Staples',
+  'XRO.AX': 'Technology',
+  'GMG.AX': 'Real Estate',
+  // Rare earths & critical minerals
+  'LYC.AX': 'Rare Earths',
+  'ILU.AX': 'Rare Earths',
+  // Lithium & battery metals
+  'PLS.AX': 'Lithium',
+  'IGO.AX': 'Lithium',
+  'SYR.AX': 'Lithium',
+};
+
+function filterKeySignals(signals, ticker) {
+  if (!signals || !ticker) return signals;
+  const sector = TICKER_SECTOR[ticker];
+  const blocklist = sector ? (SECTOR_SIGNAL_BLOCKLIST[sector] || []) : [];
+  if (blocklist.length === 0) return signals;
+  return signals.filter(s => {
+    const text = ((s.signal_type || '') + ' ' + (s.description || '')).toLowerCase();
+    return !blocklist.some(kw => text.includes(kw));
+  });
+}
+
 function PredictionCard({ prediction, tradeExecution, accuracyStats, livePrice, reasoningData, onClose }) {
   if (!prediction) return null;
 
@@ -31,16 +75,48 @@ function PredictionCard({ prediction, tradeExecution, accuracyStats, livePrice, 
   const confidenceDisplay = isNoSignal ? 'No clear signal' : `${confidencePercent}%`;
   const confidenceColor   = isNoSignal ? '#666666' : dirColor;
 
-  // Derive actionable recommendation (overridden by actual trade execution action if present)
+  // Signal grade from backend (A/B/C/D/F) — gate all actionable recommendations.
+  const signalGrade = prediction.signal_grade || null;
+  const isBlockedSignal = signalGrade === 'D' || signalGrade === 'F';
+  const isWaitSignal    = !isBlockedSignal && signalGrade === 'C';
+
+  // Use backend filtered recommendation (canonical `recommendation` field first).
+  // Falls back through signal_recommendation → legacy derivation.
   const recommendation = tradeExecution?.action
-    || (prediction.direction === 'UP'   ? 'BUY'
-      : prediction.direction === 'DOWN' ? 'SELL'
-      : confidencePercent < 30         ? 'WAIT'
-      :                                  'HOLD');
-  const recColor = recommendation === 'BUY'  ? '#00ff88'
-                 : recommendation === 'SELL' ? '#ff3366'
-                 : recommendation === 'WAIT' ? '#ffaa00'
-                 :                            '#888888';
+    || prediction.recommendation
+    || prediction.signal_recommendation
+    || (isBlockedSignal
+        ? 'HOLD'
+        : prediction.direction === 'UP'   ? 'BUY'
+        : prediction.direction === 'DOWN' ? 'SELL'
+        : confidencePercent < 30         ? 'WAIT'
+        :                                  'HOLD');
+
+  // Show "was X" badge when the backend filtered the original signal
+  const originalRec  = prediction.original_recommendation || null;
+  const wasFiltered  = originalRec && originalRec !== recommendation;
+  const isActionable = prediction.is_actionable !== undefined
+    ? prediction.is_actionable
+    : !isBlockedSignal && recommendation !== 'HOLD' && recommendation !== 'WAIT';
+
+  const recColor = recommendation === 'BUY'   ? '#00ff88'
+                 : recommendation === 'SELL'  ? '#ff3366'
+                 : recommendation === 'WAIT'  ? '#ffaa00'
+                 : recommendation === 'AVOID' ? '#ff8800'
+                 :                             '#888888';
+
+  // Grade badge colours
+  const gradeColor = signalGrade === 'A' ? '#00ff88'
+                   : signalGrade === 'B' ? '#66ffaa'
+                   : signalGrade === 'C' ? '#ffcc00'
+                   : signalGrade === 'D' ? '#ff8800'
+                   : signalGrade === 'F' ? '#ff3366'
+                   : '#666666';
+  const gradeLabel = prediction.signal_grade_label || (signalGrade ? `Grade ${signalGrade}` : null);
+
+  // Block reasons and warnings from filter_signal()
+  const blockReasons  = prediction.signal_block_reasons  || [];
+  const signalWarnings = prediction.signal_warnings || [];
 
   return (
     <div className="prediction-modal-overlay" onClick={onClose}>
@@ -57,28 +133,37 @@ function PredictionCard({ prediction, tradeExecution, accuracyStats, livePrice, 
 
         <div className="pred-modal-body">
 
-          {/* Hero row */}
+          {/* ── Direction hero ── */}
+          <div className={`pred-direction-hero hero-${prediction.direction === 'UP' ? 'up' : prediction.direction === 'DOWN' ? 'down' : 'neutral'}`}>
+            <span className="pred-hero-icon">{getDirectionIcon(prediction.direction)}</span>
+            <span className="pred-hero-label">{prediction.direction === 'UP' ? 'BULLISH' : prediction.direction === 'DOWN' ? 'BEARISH' : 'NEUTRAL'}</span>
+          </div>
+
+          {/* Hero row — ticker + horizon + action */}
           <div className="pred-hero">
             <div className="pred-ticker">{prediction.ticker}</div>
-            <div className="pred-direction" style={{ color: dirColor }}>
-              <span className="pred-dir-icon">{getDirectionIcon(prediction.direction)}</span>
-              <span className="pred-dir-text">{prediction.direction}</span>
-            </div>
             <div className="pred-horizon-badge">
               {prediction.time_horizon === 'd7' ? '7-Day Outlook' : prediction.time_horizon}
             </div>
-            <div className="pred-trade-action" style={{
-              background: `${recColor}18`,
-              color: recColor,
-              border: `1px solid ${recColor}44`,
-              padding: '4px 14px',
-              borderRadius: '6px',
-              fontFamily: 'monospace',
-              fontWeight: 800,
-              fontSize: '13px',
-              letterSpacing: '1.5px',
-            }}>
-              {recommendation}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
+              <div className="pred-trade-action" style={{
+                background: `${recColor}18`,
+                color: recColor,
+                border: `1px solid ${recColor}44`,
+                padding: '4px 14px',
+                borderRadius: '6px',
+                fontFamily: 'monospace',
+                fontWeight: 800,
+                fontSize: '13px',
+                letterSpacing: '1.5px',
+              }}>
+                {recommendation}
+              </div>
+              {wasFiltered && (
+                <div style={{ color: '#666', fontSize: '10px', fontFamily: 'monospace' }}>
+                  was {originalRec}
+                </div>
+              )}
             </div>
           </div>
 
@@ -97,18 +182,154 @@ function PredictionCard({ prediction, tradeExecution, accuracyStats, livePrice, 
             )}
           </div>
 
-          {/* Confidence */}
-          <div className="pred-section">
-            <div className="pred-section-title">
-              Confidence
-              <span className="pred-conf-pct" style={{ color: confidenceColor }}>{confidenceDisplay}</span>
-            </div>
-            {!isNoSignal && (
-              <div className="pred-conf-bar">
-                <div className="pred-conf-fill" style={{ width: `${confidencePercent}%`, background: confidenceColor }} />
+          {/* ── Signal Quality Grade banner (D/F = blocked) ──────────────── */}
+          {isBlockedSignal && (
+            <div className="pred-signal-blocked" style={{
+              background: '#1a0a0a',
+              border: '1px solid #ff3366',
+              borderRadius: '8px',
+              padding: '10px 16px',
+              marginBottom: '12px',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span style={{ color: '#ff3366', fontSize: '18px', fontWeight: 900 }}>⊘</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ color: '#ff3366', fontWeight: 700, fontSize: '13px', letterSpacing: '1px' }}>
+                    {signalGrade === 'F' ? 'NO ACTIONABLE SIGNAL' : 'CONFLICTING SIGNALS — DO NOT TRADE'}
+                  </div>
+                  {prediction.signal_filter_summary && (
+                    <div style={{ color: '#aaa', fontSize: '11px', marginTop: '2px' }}>
+                      {prediction.signal_filter_summary}
+                    </div>
+                  )}
+                </div>
+                {gradeLabel && (
+                  <span style={{
+                    color: gradeColor, border: `1px solid ${gradeColor}`, borderRadius: '4px',
+                    padding: '2px 8px', fontSize: '11px', fontWeight: 700, fontFamily: 'monospace',
+                    flexShrink: 0,
+                  }}>
+                    {signalGrade}
+                  </span>
+                )}
               </div>
-            )}
+              {blockReasons.length > 0 && (
+                <ul style={{ margin: '8px 0 0 28px', padding: 0, listStyle: 'none' }}>
+                  {blockReasons.map((reason, i) => (
+                    <li key={i} style={{ color: '#cc4444', fontSize: '11px', marginBottom: '2px' }}>
+                      • {reason}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+
+          {/* ── WAIT / monitor-only banner (C-grade) ─────────────────────── */}
+          {isWaitSignal && !isBlockedSignal && (
+            <div style={{
+              background: '#1a1200',
+              border: '1px solid #ffaa00',
+              borderRadius: '8px',
+              padding: '8px 14px',
+              marginBottom: '12px',
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '8px',
+            }}>
+              <span style={{ color: '#ffaa00', fontSize: '15px' }}>⚠</span>
+              <div>
+                <div style={{ color: '#ffaa00', fontWeight: 700, fontSize: '12px', letterSpacing: '0.5px' }}>
+                  MONITOR ONLY — NOT ACTIONABLE
+                </div>
+                {signalWarnings.length > 0 && (
+                  <div style={{ color: '#aa8800', fontSize: '11px', marginTop: '2px' }}>
+                    {signalWarnings[0]}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ── Decision Summary ───────────────────────────────────────────── */}
+          <div className="pred-decision-summary" style={{ opacity: isBlockedSignal ? 0.6 : 1 }}>
+            <div className="pred-ds-grid">
+              <div className="pred-ds-item">
+                <span className="pred-ds-label">Direction</span>
+                <span className={`pred-ds-val pred-ds-dir-${(prediction.direction || 'neutral').toLowerCase()}`}>
+                  {prediction.direction === 'UP' ? '▲ BULLISH'
+                    : prediction.direction === 'DOWN' ? '▼ BEARISH'
+                    : '— NEUTRAL'}
+                </span>
+              </div>
+              <div className="pred-ds-item">
+                <span className="pred-ds-label">Recommendation</span>
+                <span className={`pred-ds-val pred-ds-rec-${recommendation.toLowerCase()}`}>
+                  {recommendation}
+                </span>
+              </div>
+              <div className="pred-ds-item">
+                <span className="pred-ds-label">Confidence</span>
+                <span className="pred-ds-val" style={{ color: confidenceColor }}>
+                  {confidenceDisplay}
+                  {!isNoSignal && (
+                    <small className="pred-ds-sublabel">
+                      {confidencePercent >= 70 ? ' HIGH' : confidencePercent >= 55 ? ' MED' : ' LOW'}
+                    </small>
+                  )}
+                </span>
+              </div>
+              <div className="pred-ds-item">
+                <span className="pred-ds-label">Signal Grade</span>
+                <span className="pred-ds-val" style={{ color: gradeColor, fontFamily: 'monospace', fontWeight: 700 }}>
+                  {gradeLabel || '—'}
+                </span>
+              </div>
+            </div>
+            {/* Why explanation */}
+            <div className="pred-ds-why">
+              {isBlockedSignal && (
+                <span style={{ color: '#ff8800' }}>
+                  Signal quality below trading threshold ({gradeLabel}). Data is shown for informational purposes only — no trade recommended.
+                </span>
+              )}
+              {!isBlockedSignal && prediction.direction === 'NEUTRAL' && (
+                <span>
+                  Agent consensus is split ({prediction.agent_consensus?.up ?? 0} bullish / {prediction.agent_consensus?.down ?? 0} bearish / {prediction.agent_consensus?.neutral ?? 0} neutral) — no clear directional signal. Waiting for stronger conviction.
+                </span>
+              )}
+              {!isBlockedSignal && prediction.direction === 'UP' && recommendation === 'BUY' && (
+                <span>
+                  Strong bullish consensus ({prediction.agent_consensus?.up ?? 0} agents). Entry and risk parameters are in the Trade Execution section below.
+                </span>
+              )}
+              {!isBlockedSignal && prediction.direction === 'DOWN' && recommendation === 'SELL' && (
+                <span>
+                  Strong bearish consensus ({prediction.agent_consensus?.down ?? 0} agents). Exit and risk parameters are in the Trade Execution section below.
+                </span>
+              )}
+              {!isBlockedSignal && prediction.direction === 'UP' && recommendation !== 'BUY' && (
+                <span>
+                  Directional bias is bullish but confidence ({confidencePercent}%) is below the actionable threshold. Monitoring only.
+                </span>
+              )}
+            </div>
           </div>
+
+          {/* ── Reasoning Quality Issues ───────────────────────────────────── */}
+          {reasoningData?.reasoning_quality_issues?.length > 0 && (
+            <div className="pred-quality-warning">
+              <div className="pred-quality-title">Reasoning Quality Notes</div>
+              <ul className="pred-quality-list">
+                {reasoningData.reasoning_quality_issues.map((issue, i) => (
+                  <li key={i}>{issue}</li>
+                ))}
+              </ul>
+              <p className="pred-quality-note">
+                Confidence may have been adjusted down due to the above. See Memory Context for calibration details.
+              </p>
+            </div>
+          )}
 
           {/* Agent consensus */}
           {prediction.agent_consensus && (
@@ -133,32 +354,42 @@ function PredictionCard({ prediction, tradeExecution, accuracyStats, livePrice, 
           {/* Two-column layout for the rest */}
           <div className="pred-two-col">
 
-            {/* Causal chain */}
+            {/* Causal chain — war room visual flow */}
             <div className="pred-section">
               <div className="pred-section-title">Causal Chain</div>
-              <ol className="pred-causal-list">
-                {prediction.causal_chain && prediction.causal_chain.map((step, i) => (
-                  <li key={i}>
-                    <strong>{step.event}</strong>
-                    <p>→ {step.consequence}</p>
-                  </li>
-                ))}
-              </ol>
+              {prediction.causal_chain && prediction.causal_chain.length > 0 ? (
+                <div className="pred-causal-chain">
+                  {prediction.causal_chain.map((step, i) => (
+                    <div key={i} className="pred-chain-step">
+                      <div className="pred-chain-num">{i + 1}</div>
+                      <div className="pred-chain-content">
+                        <div className="pred-chain-title">{step.event}</div>
+                        <p className="pred-chain-desc">{step.consequence}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p style={{ color: '#555', fontSize: '12px' }}>No causal chain data.</p>
+              )}
             </div>
 
             <div>
               {/* Key signals */}
-              {prediction.key_signals && prediction.key_signals.length > 0 && (
-                <div className="pred-section">
-                  <div className="pred-section-title">Key Signals</div>
-                  {prediction.key_signals.map((signal, i) => (
-                    <div key={i} className="pred-signal">
-                      <span className="pred-signal-type">{signal.signal_type}</span>
-                      <p>{signal.description}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
+              {(() => {
+                const signals = filterKeySignals(prediction.key_signals, prediction.ticker);
+                return signals && signals.length > 0 ? (
+                  <div className="pred-section">
+                    <div className="pred-section-title">Key Signals</div>
+                    {signals.map((signal, i) => (
+                      <div key={i} className="pred-signal">
+                        <span className="pred-signal-type">{signal.signal_type}</span>
+                        <p>{signal.description}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : null;
+              })()}
 
               {/* Trend context */}
               {prediction.trend_label && (
@@ -231,32 +462,55 @@ function PredictionCard({ prediction, tradeExecution, accuracyStats, livePrice, 
 
                   {prediction.monte_carlo_confidence && (() => {
                     const mc = prediction.monte_carlo_confidence;
-                    const stabilityColor = mc.is_stable ? '#00ff88' : '#ff8800';
-                    const convictionColor = mc.conviction_label === 'HIGH' ? '#00ff88'
-                      : mc.conviction_label === 'MEDIUM' ? '#ffcc00' : '#ff8800';
+                    // Use dominant_stability_pct (dominant direction win rate) for display.
+                    // direction_stability_pct is bearish_wins% — confusing for bullish signals.
+                    const domStab = mc.dominant_stability_pct ?? (
+                      mc.dominant_direction === 'bullish'
+                        ? (100 - mc.direction_stability_pct)
+                        : mc.direction_stability_pct
+                    );
+                    const stabLabel = domStab >= 70 ? 'STABLE'
+                      : domStab >= 50 ? 'MODERATE'
+                      : domStab >= 30 ? 'UNSTABLE'
+                      : 'FRAGILE';
+                    const stabColor = domStab >= 70 ? '#00ff88'
+                      : domStab >= 50 ? '#58a6ff'
+                      : domStab >= 30 ? '#d29922'
+                      : '#f85149';
+                    const isConvictionBlocked = domStab < 30;
+                    const convictionColor = isConvictionBlocked ? '#666'
+                      : mc.conviction_label === 'HIGH' ? '#00ff88'
+                      : mc.conviction_label === 'MEDIUM' ? '#ffcc00'
+                      : '#ff8800';
                     return (
                       <div className="pred-mc-confidence">
                         <div className="pred-mc-row">
                           <span className="pred-mc-label">Signal Stability</span>
-                          <span className="pred-mc-value" style={{ color: stabilityColor }}>
-                            {mc.direction_stability_pct}% — {mc.is_stable ? 'STABLE' : 'FRAGILE'}
+                          <span className="pred-mc-value" style={{ color: stabColor }}>
+                            {domStab}% — {stabLabel}
                           </span>
                         </div>
                         <div className="pred-mc-row">
                           <span className="pred-mc-label">Conviction</span>
                           <span className="pred-mc-value" style={{ color: convictionColor }}>
-                            {mc.conviction_label} · {mc.dominant_direction.toUpperCase()}
+                            {isConvictionBlocked
+                              ? `BLOCKED — stability ${domStab}% below 30% minimum`
+                              : `${mc.conviction_label} · ${mc.dominant_direction.toUpperCase()}`
+                            }
                           </span>
                         </div>
                         <div className="pred-mc-row">
-                          <span className="pred-mc-label">Confidence Range</span>
+                          <span className="pred-mc-label">MC Vote Score</span>
                           <span className="pred-mc-value" style={{ color: '#ccc' }}>
-                            {mc.mean_confidence}% ± {mc.confidence_std}% across 1,000 scenarios
+                            {mc.mean_confidence}% ± {mc.confidence_std}%
+                            <span style={{ color: '#555', fontSize: '10px', marginLeft: '4px' }}>
+                              (internal vote metric — not pipeline confidence)
+                            </span>
                           </span>
                         </div>
                         {!mc.is_stable && (
                           <div className="pred-mc-warning">
-                            ⚠ Fragile signal — confidence reduced 25% due to MC instability
+                            ⚠ {stabLabel} signal — confidence reduced 25% due to MC instability
                           </div>
                         )}
                       </div>
@@ -265,14 +519,34 @@ function PredictionCard({ prediction, tradeExecution, accuracyStats, livePrice, 
 
                   {prediction.monte_carlo_price && (() => {
                     const mp = prediction.monte_carlo_price;
-                    const changeColor = mp.expected_change_pct >= 0 ? '#00ff88' : '#ff3366';
+                    const ptv = prediction.price_target_validation;
+                    const targetCapped = ptv && !ptv.is_realistic;
+                    const displayChangePct = targetCapped
+                      ? ((ptv.adjusted_target - mp.current_price) / mp.current_price * 100).toFixed(2)
+                      : mp.expected_change_pct;
+                    const changeColor = displayChangePct >= 0 ? '#00ff88' : '#ff3366';
                     return (
                       <div className="pred-mc-price">
+                        {targetCapped && (
+                          <div style={{
+                            background: '#1a1200', border: '1px solid #ff8800',
+                            borderRadius: '4px', padding: '6px 10px', marginBottom: '8px',
+                            color: '#ff8800', fontSize: '11px',
+                          }}>
+                            ⚠ {ptv.warning}
+                          </div>
+                        )}
                         <div className="pred-mc-price-header">
                           7-Day Price Range · {mp.current_price} → {' '}
                           <span style={{ color: changeColor }}>
-                            {mp.expected_price_7d} ({mp.expected_change_pct > 0 ? '+' : ''}{mp.expected_change_pct}%)
+                            {targetCapped ? ptv.adjusted_target.toFixed(2) : mp.expected_price_7d}
+                            {' '}({displayChangePct > 0 ? '+' : ''}{displayChangePct}%)
                           </span>
+                          {targetCapped && (
+                            <span style={{ color: '#666', fontSize: '10px', marginLeft: '6px' }}>
+                              [capped from {mp.expected_change_pct > 0 ? '+' : ''}{mp.expected_change_pct}%]
+                            </span>
+                          )}
                         </div>
                         <div className="pred-mc-ranges">
                           <div className="pred-mc-range-row">
@@ -307,6 +581,92 @@ function PredictionCard({ prediction, tradeExecution, accuracyStats, livePrice, 
                   })()}
                 </div>
               )}
+
+              {/* CVaR Tail Risk Analysis */}
+              {prediction.monte_carlo_price?.risk_analysis && (() => {
+                const ra = prediction.monte_carlo_price.risk_analysis;
+                const riskLevelClass = (ra.risk_level || 'medium').toLowerCase().replace(' ', '-');
+                const rasFill = Math.min(100, Math.max(0, (ra.risk_adjusted_score + 1) * 50));
+                const rasColor = ra.risk_adjusted_score > 0 ? '#10b981' : '#ef4444';
+                return (
+                  <div className="risk-analysis-card">
+                    <div className="risk-analysis-title">
+                      <span>Tail Risk Analysis</span>
+                      <span className={`risk-badge risk-badge-${riskLevelClass}`}>
+                        {ra.risk_level}
+                      </span>
+                    </div>
+
+                    <div className="risk-metrics-grid">
+                      <div className="risk-metric">
+                        <div className="risk-metric-label">VaR 95%</div>
+                        <div className={`risk-metric-value ${ra.var_95 < 0 ? 'risk-neg' : 'risk-pos'}`}>
+                          {ra.var_95 > 0 ? '+' : ''}{ra.var_95}%
+                        </div>
+                        <div className="risk-metric-desc">{ra.var_interpretation}</div>
+                      </div>
+
+                      <div className="risk-metric risk-metric-highlight">
+                        <div className="risk-metric-label">CVaR 95%</div>
+                        <div className={`risk-metric-value ${ra.cvar_95 < 0 ? 'risk-neg' : 'risk-pos'}`}>
+                          {ra.cvar_95 > 0 ? '+' : ''}{ra.cvar_95}%
+                        </div>
+                        <div className="risk-metric-desc">{ra.cvar_interpretation}</div>
+                      </div>
+
+                      <div className="risk-metric">
+                        <div className="risk-metric-label">Prob. of Profit</div>
+                        <div className={`risk-metric-value ${ra.prob_profit >= 50 ? 'risk-pos' : 'risk-neg'}`}>
+                          {ra.prob_profit}%
+                        </div>
+                        <div className="risk-metric-desc">Chance of positive return</div>
+                      </div>
+
+                      <div className="risk-metric">
+                        <div className="risk-metric-label">Expected Return</div>
+                        <div className={`risk-metric-value ${ra.expected_return >= 0 ? 'risk-pos' : 'risk-neg'}`}>
+                          {ra.expected_return > 0 ? '+' : ''}{ra.expected_return}%
+                        </div>
+                        <div className="risk-metric-desc">Mean across 10,000 scenarios</div>
+                      </div>
+                    </div>
+
+                    {/* Explain when high prob-profit is blocked by signal quality */}
+                    {!isActionable && ra.prob_profit >= 60 && (
+                      <div style={{
+                        margin: '8px 0',
+                        padding: '10px 12px',
+                        background: 'rgba(210, 153, 34, 0.08)',
+                        border: '1px solid rgba(210, 153, 34, 0.3)',
+                        borderRadius: '6px',
+                        color: '#d29922',
+                        fontSize: '12px',
+                        lineHeight: '1.5',
+                      }}>
+                        ⚠ Despite {ra.prob_profit}% probability of profit, this trade is <strong>not actionable</strong>.
+                        {blockReasons.length > 0 && (
+                          <span> Blocked: {blockReasons[0]}.</span>
+                        )}
+                        {' '}High probability from an unreliable signal is not sufficient for a trade.
+                      </div>
+                    )}
+
+                    <div className="risk-ras-row">
+                      <span className="risk-ras-label">Risk-Adjusted Score</span>
+                      <div className="risk-ras-bar">
+                        <div className="risk-ras-fill" style={{ width: `${rasFill}%`, backgroundColor: rasColor }} />
+                      </div>
+                      <span className="risk-ras-value">{ra.risk_adjusted_score.toFixed(2)}</span>
+                    </div>
+
+                    {ra.tail_risk_ratio > 1.5 && (
+                      <div className="risk-tail-warning">
+                        <span>Heavy tail risk — extreme losses more likely than normal distribution suggests</span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* Contrarian view */}
               {prediction.contrarian_view && (
@@ -405,7 +765,22 @@ function PredictionCard({ prediction, tradeExecution, accuracyStats, livePrice, 
           )}
 
           {/* ── Trade Execution ────────────────────────────────────────────── */}
-          {tradeExecution && (
+          {/* Never render a live trade plan when the signal is blocked (grade D/F). */}
+          {tradeExecution && (isBlockedSignal || !isActionable) ? (
+            <div className="pred-section pred-trade-wait-section">
+              <div className="pred-section-title">Trade Execution Plan</div>
+              <div className="pred-trade-wait-state">
+                <span className="pred-trade-wait-icon">⊘</span>
+                <div className="pred-trade-wait-label" style={{ color: '#ff3366' }}>
+                  NO TRADE — Signal below threshold
+                </div>
+                <p className="pred-trade-wait-reason">
+                  Grade {signalGrade} signal is not actionable. No trade parameters have been generated.
+                  {blockReasons.length > 0 && ` Blocked: ${blockReasons[0]}`}
+                </p>
+              </div>
+            </div>
+          ) : tradeExecution ? (
             <div className="pred-section pred-trade-section">
               <div className="pred-section-title">
                 Trade Execution Plan
@@ -492,75 +867,161 @@ function PredictionCard({ prediction, tradeExecution, accuracyStats, livePrice, 
                 </div>
               )}
             </div>
-          )}
-
-          {/* ── Memory Context (from reasoning synthesizer) ────────────────── */}
-          {reasoningData?.memory_applied && (
-            <div className="pred-section pred-accuracy-section">
-              <div className="pred-section-title">Memory Context</div>
-              {reasoningData.memory_summary && (
-                <p style={{ margin: 0, fontSize: '12px', color: '#aaa', lineHeight: 1.6 }}>
-                  {reasoningData.memory_summary}
+          ) : (
+            <div className="pred-section pred-trade-wait-section">
+              <div className="pred-section-title">Trade Execution Plan</div>
+              <div className="pred-trade-wait-state">
+                <span className="pred-trade-wait-icon">{recommendation === 'WAIT' ? '⏳' : '⏸'}</span>
+                <div className="pred-trade-wait-label">{recommendation} — No Trade Parameters</div>
+                <p className="pred-trade-wait-reason">
+                  {recommendation === 'WAIT'
+                    ? 'Signal strength is below the actionable threshold. Wait for clearer directional conviction before entering a position.'
+                    : 'Market direction is neutral. No entry, stop-loss, or take-profit parameters have been generated for this signal.'}
                 </p>
-              )}
-              {reasoningData.confidence_adjustment != null && reasoningData.confidence_adjustment !== 0 && (
-                <p style={{ margin: '6px 0 0 0', fontSize: '11px', color: '#ffaa00' }}>
-                  ⚖ Confidence adjusted {reasoningData.confidence_adjustment > 0 ? '+' : ''}{reasoningData.confidence_adjustment} pts based on historical accuracy
-                </p>
-              )}
-              {reasoningData.signal_broadcast && (
-                <p style={{ margin: '4px 0 0 0', fontSize: '11px', color: '#3399ff' }}>
-                  📡 Signal broadcast to subscribers
-                </p>
-              )}
+              </div>
             </div>
           )}
 
           {/* ── Accuracy Stats ─────────────────────────────────────────────── */}
-          {accuracyStats && accuracyStats.total_predictions > 0 && (
+          {accuracyStats && (
             <div className="pred-section pred-accuracy-section">
               <div className="pred-section-title">
                 Historical Accuracy — {prediction.ticker}
               </div>
-              <div className="pred-accuracy-grid">
-                <div className="pred-acc-item">
-                  <span className="pred-acc-val" style={{
-                    color: (accuracyStats.accuracy_pct ?? 0) >= 60 ? '#00ff88'
-                         : (accuracyStats.accuracy_pct ?? 0) >= 40 ? '#ffcc00'
-                         : '#ff3366'
-                  }}>
-                    {accuracyStats.accuracy_pct ?? 0}%
-                  </span>
-                  <span className="pred-acc-label">Accuracy</span>
+              {accuracyStats.total_predictions === 0 ? (
+                <div className="pred-acc-empty">
+                  <span className="pred-acc-empty-icon">📊</span>
+                  <span className="pred-acc-empty-label">No Track Record Yet</span>
+                  <p className="pred-acc-empty-note">
+                    This is the first prediction for {prediction.ticker}. Accuracy stats will build as predictions resolve over the coming days.
+                  </p>
                 </div>
-                <div className="pred-acc-item">
-                  <span className="pred-acc-val">{accuracyStats.resolved_predictions ?? 0}</span>
-                  <span className="pred-acc-label">Resolved</span>
-                </div>
-                <div className="pred-acc-item">
-                  <span className="pred-acc-val" style={{ color: '#00ff88' }}>{accuracyStats.correct ?? 0}</span>
-                  <span className="pred-acc-label">Correct</span>
-                </div>
-                <div className="pred-acc-item">
-                  <span className="pred-acc-val" style={{ color: '#ff3366' }}>
-                    {(accuracyStats.incorrect ?? 0)}
-                  </span>
-                  <span className="pred-acc-label">Incorrect</span>
-                </div>
-                {accuracyStats.avg_confidence != null && (
-                  <div className="pred-acc-item">
-                    <span className="pred-acc-val">{accuracyStats.avg_confidence}%</span>
-                    <span className="pred-acc-label">Avg Conf</span>
+              ) : (
+                <>
+                  <div className="pred-accuracy-grid">
+                    <div className="pred-acc-item">
+                      <span className="pred-acc-val" style={{
+                        color: (accuracyStats.accuracy_pct ?? 0) >= 60 ? '#00ff88'
+                             : (accuracyStats.accuracy_pct ?? 0) >= 40 ? '#ffcc00'
+                             : '#ff3366'
+                      }}>
+                        {accuracyStats.accuracy_pct ?? 0}%
+                      </span>
+                      <span className="pred-acc-label">Accuracy</span>
+                    </div>
+                    <div className="pred-acc-item">
+                      <span className="pred-acc-val">{accuracyStats.resolved_predictions ?? 0}</span>
+                      <span className="pred-acc-label">Resolved</span>
+                    </div>
+                    <div className="pred-acc-item">
+                      <span className="pred-acc-val" style={{ color: '#00ff88' }}>{accuracyStats.correct ?? 0}</span>
+                      <span className="pred-acc-label">Correct</span>
+                    </div>
+                    <div className="pred-acc-item">
+                      <span className="pred-acc-val" style={{ color: '#ff3366' }}>
+                        {accuracyStats.incorrect ?? 0}
+                      </span>
+                      <span className="pred-acc-label">Incorrect</span>
+                    </div>
+                    {accuracyStats.avg_confidence != null && (
+                      <div className="pred-acc-item">
+                        <span className="pred-acc-val">{accuracyStats.avg_confidence}%</span>
+                        <span className="pred-acc-label">Avg Conf</span>
+                      </div>
+                    )}
+                    <div className="pred-acc-item">
+                      <span className="pred-acc-val">{accuracyStats.total_predictions ?? 0}</span>
+                      <span className="pred-acc-label">Total</span>
+                    </div>
                   </div>
-                )}
-                <div className="pred-acc-item">
-                  <span className="pred-acc-val">{accuracyStats.total_predictions ?? 0}</span>
-                  <span className="pred-acc-label">Total</span>
-                </div>
-              </div>
-              {accuracyStats.total_predictions < 5 && (
-                <div className="pred-acc-note">Building track record — more predictions needed for reliable stats</div>
+                  {accuracyStats.total_predictions < 5 && (
+                    <div className="pred-acc-note">Building track record — more predictions needed for reliable stats</div>
+                  )}
+                </>
               )}
+            </div>
+          )}
+
+          {/* ── Quality Assessment ─────────────────────────────────────── */}
+          {prediction.quality_assessment && (prediction.quality_assessment.issues?.length > 0 || prediction.quality_assessment.warnings?.length > 0) && (
+            <div className="pred-section pred-qa-section">
+              <div className="pred-section-title">Signal Quality Assessment</div>
+              {(() => {
+                const qa = prediction.quality_assessment;
+                const qaGrade = qa.grade || 'C';
+                const qaGradeColor = qaGrade === 'A' ? '#00ff88'
+                  : qaGrade === 'B' ? '#66ffaa'
+                  : qaGrade === 'C' ? '#ffcc00'
+                  : '#ff6644';
+                const chainQual = qa.causal_chain_quality || 'ADEQUATE';
+                const chainColor = chainQual === 'ADEQUATE' ? '#66ffaa'
+                  : chainQual === 'SPARSE' ? '#ffcc00'
+                  : '#ff6644';
+                return (
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '10px' }}>
+                      <div style={{
+                        background: `${qaGradeColor}18`,
+                        border: `1px solid ${qaGradeColor}44`,
+                        borderRadius: '6px',
+                        padding: '4px 14px',
+                        color: qaGradeColor,
+                        fontFamily: 'monospace',
+                        fontWeight: 800,
+                        fontSize: '18px',
+                        letterSpacing: '1px',
+                      }}>
+                        {qaGrade}
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ color: '#ccc', fontSize: '12px' }}>{qa.summary}</div>
+                        {qa.score != null && (
+                          <div style={{ color: '#666', fontSize: '11px', marginTop: '2px', fontFamily: 'monospace' }}>
+                            Confidence: {qa.score}% | Chain: <span style={{ color: chainColor }}>{chainQual}</span>
+                            {qa.historical_accuracy_pct != null && (
+                              <span> | Hist. accuracy: <span style={{ color: qa.historical_accuracy_pct >= 40 ? '#66ffaa' : '#ff6644' }}>{qa.historical_accuracy_pct}%</span></span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    {qa.issues?.length > 0 && (
+                      <div style={{ marginBottom: '6px' }}>
+                        {qa.issues.map((issue, i) => (
+                          <div key={i} style={{
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            gap: '6px',
+                            fontSize: '11px',
+                            color: '#cc6644',
+                            marginBottom: '3px',
+                          }}>
+                            <span style={{ flexShrink: 0, marginTop: '1px' }}>✗</span>
+                            <span>{issue}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {qa.warnings?.length > 0 && (
+                      <div>
+                        {qa.warnings.map((warn, i) => (
+                          <div key={i} style={{
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            gap: '6px',
+                            fontSize: '11px',
+                            color: '#aa8800',
+                            marginBottom: '3px',
+                          }}>
+                            <span style={{ flexShrink: 0, marginTop: '1px' }}>⚠</span>
+                            <span>{warn}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           )}
 
@@ -575,6 +1036,23 @@ function PredictionCard({ prediction, tradeExecution, accuracyStats, livePrice, 
                     {reasoningData.confidence_adjustment !== 0 && reasoningData.confidence_adjustment != null && (
                       <div className="pred-memory-calibration">
                         Confidence calibration: {reasoningData.confidence_adjustment > 0 ? '+' : ''}{reasoningData.confidence_adjustment} pts based on past accuracy
+                      </div>
+                    )}
+                    {reasoningData.adjustments_applied?.length > 0 && (
+                      <div className="pred-memory-adjustments">
+                        {reasoningData.adjustments_applied.map((adj, i) => (
+                          <div key={i} className="pred-memory-adj-item">
+                            {adj.type === 'confidence_calibration' && (
+                              <span>Confidence: {adj.original}% → {adj.adjusted}% — {adj.reason}</span>
+                            )}
+                            {adj.type === 'low_effectiveness_cap' && (
+                              <span className="pred-memory-adj-warn">Capped at {adj.adjusted}%: {adj.reason}</span>
+                            )}
+                            {adj.type === 'quality_cap' && (
+                              <span className="pred-memory-adj-warn">Quality cap: {adj.original}% → {adj.adjusted}% ({adj.reason})</span>
+                            )}
+                          </div>
+                        ))}
                       </div>
                     )}
                   </>
@@ -593,16 +1071,28 @@ function PredictionCard({ prediction, tradeExecution, accuracyStats, livePrice, 
           {reasoningData && (
             <div className="pred-tracking-footer">
               {reasoningData.prediction_id && (
-                <span className="pred-tracking-id">ID: {reasoningData.prediction_id}</span>
+                <span className="pred-tracking-id">
+                  ID: {reasoningData.prediction_id.substring(0, 8)}…
+                </span>
               )}
+              <span className="pred-tracking-divider">|</span>
               {reasoningData.signal_broadcast
-                ? <span className="pred-tracking-broadcast">📡 Broadcast</span>
-                : <span style={{ fontSize: '10px', color: '#444' }}>No broadcast</span>
+                ? <span className="pred-tracking-broadcast">📡 Broadcast: Sent</span>
+                : <span className="pred-tracking-inactive">📴 Broadcast: Not sent</span>
               }
+              <span className="pred-tracking-divider">|</span>
               {reasoningData.memory_applied
-                ? <span className="pred-tracking-memory">🧠 Memory applied</span>
-                : <span style={{ fontSize: '10px', color: '#444' }}>No memory</span>
+                ? <span className="pred-tracking-memory">🧠 Memory: Applied</span>
+                : <span className="pred-tracking-inactive">💭 Memory: Building…</span>
               }
+              {reasoningData.processing_time_ms != null && (
+                <>
+                  <span className="pred-tracking-divider">|</span>
+                  <span className="pred-tracking-timing">
+                    ⚡ {Math.round(reasoningData.processing_time_ms)}ms
+                  </span>
+                </>
+              )}
             </div>
           )}
         </div>

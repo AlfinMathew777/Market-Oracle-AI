@@ -448,6 +448,82 @@ _ASX_SECTOR_IMPACTS = {
 }
 
 
+# ── Ceasefire scenario overrides ─────────────────────────────────────────────
+# When Hormuz ceasefire is active, LNG premium disappears — predictions flip to NEUTRAL.
+# Each entry carries collapse_direction/confidence for the "What if ceasefire collapses?" toggle.
+
+_HORMUZ_CEASEFIRE_ASX = [
+    {
+        "ticker": "WDS.AX",
+        "direction": "NEUTRAL",
+        "confidence": 0.55,
+        "impact_order": "primary",
+        "confidence_cap": 0.75,
+        "signal_count": 1,
+        "primary_reason": "Ceasefire reopening Hormuz — Qatar LNG resuming exports. Australian LNG premium disappearing. Oil prices falling.",
+        "collapse_direction": "UP",
+        "collapse_confidence": 0.64,
+        "collapse_reason": "Hormuz carries Qatar LNG — disruption removes 20% of global LNG supply. Australian LNG becomes premium alternative.",
+    },
+    {
+        "ticker": "STO.AX",
+        "direction": "NEUTRAL",
+        "confidence": 0.55,
+        "impact_order": "primary",
+        "confidence_cap": 0.75,
+        "signal_count": 1,
+        "primary_reason": "Ceasefire reopening Hormuz — Qatar LNG resuming exports. Australian LNG premium disappearing. Oil prices falling.",
+        "collapse_direction": "UP",
+        "collapse_confidence": 0.64,
+        "collapse_reason": "Hormuz carries Qatar LNG — disruption removes 20% of global LNG supply. Australian LNG becomes premium alternative.",
+    },
+    {
+        "ticker": "CBA.AX",
+        "direction": "NEUTRAL",
+        "confidence": 0.45,
+        "impact_order": "secondary",
+        "confidence_cap": 0.55,
+        "signal_count": 1,
+        "primary_reason": "Oil price spike easing — inflationary pressure reducing. Consumer sentiment stabilizing.",
+        "collapse_direction": "NEUTRAL",
+        "collapse_confidence": 0.18,
+        "collapse_reason": "Oil price spike — inflationary pressure — RBA rate hike risk. Consumer sentiment hit.",
+    },
+    {
+        "ticker": "BHP.AX",
+        "direction": "NEUTRAL",
+        "confidence": 0.35,
+        "impact_order": "tertiary",
+        "confidence_cap": 0.35,
+        "signal_count": 1,
+        "primary_reason": "Iron ore via Lombok unaffected. China demand uncertainty easing as oil prices fall.",
+        "collapse_direction": "DOWN",
+        "collapse_confidence": 0.18,
+        "collapse_reason": "Iron ore ships through Lombok not Hormuz. Indirect — China steel demand slows if Chinese energy costs rise.",
+    },
+    {
+        "ticker": "FMG.AX",
+        "direction": "NEUTRAL",
+        "confidence": 0.35,
+        "impact_order": "tertiary",
+        "confidence_cap": 0.35,
+        "signal_count": 1,
+        "primary_reason": "Iron ore via Lombok unaffected. China demand uncertainty easing as oil prices fall.",
+        "collapse_direction": "DOWN",
+        "collapse_confidence": 0.18,
+        "collapse_reason": "Pure Pilbara-China play — China steel demand slowdown if energy costs surge.",
+    },
+]
+
+_HORMUZ_CEASEFIRE_SECTORS = {
+    "Energy":      {"direction": "neutral", "magnitude": 50},
+    "Materials":   {"direction": "neutral", "magnitude": 50},
+    "Financials":  {"direction": "neutral", "magnitude": 50},
+    "Industrials": {"direction": "neutral", "magnitude": 50},
+    "Consumer":    {"direction": "neutral", "magnitude": 50},
+}
+
+
 def predict_australian_impact(disrupted_chokepoints: list, duration_days: int = 7) -> dict:
     """Generate Australian sector and regional impact prediction."""
     all_asx_signals: dict = {}
@@ -485,6 +561,26 @@ def predict_australian_impact(disrupted_chokepoints: list, duration_days: int = 
 
     state_impacts = _calculate_state_impacts(disrupted_chokepoints)
 
+    # ── Ceasefire override for Hormuz ─────────────────────────────────────────
+    ceasefire_active = False
+    ceasefire_data = None
+    if "hormuz" in disrupted_chokepoints:
+        from services.chokepoint_service import CHOKEPOINTS
+        hormuz_cp = CHOKEPOINTS.get("hormuz", {})
+        ceasefire = hormuz_cp.get("ceasefire", {})
+        if ceasefire.get("active", False):
+            ceasefire_active = True
+            ceasefire_data = ceasefire
+            # Replace predictions and sector breakdown with ceasefire scenario
+            all_asx_signals_consolidated = _HORMUZ_CEASEFIRE_ASX
+            sector_breakdown_override = _HORMUZ_CEASEFIRE_SECTORS
+        else:
+            all_asx_signals_consolidated = _consolidate_asx_signals(all_asx_signals, primary_cp)
+            sector_breakdown_override = None
+    else:
+        all_asx_signals_consolidated = _consolidate_asx_signals(all_asx_signals, primary_cp)
+        sector_breakdown_override = None
+
     # Monte Carlo disruption scenario range
     mc_chokepoint = None
     try:
@@ -509,24 +605,30 @@ def predict_australian_impact(disrupted_chokepoints: list, duration_days: int = 
     except Exception as _mc_err:
         logger.warning("Chokepoint Monte Carlo failed: %s", _mc_err)
 
-    return {
+    result = {
         "disrupted_chokepoints": disrupted_chokepoints,
         "duration_days": duration_days,
-        "asx_predictions": _consolidate_asx_signals(all_asx_signals, primary_cp),
+        "asx_predictions": all_asx_signals_consolidated,
         "affected_sectors": list(set(affected_sectors)),
         "australian_regions": affected_regions,
         "state_heatmap": state_impacts,
-        # Fix 1: replaced raw daily-value loop with commodity-exposure model
         "export_value_at_risk_aud_bn": exports_risk["total_aud_bn"],
         "export_value_at_risk_display": exports_risk["display"],
         "export_breakdown_aud_m": exports_risk["breakdown_aud_m"],
         "simulation_seed": _generate_simulation_seed(disrupted_chokepoints, duration_days),
-        "key_insight": _generate_key_insight(disrupted_chokepoints),
-        # Fix 4: high-level ASX sector breakdown for "Sector Analysis" panel
-        "asx_sector_breakdown": _ASX_SECTOR_IMPACTS.get(primary_cp, {}),
-        # Monte Carlo disruption scenario distribution
+        "key_insight": _generate_key_insight(disrupted_chokepoints, ceasefire_active),
+        "asx_sector_breakdown": sector_breakdown_override or _ASX_SECTOR_IMPACTS.get(primary_cp, {}),
         "monte_carlo_chokepoint": mc_chokepoint,
+        "ceasefire_active": ceasefire_active,
     }
+    if ceasefire_active and ceasefire_data:
+        result["ceasefire_warning"] = {
+            "fragile": ceasefire_data.get("fragile", False),
+            "collapse_probability": ceasefire_data.get("collapse_probability", 35),
+            "collapse_triggers": ceasefire_data.get("collapse_triggers", []),
+            "if_collapse": "Revert to BLOCKED scenario — WDS/STO BULLISH, BHP/FMG BEARISH",
+        }
+    return result
 
 
 def _calculate_state_impacts(disrupted_chokepoints: list) -> dict:
@@ -637,7 +739,9 @@ def _generate_simulation_seed(chokepoints: list, duration_days: int) -> str:
     )
 
 
-def _generate_key_insight(chokepoints: list) -> str:
+def _generate_key_insight(chokepoints: list, ceasefire_active: bool = False) -> str:
+    if "hormuz" in chokepoints and ceasefire_active:
+        return "CEASEFIRE IN EFFECT — Hormuz reopening. Qatar LNG resuming exports. Australian LNG premium disappearing. Oil prices falling. WDS/STO NEUTRAL. If ceasefire collapses, revert to BULLISH WDS/STO."
     if "lombok" in chokepoints and "malacca" in chokepoints:
         return "DUAL CRISIS: Lombok + Malacca both disrupted. Australian iron ore primary route (Lombok) blocked — $288M AUD/day at risk. Global oil/LNG supply disrupted. BEARISH BHP/RIO/FMG. BULLISH WDS/STO (energy price surge)."
     if "malacca" in chokepoints and "hormuz" in chokepoints:

@@ -115,6 +115,28 @@ async def _run_simulation_background(simulation_id: str, body: SimulationRequest
     """
     start_time = datetime.now()
 
+    # ── Accuracy gate: mark low-accuracy mode if system is underperforming ──────
+    # When we have ≥10 resolved predictions AND accuracy < 40%, the system is not
+    # reliable enough to output actionable signals.  We don't abort the simulation;
+    # instead we tag event_data so the signal filter can apply stricter thresholds.
+    try:
+        from database import get_detailed_accuracy_stats
+        _acc_stats = await get_detailed_accuracy_stats(ticker=None)
+        _resolved  = _acc_stats.get("resolved_predictions", 0) or 0
+        _accuracy  = _acc_stats.get("direction_accuracy_pct", 50) or 50
+        if _resolved >= 10 and _accuracy < 40:
+            event_data["_low_accuracy_mode"]  = True
+            event_data["_accuracy_warning"]   = (
+                f"System accuracy {_accuracy:.0f}% < 40% threshold — "
+                f"signals are non-actionable until accuracy improves"
+            )
+            logger.warning(
+                "Low accuracy mode active: %.0f%% accuracy over %d predictions",
+                _accuracy, _resolved,
+            )
+    except Exception as _gate_err:
+        logger.debug("Accuracy gate check failed (non-fatal): %s", _gate_err)
+
     try:
         # Ticker mapping
         if body.affected_tickers and len(body.affected_tickers) > 0:
@@ -192,16 +214,45 @@ async def _run_simulation_background(simulation_id: str, body: SimulationRequest
         else:
             prediction_json = prediction
 
-        logger.info("=== POLL DEBUG: Storing result for %s ===", simulation_id)
-        logger.info("  prediction_json type: %s", type(prediction_json).__name__)
-        logger.info("  prediction_json is None: %s", prediction_json is None)
-        if prediction_json and isinstance(prediction_json, dict):
-            logger.info("  prediction_json keys: %s", list(prediction_json.keys())[:10])
-            logger.info("  direction: %s, confidence: %s", prediction_json.get('direction'), prediction_json.get('confidence'))
-        elif prediction_json is None:
-            logger.error("  *** PREDICTION IS NONE — generate_prediction_report() likely failed ***")
+        if prediction_json is None:
+            logger.error("Prediction is None — using fallback for %s", simulation_id)
             prediction_json = _build_fallback_prediction(simulation_results, ticker)
-            logger.info("  *** Used fallback prediction instead ***")
+
+        # Inject CVaR risk_analysis if monte_carlo ran but risk_analysis is missing
+        if isinstance(prediction_json, dict):
+            mc = prediction_json.get('monte_carlo_price')
+            if isinstance(mc, dict) and mc.get('current_price') and 'risk_analysis' not in mc:
+                try:
+                    import math
+                    from services.game_theory.cvar_optimizer import CVaROptimizer
+                    curr = float(mc['current_price'])
+                    hi = float(mc.get('range_90pct_high') or curr * 1.10)
+                    lo = float(mc.get('range_90pct_low') or curr * 0.90)
+                    # Estimate daily volatility from 90% CI (≈ 2 × 1.645 × σ × √7)
+                    daily_vol = max((hi - lo) / curr / (2 * 1.645 * math.sqrt(7)), 0.005)
+                    exp_ret_daily = (mc.get('expected_change_pct') or 0.0) / 100 / 7
+                    opt = CVaROptimizer(n_scenarios=5000)
+                    metrics = opt.simulate_and_calculate(curr, daily_vol, 7, drift=exp_ret_daily)
+                    mc['risk_analysis'] = {
+                        'var_95': round(metrics.var_95, 2),
+                        'cvar_95': round(metrics.cvar_95, 2),
+                        'var_99': round(metrics.var_99, 2),
+                        'cvar_99': round(metrics.cvar_99, 2),
+                        'expected_return': round(metrics.expected_return, 2),
+                        'prob_profit': round(metrics.prob_profit, 1),
+                        'risk_adjusted_score': round(metrics.risk_adjusted_score, 3),
+                        'tail_risk_ratio': round(metrics.tail_risk_ratio, 2),
+                        'risk_level': metrics._get_risk_level(),
+                        'var_interpretation': (
+                            f"95% confident loss won't exceed {abs(round(metrics.var_95, 1))}%"
+                        ),
+                        'cvar_interpretation': (
+                            f"In worst 5% of scenarios, avg loss is {abs(round(metrics.cvar_95, 1))}%"
+                        ),
+                    }
+                    logger.info("CVaR injected for %s (daily_vol=%.2f%%)", ticker, daily_vol * 100)
+                except Exception as _cvar_err:
+                    logger.warning("CVaR injection failed: %s", _cvar_err)
 
         active_simulations[simulation_id].update({
             'status': 'completed',
@@ -324,10 +375,13 @@ async def simulate_chokepoint_disruption(chokepoint_id: str, duration_days: int 
                 "oil_flow_mbd": cp.get("oil_flow_mbd"),
                 "pct_global_supply": cp.get("pct_global_supply"),
                 "risk_level": cp.get("risk_level"),
+                "status": cp.get("status"),
+                "threat_level": cp.get("threat_level"),
                 "alternative_route": cp.get("alternative_route"),
                 "current_threat": cp.get("current_threat"),
                 "cargo_types": cp.get("cargo_types", []),
                 "countries_controlling": cp.get("countries_controlling", []),
+                "ceasefire": cp.get("ceasefire"),
             },
             "sector_impacts": matrix_entry.get("australian_impact", {}),
             "gdp_impact_estimate": matrix_entry.get("gdp_impact_estimate"),

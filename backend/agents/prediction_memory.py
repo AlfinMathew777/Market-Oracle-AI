@@ -11,6 +11,7 @@ from typing import Any, Optional
 from database import (
     get_reasoning_predictions_for_memory,
     get_reasoning_accuracy_stats,
+    get_full_prediction_log,
 )
 
 logger = logging.getLogger(__name__)
@@ -65,6 +66,11 @@ class PredictionMemory:
             ticker=stock_ticker, direction=direction, days=180, limit=10
         )
 
+        # When Reasoning Synthesizer has no history, fall back to the main
+        # prediction_log table so the memory context reflects actual track record.
+        if not similar:
+            similar = await self._prediction_log_as_memory(stock_ticker, direction)
+
         # Filter by domain overlap if event_classification data is present
         domain_matched = []
         for pred in similar:
@@ -107,6 +113,54 @@ class PredictionMemory:
         }
 
     # ── private helpers ────────────────────────────────────────────────────────
+
+    async def _prediction_log_as_memory(
+        self, ticker: str, direction: str
+    ) -> list[dict[str, Any]]:
+        """
+        Return main simulation prediction_log entries shaped to match the
+        reasoning_predictions memory format when reasoning_predictions is empty.
+
+        This prevents the memory context from claiming "first prediction" when
+        the main simulation has an existing track record.
+        """
+        _dir_map = {
+            "bullish": "bullish", "up": "bullish",
+            "bearish": "bearish", "down": "bearish",
+            "neutral": "neutral",
+        }
+        target_dir = _dir_map.get(direction.lower(), direction.lower())
+
+        try:
+            entries = await get_full_prediction_log(ticker=ticker, days=180, limit=10)
+        except Exception as e:
+            logger.warning("_prediction_log_as_memory failed: %s", e)
+            return []
+
+        result: list[dict[str, Any]] = []
+        for entry in entries:
+            pred_dir = entry.get("predicted_direction", "").lower()
+            if pred_dir != target_dir:
+                continue
+            correct = entry.get("prediction_correct")
+            outcome = (
+                "CORRECT"   if correct is not None and correct >= 0.5
+                else "INCORRECT" if correct is not None
+                else "PENDING"
+            )
+            result.append({
+                "outcome_status":       outcome,
+                "actual_return_pct":    None,
+                "confidence_score":     round(float(entry.get("confidence", 0.5)) * 100),
+                "event_classification": None,
+                "_source":              "prediction_log",
+            })
+        if result:
+            logger.info(
+                "Memory fallback: %d prediction_log entries for %s %s",
+                len(result), ticker, direction,
+            )
+        return result
 
     async def _causal_effectiveness(self, ticker: str, direction: str) -> dict[str, Any]:
         """Estimate effectiveness of causal chains for this ticker/direction."""

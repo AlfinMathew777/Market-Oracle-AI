@@ -58,7 +58,7 @@
 
 .pred-modal-meta {
   font-size: 11px;
-  color: #333;
+  color: #8899bb;
   font-family: 'Courier New', monospace;
 }
 
@@ -66,7 +66,7 @@
   background: rgba(255,255,255,0.05);
   border: 1px solid rgba(255,255,255,0.1);
   border-radius: 6px;
-  color: #666;
+  color: #aab;
   font-size: 14px;
   padding: 4px 10px;
   cursor: pointer;
@@ -128,7 +128,7 @@
 
 .pred-timestamp {
   font-size: 11px;
-  color: #444;
+  color: #778899;
   margin-top: -10px;
 }
 
@@ -144,7 +144,7 @@
   font-weight: 700;
   letter-spacing: 1.5px;
   text-transform: uppercase;
-  color: #555;
+  color: #8899aa;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -320,7 +320,7 @@
 
 .pred-disclaimer {
   font-size: 11px;
-  color: #333;
+  color: #778899;
   text-align: center;
   padding-top: 8px;
   border-top: 1px solid rgba(255,255,255,0.05);
@@ -534,7 +534,7 @@
 }
 .pred-trade-level-sub {
   font-size: 10px;
-  color: #555;
+  color: #8899aa;
   font-family: monospace;
 }
 .pred-trade-entry .pred-trade-level-val { color: #ff8800; }
@@ -558,7 +558,7 @@
 }
 .pred-trade-risk-label {
   font-size: 10px;
-  color: #555;
+  color: #8899aa;
   text-transform: uppercase;
   letter-spacing: 0.8px;
   font-family: monospace;
@@ -630,7 +630,7 @@
 }
 .pred-acc-label {
   font-size: 10px;
-  color: #555;
+  color: #8899aa;
   text-transform: uppercase;
   letter-spacing: 0.8px;
   font-family: monospace;
@@ -639,7 +639,7 @@
 .pred-acc-note {
   margin-top: 8px;
   font-size: 11px;
-  color: #555;
+  color: #8899aa;
   font-style: italic;
 }
 
@@ -675,12 +675,761 @@
   font-family: monospace;
   font-size: 11px;
 }
-.pred-tracking-id {
-  color: #444;
+.pred-tracking-id       { color: #555; font-family: monospace; }
+.pred-tracking-broadcast { color: #3399ff; font-weight: 600; }
+.pred-tracking-memory    { color: #9966ff; font-weight: 600; }
+.pred-tracking-inactive  { color: #444; font-style: italic; }
+.pred-tracking-divider   { color: #3a3a5a; }
+.pred-tracking-timing    { color: #555; }
+
+/* ── Decision Summary Card ──────────────────────────────────────────────── */
+.pred-decision-summary {
+  background: linear-gradient(135deg, rgba(51,102,255,0.06) 0%, rgba(51,102,255,0.02) 100%);
+  border: 1px solid rgba(51,102,255,0.2);
+  border-radius: 10px;
+  padding: 16px;
 }
-.pred-tracking-broadcast {
-  color: #3399ff;
+
+.pred-ds-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 12px;
 }
-.pred-tracking-memory {
-  color: #9966ff;
+
+.pred-ds-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 10px 8px;
+  background: rgba(0,0,0,0.2);
+  border-radius: 8px;
+  text-align: center;
 }
+
+.pred-ds-label {
+  font-size: 10px;
+  color: #8899aa;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  font-family: monospace;
+}
+
+.pred-ds-val {
+  font-size: 14px;
+  font-weight: 700;
+  font-family: monospace;
+  letter-spacing: 0.5px;
+}
+
+.pred-ds-sublabel {
+  font-size: 10px;
+  font-weight: 400;
+  opacity: 0.7;
+  margin-left: 2px;
+}
+
+/* Direction */
+.pred-ds-dir-up      { color: #00ff88; }
+.pred-ds-dir-down    { color: #ff3366; }
+.pred-ds-dir-neutral { color: #888; }
+
+/* Recommendation */
+.pred-ds-rec-buy  { color: #00ff88; }
+.pred-ds-rec-sell { color: #ff3366; }
+.pred-ds-rec-wait { color: #ffaa00; }
+.pred-ds-rec-hold { color: #888; }
+
+/* Risk */
+.pred-ds-risk-low    { color: #00ff88; }
+.pred-ds-risk-medium { color: #ffcc00; }
+.pred-ds-risk-high   { color: #ff3366; }
+
+.pred-ds-why {
+  font-size: 12px;
+  color: #666;
+  line-height: 1.5;
+  padding: 8px 12px;
+  background: rgba(255,255,255,0.02);
+  border-radius: 6px;
+  border-left: 2px solid rgba(51,102,255,0.3);
+}
+
+/* ── Reasoning Quality Warning ──────────────────────────────────────────── */
+.pred-quality-warning {
+  background: rgba(255,136,0,0.06);
+  border: 1px solid rgba(255,136,0,0.25);
+  border-radius: 8px;
+  padding: 12px 16px;
+}
+
+.pred-quality-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #ff8800;
+  margin-bottom: 8px;
+}
+
+.pred-quality-list {
+  margin: 0 0 8px 0;
+  padding-left: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pred-quality-list li {
+  font-size: 12px;
+  color: #cc8800;
+  line-height: 1.5;
+}
+
+.pred-quality-note {
+  margin: 0;
+  font-size: 11px;
+  color: #8899aa;
+  font-style: italic;
+}
+
+/* ── Memory adjustments ─────────────────────────────────────────────────── */
+.pred-memory-adjustments {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pred-memory-adj-item {
+  font-size: 11px;
+  color: #777;
+  font-family: monospace;
+  padding: 3px 0;
+}
+
+.pred-memory-adj-warn { color: #ff8800; }
+
+/* ── Trade Execution WAIT/HOLD state ────────────────────────────────────── */
+.pred-trade-wait-section {
+  border: 1px solid rgba(136,136,136,0.2);
+  border-radius: 8px;
+  padding: 16px;
+  background: rgba(255,255,255,0.02);
+}
+
+.pred-trade-wait-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 20px;
+  text-align: center;
+}
+
+.pred-trade-wait-icon { font-size: 28px; }
+
+.pred-trade-wait-label {
+  font-size: 14px;
+  font-weight: 700;
+  color: #888;
+  font-family: monospace;
+  letter-spacing: 0.5px;
+}
+
+.pred-trade-wait-reason {
+  margin: 0;
+  font-size: 12px;
+  color: #8899aa;
+  line-height: 1.6;
+  max-width: 480px;
+}
+
+/* ── Accuracy empty state ───────────────────────────────────────────────── */
+.pred-acc-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 20px;
+  text-align: center;
+}
+
+.pred-acc-empty-icon  { font-size: 24px; }
+.pred-acc-empty-label { font-size: 13px; font-weight: 600; color: #666; }
+.pred-acc-empty-note  { margin: 0; font-size: 12px; color: #444; line-height: 1.5; max-width: 420px; }
+
+/* ── CVaR Tail Risk Analysis ── */
+.risk-analysis-card {
+  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+  border: 1px solid #334155;
+  border-radius: 10px;
+  padding: 16px;
+  margin: 12px 0;
+}
+
+.risk-analysis-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 14px;
+}
+
+.risk-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
+}
+.risk-badge-low       { background: #10b981; color: #fff; }
+.risk-badge-medium    { background: #f59e0b; color: #000; }
+.risk-badge-high      { background: #ef4444; color: #fff; }
+.risk-badge-very-high { background: #7f1d1d; color: #fca5a5; }
+
+.risk-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+@media (min-width: 600px) {
+  .risk-metrics-grid { grid-template-columns: repeat(4, 1fr); }
+}
+
+.risk-metric {
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 7px;
+  padding: 10px;
+}
+
+.risk-metric-highlight {
+  background: rgba(59, 130, 246, 0.12);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+}
+
+.risk-metric-label {
+  font-size: 11px;
+  color: #64748b;
+  margin-bottom: 4px;
+}
+
+.risk-metric-value {
+  font-size: 18px;
+  font-weight: 700;
+  font-family: monospace;
+  margin-bottom: 3px;
+}
+.risk-pos { color: #10b981; }
+.risk-neg { color: #ef4444; }
+
+.risk-metric-desc {
+  font-size: 10px;
+  color: #475569;
+  line-height: 1.35;
+}
+
+.risk-ras-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 7px;
+}
+
+.risk-ras-label {
+  font-size: 12px;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.risk-ras-bar {
+  flex: 1;
+  height: 6px;
+  background: #1e293b;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.risk-ras-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.risk-ras-value {
+  font-size: 13px;
+  font-weight: 600;
+  font-family: monospace;
+  color: #cbd5e1;
+  min-width: 44px;
+  text-align: right;
+}
+
+.risk-tail-warning {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 9px 12px;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  border-radius: 7px;
+  font-size: 11px;
+  color: #fca5a5;
+  line-height: 1.4;
+}
+.risk-tail-warning::before { content: '⚠'; flex-shrink: 0; }
+
+/* ═══════════════════════════════════════════════════════════════
+   WAR ROOM UPGRADES — Bloomberg × Palantir aesthetic layer
+   These override/augment the base styles above.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Modal shell ── */
+.prediction-modal {
+  background: linear-gradient(160deg, var(--mo-bg-base, #080c10) 0%, #0d1117 100%);
+  border: 1px solid var(--mo-border-accent, rgba(88,166,255,0.25));
+  box-shadow: 0 0 80px rgba(88,166,255,0.08), 0 0 0 1px rgba(88,166,255,0.05);
+  font-family: var(--mo-font-ui, 'Inter', system-ui, sans-serif);
+}
+
+/* Accent top bar */
+.prediction-modal::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent 0%, #58a6ff 40%, #bc8cff 60%, transparent 100%);
+  border-radius: 14px 14px 0 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.pred-modal-header {
+  border-bottom: 1px solid rgba(88,166,255,0.15);
+  background: rgba(8,12,16,0.8);
+}
+
+.pred-modal-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  color: #58a6ff;
+  text-transform: uppercase;
+}
+
+.pred-modal-meta {
+  font-family: var(--mo-font-mono, 'JetBrains Mono', monospace);
+  color: #8899bb;
+}
+
+/* ── Hero — ticker + direction ── */
+.pred-ticker {
+  font-family: var(--mo-font-mono, 'JetBrains Mono', monospace);
+  font-size: 38px;
+  font-weight: 700;
+  letter-spacing: 3px;
+}
+
+.pred-dir-text {
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+}
+
+/* ── Direction hero block ── */
+.pred-direction-hero {
+  text-align: center;
+  padding: 24px 20px 20px;
+  border-radius: var(--mo-r-lg, 14px);
+  margin-bottom: 4px;
+  position: relative;
+  overflow: hidden;
+}
+
+.pred-direction-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at center, currentColor 0%, transparent 70%);
+  opacity: 0.04;
+  pointer-events: none;
+}
+
+.pred-direction-hero.hero-up {
+  background: linear-gradient(135deg, rgba(63,185,80,0.12) 0%, rgba(63,185,80,0.04) 100%);
+  border: 1px solid rgba(63,185,80,0.25);
+  color: #3fb950;
+}
+
+.pred-direction-hero.hero-down {
+  background: linear-gradient(135deg, rgba(248,81,73,0.12) 0%, rgba(248,81,73,0.04) 100%);
+  border: 1px solid rgba(248,81,73,0.25);
+  color: #f85149;
+}
+
+.pred-direction-hero.hero-neutral {
+  background: linear-gradient(135deg, rgba(139,148,158,0.1) 0%, rgba(139,148,158,0.03) 100%);
+  border: 1px solid rgba(139,148,158,0.2);
+  color: #8b949e;
+}
+
+.pred-hero-icon {
+  font-size: 52px;
+  font-weight: 900;
+  line-height: 1;
+  margin-bottom: 8px;
+  display: block;
+  filter: drop-shadow(0 0 16px currentColor);
+  animation: heroBreath 3s ease-in-out infinite;
+}
+
+@keyframes heroBreath {
+  0%, 100% { filter: drop-shadow(0 0 12px currentColor); }
+  50%       { filter: drop-shadow(0 0 28px currentColor); }
+}
+
+.pred-hero-label {
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: 5px;
+  text-transform: uppercase;
+  display: block;
+}
+
+/* ── Decision summary grid ── */
+.pred-decision-summary {
+  background: rgba(13,17,23,0.7);
+  border: 1px solid rgba(88,166,255,0.15);
+  border-radius: var(--mo-r-lg, 14px);
+  padding: 16px;
+}
+
+.pred-ds-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-bottom: 0;
+}
+
+.pred-ds-item {
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.05);
+  border-radius: var(--mo-r-md, 10px);
+  padding: 12px 10px;
+  transition: border-color 0.2s;
+}
+
+.pred-ds-item:hover {
+  border-color: rgba(88,166,255,0.15);
+}
+
+.pred-ds-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: rgba(139,148,158,0.7);
+  font-family: var(--mo-font-ui, 'Inter', sans-serif);
+}
+
+.pred-ds-val {
+  font-size: 15px;
+  font-weight: 800;
+  font-family: var(--mo-font-mono, 'JetBrains Mono', monospace);
+  letter-spacing: 1px;
+  margin-top: 4px;
+}
+
+/* ── Confidence bar ── */
+.pred-conf-bar {
+  height: 4px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.pred-conf-fill {
+  height: 100%;
+  border-radius: 2px;
+  box-shadow: 0 0 8px currentColor;
+  transition: width 1.4s cubic-bezier(0.4,0,0.2,1);
+}
+
+/* ── Consensus row — keep the original 3-column grid, just upgrade the style ── */
+.pred-consensus-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.pred-consensus-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 14px 10px;
+  border-radius: var(--mo-r-md, 10px);
+  border: 1px solid rgba(255,255,255,0.06);
+  font-size: 12px;
+  color: rgba(139,148,158,0.7);
+  transition: border-color 0.2s;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Subtle gradient fill behind count */
+.pred-consensus-item::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0.04;
+  pointer-events: none;
+}
+
+.pred-up   { border-color: rgba(63,185,80,0.25);  background: rgba(63,185,80,0.04); }
+.pred-up::before   { background: #3fb950; }
+.pred-down { border-color: rgba(248,81,73,0.25); background: rgba(248,81,73,0.04); }
+.pred-down::before { background: #f85149; }
+.pred-neutral { border-color: rgba(139,148,158,0.15); }
+
+.pred-cons-n {
+  font-size: 32px;
+  font-weight: 800;
+  line-height: 1;
+  font-family: var(--mo-font-mono, 'JetBrains Mono', monospace);
+}
+
+.pred-up .pred-cons-n   { color: #3fb950; text-shadow: 0 0 20px rgba(63,185,80,0.4); }
+.pred-down .pred-cons-n { color: #f85149; text-shadow: 0 0 20px rgba(248,81,73,0.4); }
+.pred-neutral .pred-cons-n { color: rgba(139,148,158,0.8); }
+
+/* ── Section titles ── */
+.pred-section-title {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  color: rgba(139,148,158,0.6);
+  font-family: var(--mo-font-ui, 'Inter', sans-serif);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+.pred-section-title::before {
+  content: '';
+  display: inline-block;
+  width: 16px;
+  height: 1px;
+  background: #58a6ff;
+  flex-shrink: 0;
+}
+
+/* ── Causal chain — numbered visual flow ── */
+.pred-causal-chain {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  position: relative;
+}
+
+.pred-chain-step {
+  display: flex;
+  gap: 14px;
+  position: relative;
+  padding-bottom: 16px;
+}
+
+.pred-chain-step:last-child {
+  padding-bottom: 0;
+}
+
+.pred-chain-num {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #161b22, #21262d);
+  border: 1px solid rgba(88,166,255,0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  font-family: var(--mo-font-mono, monospace);
+  color: #58a6ff;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+}
+
+/* Vertical connector line */
+.pred-chain-step:not(:last-child) .pred-chain-num::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 1px;
+  height: calc(100% + 16px);
+  background: linear-gradient(180deg, rgba(88,166,255,0.25), transparent);
+}
+
+.pred-chain-content {
+  flex: 1;
+  background: rgba(255,255,255,0.02);
+  border-radius: var(--mo-r-md, 10px);
+  padding: 12px 14px;
+  border-left: 2px solid rgba(88,166,255,0.15);
+  transition: border-color 0.2s;
+}
+
+.pred-chain-content:hover {
+  border-left-color: rgba(88,166,255,0.35);
+}
+
+.pred-chain-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #f0f6fc;
+  margin-bottom: 4px;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+
+.pred-chain-desc {
+  font-size: 12px;
+  color: rgba(201,209,217,0.75);
+  line-height: 1.55;
+  margin: 0;
+}
+
+.pred-chain-impact {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.pred-chain-impact.up   { background: rgba(63,185,80,0.15); color: #3fb950; }
+.pred-chain-impact.down { background: rgba(248,81,73,0.15); color: #f85149; }
+.pred-chain-impact.neut { background: rgba(139,148,158,0.1); color: #8b949e; }
+
+/* ── Key signals — war room style ── */
+.pred-signal {
+  padding: 10px 14px;
+  border-radius: var(--mo-r-md, 10px);
+  border: 1px solid rgba(255,255,255,0.06);
+  background: rgba(255,255,255,0.02);
+  margin-bottom: 6px;
+  transition: border-color 0.2s;
+}
+
+.pred-signal:hover {
+  border-color: rgba(88,166,255,0.18);
+}
+
+.pred-signal-type {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: #58a6ff;
+  text-transform: uppercase;
+  font-family: var(--mo-font-ui, 'Inter', sans-serif);
+  margin-bottom: 5px;
+}
+
+.pred-signal p {
+  font-size: 12px;
+  color: rgba(201,209,217,0.8);
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* ── Accuracy section ── */
+.pred-accuracy-section {
+  border: 1px solid rgba(88,166,255,0.15);
+  background: rgba(88,166,255,0.02);
+}
+
+.pred-acc-val {
+  font-family: var(--mo-font-mono, 'JetBrains Mono', monospace);
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.pred-acc-label {
+  font-family: var(--mo-font-ui, 'Inter', sans-serif);
+  font-size: 9px;
+  letter-spacing: 1.5px;
+}
+
+/* ── Trade levels ── */
+.pred-trade-level-val {
+  font-family: var(--mo-font-mono, 'JetBrains Mono', monospace);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.pred-trade-level-label {
+  font-family: var(--mo-font-ui, 'Inter', sans-serif);
+  font-size: 9px;
+  letter-spacing: 1.5px;
+}
+
+/* ── Monte Carlo values ── */
+.pred-mc-value {
+  font-family: var(--mo-font-mono, 'JetBrains Mono', monospace);
+  font-weight: 600;
+}
+
+/* ── Live price badge ── */
+.pred-live-price {
+  font-family: var(--mo-font-mono, 'JetBrains Mono', monospace);
+}
+
+/* ── Risk analysis card ── */
+.risk-analysis-card {
+  background: rgba(13,17,23,0.8);
+  border: 1px solid rgba(88,166,255,0.12);
+  border-radius: var(--mo-r-lg, 14px);
+}
+
+.risk-metric-value {
+  font-family: var(--mo-font-mono, 'JetBrains Mono', monospace);
+  font-size: 20px;
+}
+
+/* ── Scrollbar ── */
+.pred-modal-body::-webkit-scrollbar { width: 4px; }
+.pred-modal-body::-webkit-scrollbar-thumb {
+  background: rgba(88,166,255,0.2);
+  border-radius: 2px;
+}
+.pred-modal-body::-webkit-scrollbar-thumb:hover {
+  background: rgba(88,166,255,0.4);
+}
+
+/* ── Tracking footer ── */
+.pred-tracking-footer {
+  font-family: var(--mo-font-mono, 'JetBrains Mono', monospace);
+  border-top: 1px solid rgba(255,255,255,0.04);
+  background: rgba(8,12,16,0.6);
+}
+
+.pred-tracking-broadcast { color: #58a6ff; }
+.pred-tracking-memory    { color: #bc8cff; }

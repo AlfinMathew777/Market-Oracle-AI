@@ -329,7 +329,7 @@
 
 .sp-agent-firm {
   font-size: 10px;
-  color: #3b1c6e;
+  color: #9370db;
   white-space: nowrap;
 }
 
@@ -436,7 +436,7 @@
 
 .sp-timer-label {
   font-size: 9px;
-  color: #2e1065;
+  color: #8866cc;
   letter-spacing: 2px;
   text-transform: uppercase;
   margin-top: 2px;
@@ -456,7 +456,7 @@
 
 .sp-footer-row {
   font-size: 11px;
-  color: #3b1c6e;
+  color: #9370db;
 }
 
 /* ══════════════ MINIMIZED PILL ══════════════ */

@@ -206,9 +206,9 @@ function EventSidebar({ events, onEventSelect, isSimulating, selectedEvent }) {
   }
 
   const handleEventClick = (event) => {
-    if (!isSimulating && onEventSelect) {
-      onEventSelect(event);
-    }
+    if (isSimulating) return;
+    if (!onEventSelect) return;
+    onEventSelect(event);
   };
 
   return (
@@ -225,7 +225,8 @@ function EventSidebar({ events, onEventSelect, isSimulating, selectedEvent }) {
           <div
             key={event.properties.event_id_cnty || event.properties.id}
             className={`event-card ${isSimulating ? 'disabled' : ''}`}
-            onClick={() => handleEventClick(event)}
+            onClick={() => !isSimulating && handleEventClick(event)}
+            style={isSimulating ? { pointerEvents: 'none', opacity: 0.5 } : undefined}
             data-testid={`event-card-${event.properties.event_id_cnty || event.properties.id}`}
           >
             <div className="event-country">{(event.properties.country || 'Unknown').toUpperCase()}</div>

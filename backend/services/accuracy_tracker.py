@@ -187,3 +187,73 @@ async def get_accuracy_summary(
 ) -> dict[str, Any]:
     """Public accessor for accuracy metrics — called by the API route."""
     return await get_reasoning_accuracy_stats(ticker=ticker, direction=direction, days=days)
+
+
+async def get_resolved_predictions_for_eval(
+    ticker: Optional[str] = None,
+    days: int = 30,
+) -> list[dict[str, Any]]:
+    """
+    Fetch resolved predictions in the format needed by PredictionEvaluator and
+    FailureAnalyzer.
+
+    Derives `actual_direction` and `was_correct` from `direction` + `outcome_status`
+    without requiring a schema change:
+    - CORRECT / PARTIAL → actual matches predicted
+    - INCORRECT / STOPPED_OUT → actual is opposite of predicted
+    """
+    from database import get_db, init_db
+    from datetime import timedelta
+
+    try:
+        await init_db()
+        since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+
+        conditions = ["prediction_timestamp >= ?", "outcome_status NOT IN ('PENDING', 'EXPIRED')"]
+        params: list = [since]
+        if ticker:
+            conditions.append("stock_ticker = ?")
+            params.append(ticker)
+
+        where = " AND ".join(conditions)
+        async with get_db() as db:
+            db.row_factory = lambda c, r: dict(zip([col[0] for col in c.description], r))
+            async with db.execute(
+                f"""SELECT id, stock_ticker as ticker, direction,
+                           outcome_status, confidence_score as confidence,
+                           actual_return_pct, agent_consensus, causal_chain
+                    FROM reasoning_predictions
+                    WHERE {where}
+                    ORDER BY prediction_timestamp DESC
+                    LIMIT 500""",
+                params,
+            ) as cur:
+                rows = await cur.fetchall()
+
+        _OPPOSITE = {"BULLISH": "BEARISH", "BEARISH": "BULLISH", "NEUTRAL": "NEUTRAL"}
+
+        result = []
+        for row in rows:
+            predicted = row["direction"].upper()
+            status = row["outcome_status"]
+            was_correct = status in ("CORRECT", "PARTIAL")
+            actual = (
+                predicted if was_correct else _OPPOSITE.get(predicted, "NEUTRAL")
+            )
+            result.append({
+                "id": row["id"],
+                "ticker": row["ticker"],
+                "predicted_direction": predicted,
+                "actual_direction": actual,
+                "was_correct": was_correct,
+                "confidence": row["confidence"],
+                "actual_return_pct": row["actual_return_pct"],
+                "agent_votes": {},  # Not stored per-row; placeholder
+                "causal_chain": {},
+            })
+
+        return result
+
+    except Exception as exc:
+        logger.error("get_resolved_predictions_for_eval failed: %s", exc)
+        return []

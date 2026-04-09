@@ -1,0 +1,149 @@
+.news-dashboard {
+  background: var(--card-bg, #1a1a2e);
+  border-radius: 12px;
+  padding: 20px;
+  margin: 20px 0;
+}
+
+.news-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.news-header h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.news-count {
+  background: var(--accent, #4ade80);
+  color: #000;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.news-time {
+  color: var(--text-muted, #888);
+  font-size: 0.8rem;
+  margin-left: auto;
+}
+
+/* Category Pills */
+.category-pills {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.pill {
+  background: var(--pill-color, #333);
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 16px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  opacity: 0.7;
+}
+
+.pill:hover {
+  opacity: 1;
+}
+
+.pill.active {
+  opacity: 1;
+  box-shadow: 0 0 0 2px white;
+}
+
+/* News List */
+.news-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 600px;
+  overflow-y: auto;
+}
+
+.news-item {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  padding: 12px 16px;
+  border-left: 3px solid var(--category-color, #666);
+}
+
+.news-meta {
+  display: flex;
+  gap: 12px;
+  font-size: 0.75rem;
+  color: var(--text-muted, #888);
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.news-category {
+  color: var(--category-color, #4ade80);
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.news-relevance {
+  margin-left: auto;
+}
+
+.news-headline {
+  margin: 0 0 8px 0;
+  font-size: 1rem;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.news-headline a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.news-headline a:hover {
+  text-decoration: underline;
+}
+
+.news-summary {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--text-muted, #aaa);
+  line-height: 1.5;
+}
+
+.news-tickers {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.ticker-tag {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-family: monospace;
+}
+
+/* Loading / Error states */
+.news-dashboard.loading,
+.news-dashboard.error {
+  padding: 40px;
+  text-align: center;
+  color: var(--text-muted, #888);
+}
+
+.news-dashboard.error {
+  color: #ef4444;
+}

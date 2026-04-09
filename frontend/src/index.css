@@ -2,19 +2,69 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ─── War Room Design Tokens ─────────────────────────────────────────────── */
+:root {
+  /* Backgrounds */
+  --mo-bg-base:        #080c10;
+  --mo-bg-surface:     #0d1117;
+  --mo-bg-elevated:    #161b22;
+  --mo-bg-card:        #21262d;
+  --mo-bg-overlay:     rgba(8, 12, 16, 0.92);
+
+  /* Text */
+  --mo-text-primary:   #f0f6fc;
+  --mo-text-secondary: #c9d1d9;
+  --mo-text-muted:     #8b949e;
+  --mo-text-subtle:    #484f58;
+
+  /* Semantic */
+  --mo-bullish:        #3fb950;
+  --mo-bearish:        #f85149;
+  --mo-neutral:        #8b949e;
+  --mo-warning:        #d29922;
+  --mo-info:           #58a6ff;
+
+  /* Accent (primary = cyan-blue, keeps existing orange for trade actions) */
+  --mo-accent:         #58a6ff;
+  --mo-accent-dim:     rgba(88, 166, 255, 0.15);
+  --mo-accent-glow:    0 0 20px rgba(88, 166, 255, 0.35);
+  --mo-orange:         #ff8800;   /* trade execution, unchanged */
+
+  /* Borders */
+  --mo-border:         rgba(48, 54, 61, 0.8);
+  --mo-border-accent:  rgba(88, 166, 255, 0.25);
+  --mo-border-bull:    rgba(63, 185, 80, 0.3);
+  --mo-border-bear:    rgba(248, 81, 73, 0.3);
+
+  /* Glows */
+  --mo-glow-bull:      0 0 20px rgba(63, 185, 80, 0.4);
+  --mo-glow-bear:      0 0 20px rgba(248, 81, 73, 0.4);
+  --mo-glow-info:      0 0 20px rgba(88, 166, 255, 0.35);
+
+  /* Fonts */
+  --mo-font-ui:        'Inter', system-ui, -apple-system, sans-serif;
+  --mo-font-mono:      'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+
+  /* Radii */
+  --mo-r-sm:   6px;
+  --mo-r-md:   10px;
+  --mo-r-lg:   14px;
+  --mo-r-xl:   20px;
+
+  /* Transitions */
+  --mo-t-fast: 0.15s ease-out;
+  --mo-t-base: 0.25s ease-out;
+}
+
 body {
     margin: 0;
-    font-family:
-        -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen",
-        "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue",
-        sans-serif;
+    font-family: var(--mo-font-ui);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
 }
 
 code {
-    font-family:
-        source-code-pro, Menlo, Monaco, Consolas, "Courier New", monospace;
+    font-family: var(--mo-font-mono);
 }
 
 @layer base {

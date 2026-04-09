@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
+import CeasefireCountdown from './CeasefireCountdown';
 import './ChokepointReportModal.css';
 
 // Static mapping: ASX ticker → primary operating state + label
@@ -84,6 +85,8 @@ function StateBar({ label, score }) {
 }
 
 export default function ChokepointReportModal({ result, onClose }) {
+  const [showCollapseScenario, setShowCollapseScenario] = useState(false);
+
   if (!result) return null;
 
   const {
@@ -104,13 +107,30 @@ export default function ChokepointReportModal({ result, onClose }) {
     asx_sector_breakdown = {},
     key_insight,
     monte_carlo_chokepoint = null,
+    ceasefire_active = false,
+    ceasefire_warning = null,
   } = impact;
+
+  const ceasefire = chokepoint_details?.ceasefire;
+
+  // In collapse scenario mode, swap direction/confidence/rationale to blocked scenario values
+  const displayedPredictions = asx_predictions.map(p => {
+    if (ceasefire_active && showCollapseScenario && p.collapse_direction != null) {
+      return {
+        ...p,
+        direction: p.collapse_direction,
+        confidence: p.collapse_confidence,
+        primary_reason: p.collapse_reason || p.primary_reason,
+      };
+    }
+    return p;
+  });
 
   // Use formatted display string if available, else format the number
   const exportsDisplay = export_value_at_risk_display
     || (export_value_at_risk_aud_bn != null ? `A$${export_value_at_risk_aud_bn}B` : '—');
 
-  const topDirection = asx_predictions[0]?.direction || 'NEUTRAL';
+  const topDirection = displayedPredictions[0]?.direction || 'NEUTRAL';
   const topDirColor = dirColor(topDirection);
 
   return (
@@ -130,6 +150,82 @@ export default function ChokepointReportModal({ result, onClose }) {
         </div>
 
         <div className="cp-modal-body">
+
+          {/* Ceasefire banner */}
+          {ceasefire_active && ceasefire && (
+            <div style={{
+              background: 'linear-gradient(135deg, #1a472a 0%, #2d5a3d 100%)',
+              border: '1px solid #3fb950',
+              borderRadius: '8px',
+              padding: '16px',
+              marginBottom: '16px',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <span style={{ fontSize: '24px' }}>🕊️</span>
+                <div>
+                  <div style={{ color: '#3fb950', fontWeight: 700, fontSize: '13px', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                    CEASEFIRE IN EFFECT
+                  </div>
+                  <div style={{ color: '#8b949e', fontSize: '12px', marginTop: '4px' }}>
+                    {ceasefire.start_date} — {ceasefire.end_date} · Brokered by {ceasefire.broker}
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ marginTop: '12px', padding: '10px', background: 'rgba(0,0,0,0.3)', borderRadius: '6px' }}>
+                <div style={{ color: '#8b949e', fontSize: '10px', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                  TIME REMAINING
+                </div>
+                <CeasefireCountdown endDate={ceasefire.end_date} />
+              </div>
+
+              {ceasefire.fragile && (
+                <div style={{ marginTop: '12px', padding: '10px', background: 'rgba(248,81,73,0.1)', border: '1px solid rgba(248,81,73,0.3)', borderRadius: '6px' }}>
+                  <div style={{ color: '#f85149', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>
+                    ⚠️ FRAGILE CEASEFIRE
+                  </div>
+                  <ul style={{ color: '#8b949e', fontSize: '12px', margin: 0, paddingLeft: '16px' }}>
+                    {ceasefire.risk_factors.map((risk, i) => (
+                      <li key={i} style={{ marginBottom: '2px' }}>{risk}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              <div style={{ marginTop: '12px' }}>
+                <button
+                  onClick={() => setShowCollapseScenario(s => !s)}
+                  style={{
+                    background: showCollapseScenario ? '#f85149' : 'rgba(255,255,255,0.1)',
+                    border: '1px solid rgba(255,255,255,0.2)',
+                    color: '#fff',
+                    padding: '8px 16px',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                  }}
+                >
+                  {showCollapseScenario ? '🕊️ Show Ceasefire Scenario' : '💥 What if Ceasefire Collapses?'}
+                </button>
+                {showCollapseScenario && ceasefire_warning && (
+                  <div style={{ marginTop: '10px', padding: '10px', background: 'rgba(248,81,73,0.08)', border: '1px solid rgba(248,81,73,0.25)', borderRadius: '6px' }}>
+                    <div style={{ color: '#f85149', fontSize: '11px', fontWeight: 600, marginBottom: '6px' }}>
+                      🔴 HORMUZ BLOCKED — COLLAPSE TRIGGERS
+                    </div>
+                    <ul style={{ color: '#8b949e', fontSize: '11px', margin: 0, paddingLeft: '16px' }}>
+                      {ceasefire_warning.collapse_triggers.map((t, i) => (
+                        <li key={i} style={{ marginBottom: '2px' }}>{t}</li>
+                      ))}
+                    </ul>
+                    <div style={{ color: '#ff8800', fontSize: '11px', marginTop: '8px' }}>
+                      {ceasefire_warning.if_collapse}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Hero row */}
           <div className="cp-hero">
@@ -209,11 +305,11 @@ export default function ChokepointReportModal({ result, onClose }) {
             {/* ASX Predictions */}
             <div className="cp-section">
               <div className="cp-section-title">ASX Stock Predictions</div>
-              {asx_predictions.length === 0 ? (
+              {displayedPredictions.length === 0 ? (
                 <div className="cp-empty">No direct ASX signals</div>
               ) : (
                 <div className="cp-ticker-list">
-                  {asx_predictions.map((p) => {
+                  {displayedPredictions.map((p) => {
                     const orderLabel = p.impact_order === 'primary'   ? '1° DIRECT'
                                      : p.impact_order === 'secondary' ? '2° INDIRECT'
                                      :                                   '3° MACRO';
@@ -330,10 +426,10 @@ export default function ChokepointReportModal({ result, onClose }) {
           </div>
 
           {/* ── Companies by State ── */}
-          {asx_predictions.length > 0 && (() => {
+          {displayedPredictions.length > 0 && (() => {
             // Group predictions by state
             const byState = {};
-            asx_predictions.forEach(p => {
+            displayedPredictions.forEach(p => {
               const info = COMPANY_STATE_MAP[p.ticker];
               if (!info) return;
               if (!byState[info.state]) byState[info.state] = [];

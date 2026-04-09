@@ -31,6 +31,7 @@ if hasattr(sys.stdout, 'reconfigure'):
 if hasattr(sys.stderr, 'reconfigure'):
     sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 
+import math
 import re
 import asyncio
 import json
@@ -75,25 +76,26 @@ def calculate_confidence(bullish: int, bearish: int, neutral: int) -> float:
 
     Returns a 0.0–1.0 float (Pydantic model-compatible).
 
-    Quality check:
-      24 bearish / 0 bullish / 26 neutral → ~23%  ✓
+    Formula: directional conviction × sqrt(participation rate)
+      - conviction  = (majority - minority) / directional_total   [0→1]
+      - participation = directional / total                        [0→1]
+      - sqrt() softens the neutral penalty vs the old double-penalty formula
+
+    Example: 22 bull / 5 bear / 16 neutral (43 total)
+      directional=27, conviction=(22-5)/27=0.630, participation=sqrt(27/43)=0.792
+      → 0.630 × 0.792 ≈ 0.499  (was 0.248 with old formula)
     """
     total = bullish + bearish + neutral
     if total == 0:
         return 0.0
-
-    # Base consensus: polarisation of non-neutral agents
-    base = abs(bearish - bullish) / total
-
-    # Neutral penalty: undecided market = lower confidence
-    neutral_ratio = neutral / total
-    confidence = base * (1 - neutral_ratio)
-
-    # Hard cap: >40% neutral → market undecided → cap at 60%
-    if neutral_ratio > 0.40:
-        confidence = min(confidence, 0.60)
-
-    return round(confidence, 3)
+    directional = bullish + bearish
+    if directional == 0:
+        return 0.0
+    majority = max(bullish, bearish)
+    minority = min(bullish, bearish)
+    conviction = (majority - minority) / directional          # 0→1: how polarised are directional votes
+    participation_factor = math.sqrt(directional / total)     # soft penalty for high neutral ratio
+    return round(min(conviction * participation_factor, 1.0), 3)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1370,6 +1372,20 @@ class Simulation:
         raw_confidence = calculate_confidence(n_bull, n_bear, n_neut)
         logger.info("Programmatic confidence: %.1f%% (method: weighted_variance_v2)", raw_confidence * 100)
 
+        # Confidence audit trail — tracks each penalty/bonus applied
+        confidence_audit: dict = {
+            "raw_vote_confidence":       round(raw_confidence * 100, 1),
+            "after_judge_modifier":      None,
+            "after_data_quality":        None,
+            "after_chain_audit":         None,
+            "after_market_session":      None,
+            "after_game_theory":         None,
+            "after_minimum_guard":       None,
+            "after_mc_penalty":          None,
+            "final_confidence":          None,
+            "penalties_applied":         [],
+        }
+
         # ── STEP 7: Run Judge agent (sequential, after all others) ───────────
         news_items    = market_ctx.get("news_items", [])
         market_session = market_ctx.get("market_session", "UNKNOWN")
@@ -1385,9 +1401,12 @@ class Simulation:
             top_critical_news = "None"
 
         chain_questions = get_causal_chain_questions(ticker)
-        # ── Phase 7 total timeout: cap at 60s so the full simulation completes
-        # well under 4 minutes even if the Groq/Anthropic quota is exhausted
-        # after 30+ agent calls. Fallback derives verdict from raw vote counts.
+        # ── Phase 7 total timeout: 90s safety net.
+        # Per-call timeouts inside _run_judge (25s blind + 30s reconciler) mean
+        # Phase 7 normally completes within 55s. The outer 90s is a last-resort
+        # guard for hung network connections.
+        # Worst-case pipeline: 180s (agents) + 90s (Phase 7) + 60s (report) = 330s
+        # — within the 360s backend asyncio.wait_for and the 330s frontend timeout.
         try:
             judge_result = await asyncio.wait_for(
                 self._run_judge(
@@ -1403,15 +1422,20 @@ class Simulation:
                     spx_change_pct=spx_change_pct,
                     chain_questions=chain_questions,
                 ),
-                timeout=60.0,
+                timeout=90.0,
             )
         except asyncio.TimeoutError:
             logger.error(
-                "Phase 7 Judge timed out after 60s — using raw vote fallback "
+                "Phase 7 Judge timed out after 90s — using vote-based fallback "
                 "(bull=%d bear=%d neut=%d)",
                 n_bull, n_bear, n_neut,
             )
-            judge_result = _fallback_judge_result(n_bull, n_bear, n_neut)
+            judge_result = _fallback_judge_result(
+                n_bull, n_bear, n_neut,
+                ticker=ticker,
+                event_headline=top_critical_news,
+                market_session=market_session,
+            )
 
         # ── STEP 8: Select ticker-relevant trigger + apply confidence modifier ──
         raw_trigger   = judge_result.get("trigger_event", "")
@@ -1426,11 +1450,18 @@ class Simulation:
 
         modifier = judge_result.get("confidence_modifier", 0)
         final_confidence = max(0.0, min(1.0, raw_confidence + modifier / 100))
+        confidence_audit["after_judge_modifier"] = round(final_confidence * 100, 1)
+        if modifier != 0:
+            confidence_audit["penalties_applied"].append(
+                f"JUDGE_MODIFIER: {modifier:+d}pts"
+            )
 
         # Bug Fix 5: reduce confidence when data quality is poor
         if market_ctx.get("data_quality") == "POOR":
             final_confidence = max(0.0, final_confidence - 0.20)
             logger.warning("Data quality POOR — confidence reduced by 20%%")
+            confidence_audit["penalties_applied"].append("DATA_QUALITY_POOR: -20pts")
+        confidence_audit["after_data_quality"] = round(final_confidence * 100, 1)
 
         logger.info("Judge verdict: %s | modifier: %+d | final confidence: %.1f%%",
                     judge_result.get("verdict", "?"), modifier, final_confidence * 100)
@@ -1461,6 +1492,9 @@ class Simulation:
             )
             logger.info("Chain audit OVERRIDE: %s → %s (%.1f%% confidence)",
                         original_direction, direction, final_confidence * 100)
+            confidence_audit["penalties_applied"].append(
+                f"CHAIN_OVERRIDE: ×0.85 (direction flipped {original_direction}→{direction})"
+            )
         elif chain_verdict != "neutral" and chain_verdict == direction_raw:
             final_confidence = min(round(final_confidence * 1.15, 3), 0.95)
             chain_override_flag = (
@@ -1468,10 +1502,25 @@ class Simulation:
                 f"({chain_bearish} bearish, {chain_bullish} bullish slots)"
             )
             logger.info("Chain audit CONFIRMED: %s (%.1f%% confidence)", direction, final_confidence * 100)
+            confidence_audit["penalties_applied"].append("CHAIN_CONFIRMED: ×1.15 bonus")
+        confidence_audit["after_chain_audit"] = round(final_confidence * 100, 1)
+
+        # ── Causal chain quality check — cap confidence when slots are empty ──
+        from services.causal_chain_validator import validate_causal_chain, apply_causal_chain_penalty
+        _chain_validation = validate_causal_chain(judge_result)
+        final_confidence, _chain_cap_note = apply_causal_chain_penalty(final_confidence, _chain_validation)
+        confidence_audit["causal_chain_quality"]     = _chain_validation["chain_quality"]
+        confidence_audit["causal_chain_empty_count"] = _chain_validation["empty_count"]
+        if _chain_cap_note:
+            confidence_audit["penalties_applied"].append(
+                f"CAUSAL_CHAIN_CAP: {_chain_cap_note[:80]}"
+            )
+        confidence_audit["after_causal_chain_cap"] = round(final_confidence * 100, 1)
 
         # ── Fix 2 (cont.): Apply broad market session modifier ────────────────
         from services.market_context import apply_market_session_modifier
         judge_verdict_str = judge_result.get("verdict", "neutral")
+        pre_session = final_confidence
         final_confidence, market_warning = apply_market_session_modifier(
             confidence=final_confidence,
             direction=judge_verdict_str,
@@ -1479,6 +1528,11 @@ class Simulation:
         )
         if market_warning:
             logger.info("Market session modifier applied: %s", market_warning)
+            delta_session = round((final_confidence - pre_session) * 100, 1)
+            confidence_audit["penalties_applied"].append(
+                f"MARKET_SESSION ({market_session}): {delta_session:+.1f}pts"
+            )
+        confidence_audit["after_market_session"] = round(final_confidence * 100, 1)
 
         # ── Game Theory modifier ─────────────────────────────────────────────
         # Applied AFTER reconciler + market session, BEFORE minimum confidence guard.
@@ -1490,6 +1544,10 @@ class Simulation:
                 "Game theory modifier applied: %+d → confidence %.1f%% → %.1f%%",
                 gt_modifier, pre_gt * 100, final_confidence * 100,
             )
+            confidence_audit["penalties_applied"].append(
+                f"GAME_THEORY: {gt_modifier:+d}pts"
+            )
+        confidence_audit["after_game_theory"] = round(final_confidence * 100, 1)
 
         # ── Fix 1: Minimum confidence guard ──────────────────────────────────
         # chain_override_active=True when the chain audit contradicted agents
@@ -1509,8 +1567,10 @@ class Simulation:
         )
         direction       = {"bullish": "UP", "bearish": "DOWN", "neutral": "NEUTRAL"}[direction_raw]
         final_confidence = round(confidence_pct / 100, 5)
+        confidence_audit["after_minimum_guard"] = round(final_confidence * 100, 1)
         if signal_note:
             logger.info("Confidence guard triggered: %s", signal_note)
+            confidence_audit["penalties_applied"].append(f"MINIMUM_GUARD: {signal_note[:60]}")
 
         # ── Monte Carlo signal stability + price range ────────────────────────
         # Run AFTER all confidence adjustments — MC validates the final signal.
@@ -1535,6 +1595,7 @@ class Simulation:
                     ticker=ticker,
                     days=7,
                     n_simulations=10000,
+                    price_series=market_ctx.get("ticker_price_series"),
                 )
             else:
                 mc_price = None
@@ -1546,6 +1607,9 @@ class Simulation:
                     "MC confidence unstable (stability=%.1f%%) — confidence reduced %.1f%% → %.1f%%",
                     mc_confidence.direction_stability_pct, pre_mc * 100, final_confidence * 100,
                 )
+                confidence_audit["penalties_applied"].append(
+                    f"MC_UNSTABLE: ×0.75 (stability={mc_confidence.direction_stability_pct:.0f}%)"
+                )
             else:
                 logger.info(
                     "MC confidence stable (stability=%.1f%%, conviction=%s)",
@@ -1555,6 +1619,164 @@ class Simulation:
             logger.warning("Monte Carlo failed: %s", _mc_err)
             mc_confidence = None
             mc_price = None
+
+        # ── Price target validation ───────────────────────────────────────────
+        # Cap unrealistic expected_change_pct using ATR-based 7-day bounds.
+        price_target_validation: Optional[dict] = None
+        if mc_price is not None and market_ctx.get("ticker_price", 0) > 0:
+            try:
+                from services.price_target_validator import validate_price_target
+                _curr  = market_ctx["ticker_price"]
+                _target = mc_price.expected_price_7d
+                price_target_validation = validate_price_target(
+                    ticker=ticker,
+                    current_price=_curr,
+                    target_price=_target,
+                    days=7,
+                    price_series=market_ctx.get("ticker_price_series"),
+                )
+                if not price_target_validation["is_realistic"]:
+                    logger.warning(
+                        "[PRICE TARGET] %s target capped: %.2f → %.2f (%s)",
+                        ticker, _target,
+                        price_target_validation["adjusted_target"],
+                        price_target_validation.get("warning", ""),
+                    )
+            except Exception as _ptv_err:
+                logger.warning("Price target validation failed: %s", _ptv_err)
+
+        confidence_audit["after_mc_penalty"] = round(final_confidence * 100, 1)
+        confidence_audit["final_confidence"]  = round(final_confidence * 100, 1)
+
+        # ── Signal quality filter (final gate before returning) ──────────────
+        from services.signal_filter import filter_signal, grade_label
+        from services.catalyst_validator import validate_catalyst
+
+        # Compute dominant-direction win rate from first principles.
+        # direction_stability_pct = bearish_wins / n_simulations * 100.
+        # A bullish signal with 0 bearish wins has direction_stability_pct ≈ 0,
+        # so we MUST NOT pass it directly to the filter (it would read as "0% stability").
+        # Instead: dominant wins = 100 - direction_stability_pct for bullish,
+        #                          direction_stability_pct for bearish.
+        if mc_confidence is not None:
+            _raw_stab = mc_confidence.direction_stability_pct   # bearish wins %
+            _dom_dir  = mc_confidence.dominant_direction        # "bullish" or "bearish"
+            _mc_stability_pct = (
+                round(100.0 - _raw_stab, 1) if _dom_dir == "bullish"
+                else round(_raw_stab, 1)
+            )
+            logger.info(
+                "[MC STABILITY] direction_stability=%.1f%% dominant=%s → dominant_stability=%.1f%%",
+                _raw_stab, _dom_dir, _mc_stability_pct,
+            )
+        else:
+            _mc_stability_pct = 50.0
+        _mc_std            = mc_confidence.confidence_std if mc_confidence else None
+
+        # Validate the catalyst identified by the judge
+        _trigger_event = judge_result.get("trigger_event", "")
+        _has_catalyst, _catalyst_reason = validate_catalyst(_trigger_event)
+        if not _has_catalyst:
+            logger.info("Catalyst validation failed: %s", _catalyst_reason)
+
+        # Historical accuracy for this ticker (async DB call — non-blocking)
+        _hist_accuracy: float = 0.50   # neutral default when no history
+        _hist_accuracy_real: Optional[float] = None  # None = no resolved predictions yet
+        try:
+            from database import get_prediction_log_accuracy
+            _fetched = await get_prediction_log_accuracy(ticker=ticker)
+            if _fetched is not None:
+                _hist_accuracy = _fetched
+                _hist_accuracy_real = _fetched
+                logger.info("Historical accuracy %s: %.0f%%", ticker, _hist_accuracy * 100)
+        except Exception as _acc_err:
+            logger.warning("Could not fetch historical accuracy: %s", _acc_err)
+
+        # Dominant consensus ratio (0–1)
+        _total_votes    = n_bull + n_bear + n_neut
+        _consensus_ratio = max(n_bull, n_bear) / _total_votes if _total_votes > 0 else 0.0
+
+        # Apply full signal filter — this is the final gate
+        _filter_result = filter_signal(
+            direction=direction_raw,
+            confidence=final_confidence,
+            mc_stability=_mc_stability_pct / 100,
+            agent_consensus_pct=_consensus_ratio,
+            historical_accuracy=_hist_accuracy,
+            confidence_range=(_mc_std / 100) if _mc_std is not None else 0.0,
+            has_catalyst=_has_catalyst,
+        )
+
+        signal_grade_val        = _filter_result.signal_grade
+        signal_grade_str        = signal_grade_val.value
+        signal_grade_label      = grade_label(signal_grade_val)
+        signal_recommendation   = _filter_result.filtered_recommendation
+        original_recommendation = _filter_result.original_recommendation
+        is_actionable           = _filter_result.is_actionable
+        signal_block_reasons    = list(_filter_result.block_reasons or [])
+        signal_warnings         = list(_filter_result.warnings or [])
+        signal_filter_summary   = _filter_result.filter_summary
+        signal_grade_reason     = (
+            f"SIGNAL_BLOCKED: {'; '.join(signal_block_reasons)}"
+            if signal_block_reasons
+            else (signal_warnings[0] if signal_warnings else None)
+        )
+
+        logger.info(
+            "Signal filter: %s → %s (grade=%s, actionable=%s, blocks=%d)",
+            original_recommendation, signal_recommendation,
+            signal_grade_str, is_actionable, len(signal_block_reasons),
+        )
+
+        # ── Quality assessment — aggregated summary for frontend ──────────────
+        _qa_issues = list(signal_block_reasons)
+        _chain_qual = confidence_audit.get("causal_chain_quality", "ADEQUATE")
+        if _chain_qual == "EMPTY":
+            _qa_issues.append("Causal chain critically empty — Judge/Reconciler timeout")
+        elif _chain_qual == "SPARSE":
+            _qa_issues.append(
+                f"Causal chain sparse — {confidence_audit.get('causal_chain_empty_count', 0)} slots missing data"
+            )
+
+        # Flag low historical accuracy only when we have real resolved data
+        _hist_pct: Optional[int] = (
+            round(_hist_accuracy_real * 100) if _hist_accuracy_real is not None else None
+        )
+        if _hist_accuracy_real is not None and _hist_accuracy_real < 0.40:
+            _qa_issues.append(
+                f"Historical accuracy {_hist_pct}% is below the 40% reliability threshold"
+            )
+
+        # Derive overall quality grade — must be consistent with signal_grade_str.
+        # When the signal filter has already graded F or D, the quality assessment
+        # cannot show a higher grade (e.g. C) without creating a contradiction.
+        if signal_grade_str in ("F", "D"):
+            # Blocked — propagate the filter's verdict directly
+            _qa_grade = signal_grade_str
+        elif is_actionable and signal_grade_str in ("A", "B") and not _qa_issues:
+            _qa_grade = "A"
+        elif is_actionable and not _qa_issues:
+            _qa_grade = "B"
+        elif len(_qa_issues) <= 1:
+            _qa_grade = "C"
+        else:
+            _qa_grade = "D"
+
+        quality_assessment = {
+            "grade":                   _qa_grade,
+            "score":                   round(final_confidence * 100, 1),
+            "is_actionable":           is_actionable,
+            "signal_grade":            signal_grade_str,
+            "causal_chain_quality":    _chain_qual,
+            "historical_accuracy_pct": _hist_pct,  # null when no resolved predictions yet
+            "issues":                  _qa_issues,
+            "warnings":                signal_warnings,
+            "summary": (
+                f"Grade {_qa_grade} — {signal_recommendation}"
+                + (f" ({len(_qa_issues)} issue{'s' if len(_qa_issues) != 1 else ''})"
+                   if _qa_issues else "")
+            ),
+        }
 
         return {
             "simulation_id":    self.simulation_id,
@@ -1596,27 +1818,58 @@ class Simulation:
             "game_theory_institutional_bias": institutional_signal.direction_bias if institutional_signal else None,
             "game_theory_china":              china_signal.strategy if china_signal else None,
             "game_theory_modifier":           gt_modifier,
+            # Signal quality grade + recommendation
+            "signal_grade":            signal_grade_str,
+            "signal_grade_label":      signal_grade_label,
+            "signal_recommendation":   signal_recommendation,
+            "signal_grade_reason":     signal_grade_reason,
+            "original_recommendation": original_recommendation,
+            "is_actionable":           is_actionable,
+            "signal_block_reasons":    signal_block_reasons,
+            "signal_warnings":         signal_warnings,
+            "signal_filter_summary":   signal_filter_summary,
+            # Confidence audit trail
+            "confidence_audit":   confidence_audit,
+            # Price target validation
+            "price_target_validation": price_target_validation,
+            # Quality assessment
+            "quality_assessment": quality_assessment,
             # Monte Carlo simulation results
             "monte_carlo_confidence": {
                 "mean_confidence":         mc_confidence.mean_confidence,
                 "confidence_std":          mc_confidence.confidence_std,
                 "direction_stability_pct": mc_confidence.direction_stability_pct,
+                "dominant_stability_pct":  mc_confidence.dominant_stability_pct,
                 "is_stable":               mc_confidence.is_stable,
                 "dominant_direction":      mc_confidence.dominant_direction,
                 "conviction_label":        mc_confidence.conviction_label,
             } if mc_confidence else None,
             "monte_carlo_price": {
-                "current_price":      mc_price.current_price,
-                "expected_price_7d":  mc_price.expected_price_7d,
+                "current_price":       mc_price.current_price,
+                "expected_price_7d":   mc_price.expected_price_7d,
                 "expected_change_pct": mc_price.expected_change_pct,
-                "range_90pct_low":    mc_price.range_90pct_low,
-                "range_90pct_high":   mc_price.range_90pct_high,
-                "range_68pct_low":    mc_price.range_68pct_low,
-                "range_68pct_high":   mc_price.range_68pct_high,
-                "prob_down_5pct":     mc_price.prob_down_5pct,
-                "prob_up_5pct":       mc_price.prob_up_5pct,
-                "prob_down_10pct":    mc_price.prob_down_10pct,
-                "prob_up_10pct":      mc_price.prob_up_10pct,
+                "range_90pct_low":     mc_price.range_90pct_low,
+                "range_90pct_high":    mc_price.range_90pct_high,
+                "range_68pct_low":     mc_price.range_68pct_low,
+                "range_68pct_high":    mc_price.range_68pct_high,
+                "prob_down_5pct":      mc_price.prob_down_5pct,
+                "prob_up_5pct":        mc_price.prob_up_5pct,
+                "prob_down_10pct":     mc_price.prob_down_10pct,
+                "prob_up_10pct":       mc_price.prob_up_10pct,
+                # CVaR risk analysis
+                "risk_analysis": {
+                    "var_95":               mc_price.var_95,
+                    "cvar_95":              mc_price.cvar_95,
+                    "var_99":               mc_price.var_99,
+                    "cvar_99":              mc_price.cvar_99,
+                    "expected_return":      mc_price.expected_return,
+                    "prob_profit":          mc_price.prob_profit,
+                    "risk_adjusted_score":  mc_price.risk_adjusted_score,
+                    "tail_risk_ratio":      mc_price.tail_risk_ratio,
+                    "risk_level":           mc_price.risk_level,
+                    "var_interpretation":   mc_price.var_interpretation,
+                    "cvar_interpretation":  mc_price.cvar_interpretation,
+                },
             } if mc_price else None,
         }
 
@@ -1704,10 +1957,13 @@ class Simulation:
         weakest_argument    = ""
 
         try:
-            blind_resp = await self.llm_router.call_primary(
-                system_message=blind_system,
-                user_prompt=blind_user,
-                session_id=f"{self.simulation_id}_blind_judge",
+            blind_resp = await asyncio.wait_for(
+                self.llm_router.call_primary(
+                    system_message=blind_system,
+                    user_prompt=blind_user,
+                    session_id=f"{self.simulation_id}_blind_judge",
+                ),
+                timeout=25.0,
             )
             for line in blind_resp.splitlines():
                 line_u = line.strip().upper()
@@ -1726,6 +1982,8 @@ class Simulation:
                 elif line_u.startswith("REASONING:"):
                     blind_reasoning = line.split(":", 1)[1].strip()[:400]
             logger.info("Blind Judge: verdict=%s confidence=%s", logic_verdict, logic_confidence)
+        except asyncio.TimeoutError:
+            logger.warning("Blind Judge timed out after 25s — using neutral defaults")
         except Exception as e:
             logger.warning("Blind Judge call failed: %s — using neutral fallback", e)
 
@@ -1765,10 +2023,13 @@ class Simulation:
         }
 
         try:
-            rec_resp = await self.llm_router.call_primary(
-                system_message=reconciler_system,
-                user_prompt=reconciler_user,
-                session_id=f"{self.simulation_id}_reconciler",
+            rec_resp = await asyncio.wait_for(
+                self.llm_router.call_primary(
+                    system_message=reconciler_system,
+                    user_prompt=reconciler_user,
+                    session_id=f"{self.simulation_id}_reconciler",
+                ),
+                timeout=30.0,
             )
             parsed = parse_json_response(rec_resp)
             # Clamp confidence_modifier to +10 / 0 / -10
@@ -1788,6 +2049,14 @@ class Simulation:
                 parsed.get("verdict"), parsed.get("confidence_modifier"), parsed.get("override_flag"),
             )
             return parsed
+        except asyncio.TimeoutError:
+            logger.warning("Reconciler timed out after 30s — using Blind Judge defaults")
+            defaults["blind_judge_verdict"]    = logic_verdict
+            defaults["blind_judge_confidence"] = logic_confidence
+            defaults["blind_judge_reasoning"]  = blind_reasoning
+            defaults["strongest_evidence"]     = strongest_evidence
+            defaults["weakest_argument"]       = weakest_argument
+            return defaults
         except Exception as e:
             logger.warning("Reconciler call failed: %s — using Blind Judge defaults", e)
             defaults["blind_judge_verdict"]    = logic_verdict
@@ -1911,6 +2180,23 @@ class Simulation:
             # Monte Carlo results
             "monte_carlo_confidence": simulation_results.get("monte_carlo_confidence"),
             "monte_carlo_price":      simulation_results.get("monte_carlo_price"),
+            # Signal quality grade + filter result
+            "signal_grade":            simulation_results.get("signal_grade"),
+            "signal_grade_label":      simulation_results.get("signal_grade_label"),
+            "signal_recommendation":   simulation_results.get("signal_recommendation"),
+            "signal_grade_reason":     simulation_results.get("signal_grade_reason"),
+            "recommendation":          simulation_results.get("signal_recommendation"),
+            "original_recommendation": simulation_results.get("original_recommendation"),
+            "is_actionable":           simulation_results.get("is_actionable"),
+            "signal_block_reasons":    simulation_results.get("signal_block_reasons"),
+            "signal_warnings":         simulation_results.get("signal_warnings"),
+            "signal_filter_summary":   simulation_results.get("signal_filter_summary"),
+            # Confidence audit trail
+            "confidence_audit":       simulation_results.get("confidence_audit"),
+            # Price target validation
+            "price_target_validation": simulation_results.get("price_target_validation"),
+            # Quality assessment
+            "quality_assessment":     simulation_results.get("quality_assessment"),
         }
 
         prediction = PredictionCard(**prediction_dict)
@@ -1922,6 +2208,24 @@ class Simulation:
         self, ticker, ticker_info, event_data, direction, n_bull, n_bear, n_neut, context_block
     ) -> Tuple[Optional[str], Optional[List[str]]]:
         """Quick LLM call for contrarian view and risk factors only."""
+        # Build sector-aware irrelevant signal warning so the LLM doesn't generate
+        # wrong risk factors (e.g. "weak iron ore may impact Lynas").
+        try:
+            from utils.sector_classifier import get_sector_config
+            cfg = get_sector_config(ticker)
+            if cfg and cfg.irrelevant_signal_keywords:
+                irrelevant_str = ", ".join(cfg.irrelevant_signal_keywords[:8])
+                sector_note = (
+                    f"IMPORTANT: {ticker} is a {cfg.subsector} company. "
+                    f"Do NOT generate risk factors referencing: {irrelevant_str}. "
+                    f"Risk factors must be specific to {cfg.subsector} drivers "
+                    f"({', '.join(cfg.revenue_drivers[:4])})."
+                )
+            else:
+                sector_note = ""
+        except Exception:
+            sector_note = ""
+
         system = (
             "You are a risk analyst. Given simulation results, return ONLY valid JSON "
             "(no markdown): {\"contrarian_view\": \"one sentence\", \"risk_factors\": [\"...\", \"...\"]}"
@@ -1931,7 +2235,8 @@ class Simulation:
             f"Direction: {direction} | Bull: {n_bull} Bear: {n_bear} Neutral: {n_neut}\n"
             f"Event: {event_data.get('notes', event_data.get('location', ''))[:300]}\n"
             f"{context_block[:500]}\n"
-            f"Return the JSON with contrarian_view and 2-3 risk_factors."
+            + (f"\n{sector_note}\n" if sector_note else "")
+            + "Return the JSON with contrarian_view and 2-3 risk_factors."
         )
         try:
             resp = await self.llm_router.call_boost(system, user, session_id=f"{self.simulation_id}_risk")
@@ -1944,31 +2249,85 @@ class Simulation:
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
-def _fallback_judge_result(n_bull: int, n_bear: int, n_neut: int) -> Dict[str, Any]:
+def _fallback_judge_result(
+    n_bull: int,
+    n_bear: int,
+    n_neut: int,
+    ticker: str = "",
+    event_headline: str = "",
+    market_session: str = "UNKNOWN",
+) -> Dict[str, Any]:
     """
     Emergency fallback when Phase 7 Judge/Reconciler calls time out or exhaust
-    all providers. Derives verdict purely from raw agent vote counts so the
-    simulation can still return a prediction.
+    all providers. Derives verdict from raw agent vote counts and generates
+    meaningful (if basic) causal chain content from the vote distribution.
+
+    With per-call timeouts inside _run_judge (25s blind + 30s reconciler),
+    this should only fire on complete network failure — not just slow LLMs.
     """
+    total = n_bull + n_bear + n_neut or 1
     majority = "bullish" if n_bull > n_bear else ("bearish" if n_bear > n_bull else "neutral")
+
+    bull_pct = round(100 * n_bull / total)
+    bear_pct = round(100 * n_bear / total)
+    neut_pct = round(100 * n_neut / total)
+
+    margin = abs(n_bull - n_bear) / total
+    margin_label = "strong" if margin >= 0.30 else ("moderate" if margin >= 0.15 else "thin")
+
+    ticker_ref = f" for {ticker}" if ticker else ""
+    headline_ref = f" — {event_headline[:80]}" if event_headline and event_headline != "None" else ""
+
+    dir_adj = {"bullish": "bullish", "bearish": "bearish", "neutral": "mixed/neutral"}[majority]
+    cost_adj = "manageable cost environment" if majority == "bullish" else (
+        "elevated cost pressure" if majority == "bearish" else "stable cost environment"
+    )
+    rev_adj = "improving revenue outlook" if majority == "bullish" else (
+        "revenue headwinds" if majority == "bearish" else "flat revenue outlook"
+    )
+    demand_adj = "supportive demand conditions" if majority == "bullish" else (
+        "weakening demand" if majority == "bearish" else "mixed demand signals"
+    )
+
     return {
-        "verdict":               majority,
-        "confidence_modifier":   0,
-        "override_flag":         "PHASE7_TIMEOUT",
-        "reasoning":             (
-            f"Phase 7 timed out — raw consensus: "
-            f"{n_bull} bullish / {n_bear} bearish / {n_neut} neutral."
+        "verdict":             majority,
+        "confidence_modifier": 0,
+        "override_flag":       "PHASE7_TIMEOUT",
+        "reasoning":           (
+            f"Causal synthesis timed out — verdict derived from agent consensus{ticker_ref}: "
+            f"{n_bull} bullish / {n_bear} bearish / {n_neut} neutral ({margin_label} {dir_adj} lean)."
         ),
-        "trigger_event":         "No data — Phase 7 timeout",
-        "cost_impact":           "No data — Phase 7 timeout",
-        "revenue_impact":        "No data — Phase 7 timeout",
-        "demand_signal":         "No data — Phase 7 timeout",
-        "sentiment_signal":      "No data — Phase 7 timeout",
-        "blind_judge_verdict":   majority,
+        "trigger_event": (
+            f"Agent consensus{ticker_ref} indicates {dir_adj} outlook "
+            f"({bull_pct}% bullish, {bear_pct}% bearish, {neut_pct}% neutral){headline_ref}. "
+            f"Causal synthesis timed out — vote-based assessment used."
+        ),
+        "cost_impact": (
+            f"{bull_pct}% of agents signalled {cost_adj} "
+            f"({n_bull}B / {n_bear}Be / {n_neut}N agents, session={market_session}). "
+            f"Detailed cost analysis unavailable — synthesis timeout."
+        ),
+        "revenue_impact": (
+            f"Agent majority ({margin_label} {dir_adj}) implies {rev_adj}. "
+            f"{n_bull} agents bullish vs {n_bear} bearish on revenue conditions. "
+            f"Reconciler timed out — proxy from vote distribution used."
+        ),
+        "demand_signal": (
+            f"Demand outlook: {dir_adj} consensus ({bull_pct}% bullish, {bear_pct}% bearish). "
+            f"{demand_adj} implied by {majority} agent majority. Full demand analysis timed out."
+        ),
+        "sentiment_signal": (
+            f"Market sentiment: {margin_label} {dir_adj} lean — {n_bull}B / {n_bear}Be / {n_neut}N "
+            f"agents across {total} signals (session={market_session}). Full synthesis unavailable."
+        ),
+        "blind_judge_verdict":    majority,
         "blind_judge_confidence": "low",
-        "blind_judge_reasoning": "Phase 7 timed out — fallback to raw vote consensus.",
-        "strongest_evidence":    "",
-        "weakest_argument":      "",
+        "blind_judge_reasoning":  (
+            f"Phase 7 timed out — fallback to raw vote consensus "
+            f"({n_bull}B/{n_bear}Be/{n_neut}N)."
+        ),
+        "strongest_evidence":  "",
+        "weakest_argument":    "",
     }
 
 
