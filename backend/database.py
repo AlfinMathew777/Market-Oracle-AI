@@ -602,8 +602,9 @@ async def get_detailed_accuracy_stats(
         from datetime import timedelta
         since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
 
-        # Only count quality predictions (excluded_from_stats = 0 or NULL for old rows)
-        _quality = "(excluded_from_stats IS NULL OR excluded_from_stats = 0)"
+        # Filter directly on confidence — no dependency on excluded_from_stats being marked.
+        # Confidence stored as 0.0–1.0; _MIN_STAT_CONFIDENCE = 0.05 (5%).
+        _quality = f"confidence >= {_MIN_STAT_CONFIDENCE}"
         base_where = f"WHERE prediction_correct IS NOT NULL AND predicted_at >= ? AND {_quality}"
         params: list = [since]
         if ticker:
@@ -687,7 +688,7 @@ async def get_detailed_accuracy_stats(
 
             # Excluded predictions count (for UI transparency note)
             excl_where = (
-                f"WHERE predicted_at >= ? AND excluded_from_stats = 1"
+                f"WHERE predicted_at >= ? AND confidence < {_MIN_STAT_CONFIDENCE}"
                 + (" AND ticker=?" if ticker else "")
             )
             excl_params = [since, ticker] if ticker else [since]
