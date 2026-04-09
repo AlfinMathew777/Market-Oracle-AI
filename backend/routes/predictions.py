@@ -88,6 +88,34 @@ async def run_backtest(
         return {"status": "error", "detail": str(e)}
 
 
+@router.get("/admin/fix-data")
+async def fix_prediction_data():
+    """POST /api/predictions/admin/fix-data — backfill excluded_from_stats on garbage predictions.
+
+    Safe to call multiple times. Marks low-confidence predictions as excluded,
+    then resolves any pending predictions whose 7-day horizon has elapsed.
+    Returns counts of rows updated.
+    """
+    from database import mark_existing_garbage_predictions
+    from services.prediction_resolver import auto_resolve_pending_predictions
+    try:
+        marked = await mark_existing_garbage_predictions()
+        resolved = await asyncio.wait_for(
+            auto_resolve_pending_predictions(limit=200),
+            timeout=120.0,
+        )
+        return {
+            "status": "success",
+            "garbage_marked": marked,
+            "predictions_resolved": resolved,
+        }
+    except asyncio.TimeoutError:
+        return {"status": "partial", "detail": "Resolution timed out — garbage marking may still have applied"}
+    except Exception as e:
+        logger.error("fix-data failed: %s", e)
+        return {"status": "error", "detail": str(e)}
+
+
 @router.get("/calibration")
 async def get_calibration(
     ticker: Optional[str] = Query(default=None),
