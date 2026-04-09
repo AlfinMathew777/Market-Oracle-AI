@@ -40,6 +40,7 @@ from routes.reasoning import router as reasoning_router
 from routes.trade_execution import router as trade_router
 from routes.accuracy import router as accuracy_router
 from routes.stream import router as stream_router
+from routes.news import router as news_router
 
 # Import services
 from services.ais_service import start_ais_background_stream, get_port_hedland_status
@@ -133,6 +134,76 @@ async def _hourly_tasks():
                 logger.info("Reasoning accuracy check: resolved %d predictions", n2)
         except Exception as e:
             logger.warning("Reasoning accuracy check failed: %s", e)
+        try:
+            from services.prediction_resolver import auto_resolve_pending_predictions
+            n3 = await auto_resolve_pending_predictions(limit=50)
+            if n3:
+                logger.info("Prediction log: resolved %d predictions", n3)
+        except Exception as e:
+            logger.warning("Prediction log auto-resolve failed: %s", e)
+
+
+async def _news_refresh_loop():
+    """Refresh Australian news cache every 15 minutes."""
+    while True:
+        try:
+            from scripts.seed_au_news import fetch_feed
+            import httpx, time, hashlib
+            from services.redis_client import cache_set
+
+            RSS_FEEDS = [
+                {"url": "https://www.afr.com/rss",                          "source": "AFR",           "region": "AU"},
+                {"url": "https://www.smh.com.au/rss/business.xml",          "source": "SMH Business",  "region": "AU"},
+                {"url": "https://www.abc.net.au/news/feed/2942460/rss.xml", "source": "ABC Business",  "region": "AU"},
+                {"url": "https://stockhead.com.au/feed/",                   "source": "Stockhead",     "region": "AU"},
+                {"url": "https://www.miningweekly.com/rss",                 "source": "Mining Weekly", "region": "AU"},
+                {"url": "https://oilprice.com/rss/main",                    "source": "OilPrice",      "region": "GLOBAL"},
+                {"url": "https://www.mining.com/feed/",                     "source": "Mining.com",    "region": "GLOBAL"},
+                {"url": "https://feeds.bbci.co.uk/news/world/rss.xml",      "source": "BBC World",     "region": "GEO"},
+                {"url": "https://www.theaustralian.com.au/feed",            "source": "The Australian","region": "AU"},
+                {"url": "https://www.rba.gov.au/rss/rss-cb-media-releases.xml", "source": "RBA",       "region": "AU"},
+            ]
+
+            async with httpx.AsyncClient(
+                headers={"User-Agent": "AussieIntel/1.0 news-aggregator"},
+                limits=httpx.Limits(max_connections=10),
+            ) as client:
+                results = await asyncio.gather(
+                    *[fetch_feed(client, feed) for feed in RSS_FEEDS],
+                    return_exceptions=True,
+                )
+
+            all_articles = []
+            for r in results:
+                if isinstance(r, list):
+                    all_articles.extend(r)
+
+            seen: set = set()
+            unique = []
+            for a in all_articles:
+                if a["id"] not in seen:
+                    seen.add(a["id"])
+                    unique.append(a)
+
+            unique.sort(key=lambda a: a["fetchedAt"], reverse=True)
+
+            if unique:
+                await cache_set("news:australia:v1", unique, ttl=900)
+                # Also update the in-memory fallback cache in data route
+                try:
+                    import time as _time
+                    from routes.data import _news_mem_cache as _nmc, _news_mem_ts as _nmt
+                    import routes.data as _data_mod
+                    _data_mod._news_mem_cache = unique
+                    _data_mod._news_mem_ts = _time.time()
+                except Exception:
+                    pass
+                logger.info("News cache refreshed: %d articles", len(unique))
+
+        except Exception as e:
+            logger.warning("News refresh failed: %s", e)
+
+        await asyncio.sleep(900)  # 15 minutes
 
 
 @asynccontextmanager
@@ -153,6 +224,19 @@ async def lifespan(app: FastAPI):
     # Pre-warm caches and start background tasks
     asyncio.create_task(_prewarm_caches())
     asyncio.create_task(_hourly_tasks())
+    asyncio.create_task(_news_refresh_loop())
+
+    # Resolve any prediction_log entries whose 7-day horizon has already elapsed
+    async def _boot_resolve():
+        try:
+            from services.prediction_resolver import auto_resolve_pending_predictions
+            n = await auto_resolve_pending_predictions(limit=200)
+            if n:
+                logger.info("Boot: resolved %d pending predictions", n)
+        except Exception as e:
+            logger.warning("Boot prediction resolve failed: %s", e)
+
+    asyncio.create_task(_boot_resolve())
 
     logger.info("Startup complete — cache pre-warm and accuracy checks running in background")
     yield
@@ -208,6 +292,7 @@ app.include_router(reasoning_router)  # Reasoning Synthesizer — /api/reasoning
 app.include_router(trade_router)       # Trade execution — /api/trade/*
 app.include_router(accuracy_router)    # Accuracy tracking — /api/accuracy/*
 app.include_router(stream_router)      # Real-time streaming — /api/stream/*
+app.include_router(news_router)        # ASX news aggregator — /api/news/*
 
 FRONTEND_BUILD = ROOT_DIR.parent / "frontend" / "build"
 
@@ -295,7 +380,7 @@ async def health_check(request: Request):
 
 
 # Serve React frontend — MUST be registered after all API routes
-if FRONTEND_BUILD.exists():
+if FRONTEND_BUILD.exists() and (FRONTEND_BUILD / "static").exists():
     app.mount("/static", StaticFiles(directory=str(FRONTEND_BUILD / "static")), name="static")
 
     @app.get("/australia-states.geojson")

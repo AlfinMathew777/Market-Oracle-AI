@@ -22,10 +22,11 @@ function TrackRecord() {
     try {
       setLoading(true);
       setError(null);
-      const params = tickerFilter ? `?ticker=${encodeURIComponent(tickerFilter)}&days=30` : '?days=30';
+      const params = tickerFilter ? `?ticker=${encodeURIComponent(tickerFilter)}&days=365` : '?days=365';
+      const statsParams = tickerFilter ? `?ticker=${encodeURIComponent(tickerFilter)}&days=365` : '?days=365';
       const [histRes, statsRes] = await Promise.all([
         fetch(`${BACKEND_URL}/api/predictions/history${params}`),
-        fetch(`${BACKEND_URL}/api/predictions/accuracy${tickerFilter ? `?ticker=${encodeURIComponent(tickerFilter)}` : ''}`),
+        fetch(`${BACKEND_URL}/api/predictions/accuracy${statsParams}`),
       ]);
       if (!histRes.ok || !statsRes.ok) throw new Error(`Server error ${histRes.status}`);
       const histData  = await histRes.json();
@@ -114,7 +115,7 @@ function TrackRecord() {
         <div className="tr-header-title">
           <span className="tr-logo-dot">◆</span>
           MARKET ORACLE AI — PUBLIC TRACK RECORD
-          <span className="tr-subtitle">Updated daily after ASX close · Last 30 days</span>
+          <span className="tr-subtitle">Updated daily after ASX close · All predictions</span>
         </div>
 
         <div className="tr-stat-grid">

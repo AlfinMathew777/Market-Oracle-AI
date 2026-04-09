@@ -509,18 +509,28 @@ async def get_full_prediction_log(
         return []
 
 
-async def get_detailed_accuracy_stats(ticker: Optional[str] = None) -> Dict[str, Any]:
+async def get_detailed_accuracy_stats(
+    ticker: Optional[str] = None,
+    days: int = 365,
+) -> Dict[str, Any]:
     """
     Returns comprehensive accuracy stats including:
     - Overall accuracy
     - Breakdown by direction (bullish/bearish/neutral)
     - Breakdown by confidence band (0-25%, 25-50%, 50-75%, 75-100%)
     - Current streak and best streak
+
+    Args:
+        ticker: Optional ticker filter.
+        days:   Look-back window in days (default 365 = all recent predictions).
     """
     try:
         await init_db()
-        base_where = "WHERE prediction_correct IS NOT NULL"
-        params: list = []
+        from datetime import timedelta
+        since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+
+        base_where = "WHERE prediction_correct IS NOT NULL AND predicted_at >= ?"
+        params: list = [since]
         if ticker:
             base_where += " AND ticker = ?"
             params.append(ticker)
@@ -528,9 +538,9 @@ async def get_detailed_accuracy_stats(ticker: Optional[str] = None) -> Dict[str,
         async with get_db() as db:
             db.row_factory = lambda c, r: dict(zip([col[0] for col in c.description], r))
 
-            # Total predictions (including unresolved)
-            total_where = "WHERE 1=1" + (" AND ticker=?" if ticker else "")
-            total_params = [ticker] if ticker else []
+            # Total predictions (including unresolved) within the same window
+            total_where = "WHERE predicted_at >= ?" + (" AND ticker=?" if ticker else "")
+            total_params = [since, ticker] if ticker else [since]
             async with db.execute(
                 f"SELECT COUNT(*) as n FROM prediction_log {total_where}", total_params
             ) as cur:

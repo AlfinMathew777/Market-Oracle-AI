@@ -3,6 +3,7 @@
 from fastapi import APIRouter, Query
 from typing import Optional
 import logging
+import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -24,10 +25,11 @@ async def get_prediction_history(
 @router.get("/accuracy")
 async def get_accuracy_stats(
     ticker: Optional[str] = Query(default=None),
+    days: int = Query(default=365, ge=1, le=3650),
 ):
     """GET /api/predictions/accuracy — detailed accuracy stats."""
     from database import get_detailed_accuracy_stats
-    stats = await get_detailed_accuracy_stats(ticker=ticker)
+    stats = await get_detailed_accuracy_stats(ticker=ticker, days=days)
     return {"status": "success", "data": stats}
 
 
@@ -56,4 +58,49 @@ async def log_prediction(body: dict):
         return {"status": "success"}
     except Exception as e:
         logger.error("Manual log_prediction failed: %s", e)
+        return {"status": "error", "detail": str(e)}
+
+
+@router.get("/backtest")
+async def run_backtest(
+    ticker: Optional[str] = Query(default=None, description="Filter to a specific ASX ticker"),
+    days: int = Query(default=30, ge=1, le=365, description="Look-back window in days"),
+):
+    """GET /api/predictions/backtest — backtest historical predictions against actual prices.
+
+    Resolves up to 200 directional predictions from prediction_log against
+    yfinance price data. Returns accuracy by confidence band and direction.
+
+    Example: GET /api/predictions/backtest?ticker=BHP.AX&days=60
+    """
+    from services.backtester import backtest_predictions
+    try:
+        result = await asyncio.wait_for(
+            backtest_predictions(ticker=ticker, days=days),
+            timeout=60.0,
+        )
+        return {"status": "success", "data": result}
+    except asyncio.TimeoutError:
+        logger.warning("Backtest timed out after 60s")
+        return {"status": "error", "detail": "Backtest timed out — try a shorter days window"}
+    except Exception as e:
+        logger.error("Backtest failed: %s", e)
+        return {"status": "error", "detail": str(e)}
+
+
+@router.get("/calibration")
+async def get_calibration(
+    ticker: Optional[str] = Query(default=None),
+    days: int = Query(default=90, ge=7, le=365),
+):
+    """GET /api/predictions/calibration — stated confidence vs actual accuracy per bucket.
+
+    Shows whether the system is over- or under-confident in each confidence range.
+    """
+    from services.confidence_calibrator import get_calibration_stats
+    try:
+        stats = await get_calibration_stats(ticker=ticker, days=days)
+        return {"status": "success", "data": stats}
+    except Exception as e:
+        logger.error("Calibration stats failed: %s", e)
         return {"status": "error", "detail": str(e)}
