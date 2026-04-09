@@ -128,10 +128,19 @@ async def auto_resolve_pending_predictions(limit: int = 50) -> int:
             if entry_price <= 0:
                 continue
 
-            change_pct   = (exit_price - entry_price) / entry_price * 100
-            actual_dir   = _actual_direction(change_pct)
+            change_pct    = (exit_price - entry_price) / entry_price * 100
+            actual_dir    = _actual_direction(change_pct)
             predicted_dir = pred.get("predicted_direction", "neutral")
-            correct       = (predicted_dir == actual_dir)
+
+            # Normalize legacy "up"/"down" to "bullish"/"bearish" before comparing
+            _norm = {"up": "bullish", "down": "bearish"}
+            predicted_dir_norm = _norm.get(predicted_dir.lower(), predicted_dir.lower())
+
+            # Neutral predictions abstain — do not mark correct or incorrect
+            if predicted_dir_norm == "neutral":
+                correct = None   # None = abstain; stored as NULL, excluded from accuracy
+            else:
+                correct = (predicted_dir_norm == actual_dir)
 
             try:
                 await update_prediction_resolution(
@@ -139,12 +148,12 @@ async def auto_resolve_pending_predictions(limit: int = 50) -> int:
                     actual_direction        = actual_dir,
                     actual_close_price      = round(exit_price, 4),
                     actual_price_change_pct = round(change_pct, 4),
-                    prediction_correct      = correct,
+                    prediction_correct      = correct,   # None for neutral → stored as NULL
                     actual_driver           = "Auto-resolved via 7-day price action",
                     reason_matched          = False,
                     lesson                  = (
                         f"{ticker} moved {change_pct:+.2f}% over 7 days ({actual_dir}). "
-                        f"Predicted {predicted_dir}."
+                        f"Predicted {predicted_dir_norm}."
                     ),
                     resolved_at             = datetime.now(timezone.utc).isoformat(),
                     resolution_notes        = (

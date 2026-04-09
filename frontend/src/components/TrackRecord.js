@@ -10,6 +10,7 @@ function TrackRecord() {
   const [error, setError] = useState(null);
   const [expandedRow, setExpandedRow] = useState(null);
   const [tickerFilter, setTickerFilter] = useState('');
+  const [showExcluded, setShowExcluded] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -152,7 +153,7 @@ function TrackRecord() {
 
         {excludedCount > 0 && (
           <div className="tr-exclusion-note">
-            ℹ {excludedCount} low-confidence (&lt;5%) predictions excluded from stats — logged for traceability, grayed below
+            ℹ {excludedCount} low-confidence (&lt;5%) predictions excluded from stats
           </div>
         )}
       </div>
@@ -162,6 +163,14 @@ function TrackRecord() {
         <div className="tr-section-header">
           <span className="tr-section-title">PREDICTION HISTORY</span>
           <div className="tr-filter">
+            {excludedCount > 0 && (
+              <button
+                className="tr-toggle-excluded"
+                onClick={() => setShowExcluded(v => !v)}
+              >
+                {showExcluded ? `Hide ${excludedCount} low-conf` : `Show ${excludedCount} low-conf`}
+              </button>
+            )}
             <input
               className="tr-filter-input"
               placeholder="Filter by ticker…"
@@ -205,7 +214,7 @@ function TrackRecord() {
               {history.length === 0 && (
                 <tr><td colSpan={7} className="tr-empty">No predictions recorded yet. Run a simulation to start the clock.</td></tr>
               )}
-              {history.map((row, i) => (
+              {history.filter(row => showExcluded || !row.excluded_from_stats).map((row, i) => (
                 <React.Fragment key={row.id || i}>
                   <tr
                     className={rowClass(row)}

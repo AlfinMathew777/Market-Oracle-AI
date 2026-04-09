@@ -602,9 +602,14 @@ async def get_detailed_accuracy_stats(
         from datetime import timedelta
         since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
 
-        # Filter directly on confidence — no dependency on excluded_from_stats being marked.
-        # Confidence stored as 0.0–1.0; _MIN_STAT_CONFIDENCE = 0.05 (5%).
-        _quality = f"confidence >= {_MIN_STAT_CONFIDENCE}"
+        # Quality filter: confidence >= 5% AND directional (not neutral).
+        # Neutral predictions abstain — they are stored with prediction_correct=NULL
+        # so they're already excluded by the IS NOT NULL check, but we also explicitly
+        # exclude them from the total count so pending neutrals don't inflate totals.
+        _quality = (
+            f"confidence >= {_MIN_STAT_CONFIDENCE} "
+            f"AND predicted_direction NOT IN ('neutral')"
+        )
         base_where = f"WHERE prediction_correct IS NOT NULL AND predicted_at >= ? AND {_quality}"
         params: list = [since]
         if ticker:
@@ -798,7 +803,7 @@ async def update_prediction_resolution(
                     actual_direction,
                     actual_close_price,
                     round(actual_price_change_pct, 4),
-                    int(prediction_correct),
+                    None if prediction_correct is None else int(prediction_correct),
                     actual_driver[:500] if actual_driver else "",
                     int(reason_matched),
                     lesson[:1000] if lesson else "",
