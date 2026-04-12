@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List
 import asyncio
 import logging
+import os
 from datetime import datetime
 import uuid
 
@@ -17,6 +18,58 @@ router = APIRouter(prefix="/api", tags=["simulation"])
 
 # In-memory store: simulation_id → {status, prediction, error, started_at, ...}
 active_simulations = {}
+
+# ── Pre-flight commentary filter ──────────────────────────────────────────────
+# These patterns in the trigger indicate a stock commentary / opinion article,
+# NOT a real market-moving event. Matches → skip the simulation immediately.
+_COMMENTARY_PATTERNS: List[str] = [
+    # Listicle / watchlist / picks
+    "stocks to watch", "shares to watch", "shares to dig into", "stocks to dig into",
+    "top picks", "best picks", "analyst picks", "my top", "portfolio picks",
+    "investment ideas", "3 reasons", "2 asx shares", "asx shares to", "asx share to",
+    "top 10", "5 best", "10 best",
+    # Opinion / commentary
+    "opinion:", "commentary:", "my view on", "why i think", "i think",
+    "in my opinion", "my take on",
+    # Valuation / educational
+    "easy way to", "how to value", "valuing shares", "valuing asx",
+    "how to invest in", "beginner's guide", "beginner guide",
+    "how to read", "valuation method", "price-to-earnings", "fair value of",
+    "intrinsic value of", "undervalued or overvalued", "explained:",
+    # Should you / is it worth
+    "should you buy", "worth buying", "worth watching", "on my watchlist",
+    "is this a buy", "is it time to buy", "should i buy", "is it worth",
+    # Comparison
+    "comparing ", " vs ", " versus ", "compared to", "which is better",
+    # Deep dive / closer look
+    "deep dive into", "deep dive on", "closer look at", "look at why",
+    "a closer look", "case for buying", "case against buying",
+    # History / background
+    "history of", "what is ", "who is ", "about this company",
+]
+
+
+def pre_flight_trigger_check(
+    event_description: str,
+    event_type: str = "",
+) -> tuple:
+    """
+    Pure-Python pre-flight check (~0ms) — no LLM, no agents.
+
+    Rejects commentary / opinion articles before ANY simulation work begins.
+    Called directly in the route handler so a skipped response returns in < 50ms.
+
+    Returns:
+        (should_skip: bool, reason: str | None)
+    """
+    text = f"{event_description} {event_type}".lower()
+    for pattern in _COMMENTARY_PATTERNS:
+        if pattern in text:
+            return True, (
+                f"Pre-flight filter blocked: trigger matches commentary pattern "
+                f"'{pattern}'. No material market catalyst — simulation skipped."
+            )
+    return False, None
 
 
 def _get_limiter():
@@ -91,6 +144,28 @@ async def run_simulation(request: Request, body: SimulationRequest, background_t
         'longitude': body.lon,
         'event_id_cnty': body.event_id or f"evt_{simulation_id}"
     }
+
+    # ── Pre-flight check (< 1ms, no LLM) ────────────────────────────────────
+    _skip, _skip_reason = pre_flight_trigger_check(body.event_description, body.event_type)
+    if _skip:
+        logger.info("Pre-flight blocked [%s]: %s", simulation_id, _skip_reason)
+        return {
+            "status": "skipped",
+            "simulation_id": simulation_id,
+            "reason": _skip_reason,
+            "prediction": {
+                "ticker": body.affected_tickers[0] if body.affected_tickers else "N/A",
+                "direction": "NEUTRAL",
+                "confidence": 0.0,
+                "time_horizon": "N/A",
+                "summary": _skip_reason,
+                "trigger_event": body.event_description,
+                "causal_chain": [],
+                "key_signals": [],
+                "agent_consensus": {"up": 0, "down": 0, "neutral": 0},
+                "is_skipped": True,
+            },
+        }
 
     active_simulations[simulation_id] = {
         'status': 'running',
@@ -187,13 +262,16 @@ async def _run_simulation_background(simulation_id: str, body: SimulationRequest
         # Run simulation — internal timeouts guarantee completion:
         #   180s agent budget → partial results if slow
         #   60s Phase-7 judge → fallback verdict if slow
+        _t_sim_start = datetime.now()
         simulation_results = await simulation.run_simulation(
             event_data=event_data,
             ticker=ticker,
             num_rounds=1,
         )
+        _t_sim_end = datetime.now()
 
         # Generate report — 60s timeout, fallback on exception
+        _t_report_start = datetime.now()
         try:
             prediction = await asyncio.wait_for(
                 simulation.generate_prediction_report(simulation_results),
@@ -202,8 +280,27 @@ async def _run_simulation_background(simulation_id: str, body: SimulationRequest
         except asyncio.TimeoutError:
             logger.warning("Report generation timed out — using raw simulation results")
             prediction = _build_fallback_prediction(simulation_results, ticker)
+        _t_report_end = datetime.now()
 
         execution_time = (datetime.now() - start_time).total_seconds()
+
+        # Phase timing breakdown — check logs to verify optimization impact
+        _debug_timings = os.environ.get("DEBUG_TIMINGS", "false").lower() == "true"
+        _timings = {
+            "data_fetch_s":  (_t_sim_start - start_time).total_seconds(),
+            "simulation_s":  (_t_sim_end - _t_sim_start).total_seconds(),
+            "report_gen_s":  (_t_report_end - _t_report_start).total_seconds(),
+            "total_s":       execution_time,
+        }
+        if _debug_timings:
+            logger.info("Simulation timings %s: %s", simulation_id, _timings)
+        else:
+            logger.info(
+                "Simulation %s timing — fetch=%.1fs sim=%.1fs report=%.1fs total=%.1fs",
+                simulation_id,
+                _timings["data_fetch_s"], _timings["simulation_s"],
+                _timings["report_gen_s"], _timings["total_s"],
+            )
 
         await _persist_simulation(simulation_id, ticker, prediction, event_data, execution_time)
 
@@ -318,9 +415,28 @@ async def get_simulation_status(simulation_id: str):
     Poll this endpoint after POST /api/simulate.
     Returns status + prediction when ready.
     Status values: 'running' | 'completed' | 'failed'
+
+    On 404 (server restarted, in-memory store wiped): attempts DB recovery.
     """
     if simulation_id not in active_simulations:
-        logger.warning("POLL DEBUG: %s NOT FOUND (known: %s)", simulation_id, list(active_simulations.keys())[-5:])
+        # Attempt to recover completed simulation from SQLite (survives server restart)
+        try:
+            from database import get_simulation_full_json
+            recovered = await get_simulation_full_json(simulation_id)
+            if recovered:
+                logger.info("Recovered simulation %s from DB after restart", simulation_id)
+                # Re-hydrate into active_simulations so subsequent polls are fast
+                active_simulations[simulation_id] = {
+                    "status": "completed",
+                    "prediction": recovered,
+                    "completed_at": recovered.get("generated_at"),
+                    "recovered": True,
+                }
+                return active_simulations[simulation_id]
+        except Exception as _rec_err:
+            logger.warning("DB recovery failed for %s: %s", simulation_id, _rec_err)
+
+        logger.warning("Simulation %s not found (known: %s)", simulation_id, list(active_simulations.keys())[-5:])
         raise HTTPException(status_code=404, detail="Simulation not found")
 
     entry = active_simulations[simulation_id]

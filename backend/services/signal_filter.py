@@ -191,7 +191,7 @@ def get_signal_grade(
 def filter_signal(
     direction: str,
     confidence: float,
-    mc_stability: float,
+    dominant_stability_pct: float,
     agent_consensus_pct: float,
     historical_accuracy: float = 0.50,
     confidence_range: float = 0.0,
@@ -204,19 +204,26 @@ def filter_signal(
     Call after all confidence calculations, MC simulation, and causal chain audit.
 
     Args:
-        direction:           "bullish" | "bearish" | "neutral" (or UP/DOWN/NEUTRAL)
-        confidence:          Final confidence (0–1 scale).
-        mc_stability:        MC direction stability (0–1 scale).
-        agent_consensus_pct: Dominant-side share of total votes (0–1 scale).
-        historical_accuracy: Fraction of past predictions correct (0–1).
-                             Pass 0.50 when there is no history yet.
-        confidence_range:    MC confidence std-dev as a fraction (0–1).
-        has_catalyst:        True when a specific trigger event was identified.
-        thresholds:          Override default thresholds for testing.
+        direction:              "bullish" | "bearish" | "neutral" (or UP/DOWN/NEUTRAL)
+        confidence:             Final confidence (0–1 scale).
+        dominant_stability_pct: Dominant direction win rate (0–100 scale).
+                                Must be mc_confidence.dominant_stability_pct — NOT
+                                direction_stability_pct, which reads as ~0% for strong
+                                bullish signals and would incorrectly block them.
+        agent_consensus_pct:    Dominant-side share of total votes (0–1 scale).
+        historical_accuracy:    Fraction of past predictions correct (0–1).
+                                Pass 0.50 when there is no history yet.
+        confidence_range:       MC confidence std-dev as a fraction (0–1).
+        has_catalyst:           True when a specific trigger event was identified.
+        thresholds:             Override default thresholds for testing.
 
     Returns:
         SignalFilterResult with filtered recommendation and full reasoning.
     """
+    # Convert to 0–1 scale for internal comparisons.
+    # dominant_stability_pct is the single source of truth (from MonteCarloConfidence).
+    mc_stability = dominant_stability_pct / 100.0
+
     block_reasons: list = []
     warnings: list = []
 
@@ -239,10 +246,12 @@ def filter_signal(
             f"MC stability {mc_stability*100:.0f}% < {thresholds.min_stability*100:.0f}% minimum — signal is noise"
         )
 
-    if historical_accuracy < thresholds.min_historical_accuracy:
+    _hist_acc_pct  = round(historical_accuracy * 100, 1)
+    _hist_thr_pct  = round(thresholds.min_historical_accuracy * 100, 1)
+    if _hist_acc_pct < _hist_thr_pct:
         block_reasons.append(
-            f"Historical accuracy {historical_accuracy*100:.0f}% < "
-            f"{thresholds.min_historical_accuracy*100:.0f}% — system not reliable enough to trade"
+            f"Historical accuracy {_hist_acc_pct:.0f}% < "
+            f"{_hist_thr_pct:.0f}% minimum — system not reliable enough to trade"
         )
 
     if agent_consensus_pct < thresholds.min_agent_consensus:
@@ -269,13 +278,7 @@ def filter_signal(
         filtered_rec = SignalAction.HOLD.value
         is_actionable = False
     elif confidence >= thresholds.min_confidence:
-        # Compute quality grade from metrics
-        grade = get_signal_grade(
-            confidence=confidence,
-            stability_pct=mc_stability * 100,
-            bullish=0, bearish=0, neutral=0,  # consensus handled via agent_consensus_pct
-        )
-        # Recompute grade using consensus directly (override the vote-count-based calculation)
+        # Grade signal quality across three dimensions: confidence, MC stability, consensus.
         _score = 0
         if confidence >= 0.75: _score += 3
         elif confidence >= 0.65: _score += 2
@@ -363,7 +366,7 @@ def get_recommendation(
     result = filter_signal(
         direction=direction,
         confidence=confidence,
-        mc_stability=stability_pct / 100,
+        dominant_stability_pct=stability_pct,
         agent_consensus_pct=consensus,
         # No historical accuracy or catalyst at this call site — neutral defaults
         historical_accuracy=0.50,

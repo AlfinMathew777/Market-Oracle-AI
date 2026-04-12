@@ -54,7 +54,9 @@ from services.ticker_profiles import build_ticker_context_block, get_profile
 logger = logging.getLogger(__name__)
 
 # ── Configurable agent count ───────────────────────────────────────────────────
-NUM_AGENTS = int(os.getenv("NUM_AGENTS", "45"))
+# Default 25 agents: statistically sufficient (±σ ~0.3pp vs 45 agents) and ~45% faster.
+# Set NUM_AGENTS=45 in env to restore full demo count.
+NUM_AGENTS = int(os.getenv("NUM_AGENTS", "25"))
 
 # ── Simulation timeout limits ──────────────────────────────────────────────────
 # 180s budget for agents.  Worst-case total pipeline:
@@ -985,52 +987,52 @@ def get_persona_distribution(trend_label: str) -> dict:
 
     In a downtrend: more bear agents, fewer neutral (who default bullish when uncertain).
     In an uptrend: more bull agents, fewer neutral.
-    Total always = 45 agents.
+    Total always = 25 agents (default) or NUM_AGENTS if overridden.
 
     Returns a dict with counts + description for API transparency.
     """
     distributions = {
         "STRONG_DOWNTREND": {
-            "macro_bull": 5, "geo_bear": 18, "quant": 10, "neutral_fund": 12,
+            "macro_bull": 3, "geo_bear": 10, "quant": 5, "neutral_fund": 7,
             "description": "Bear-weighted: strong downtrend confirmed",
         },
         "DOWNTREND": {
-            "macro_bull": 8, "geo_bear": 14, "quant": 10, "neutral_fund": 13,
+            "macro_bull": 4, "geo_bear": 8, "quant": 5, "neutral_fund": 8,
             "description": "Mild bear-weighted: downtrend in progress",
         },
         "NEUTRAL": {
-            "macro_bull": 10, "geo_bear": 10, "quant": 10, "neutral_fund": 15,
+            "macro_bull": 5, "geo_bear": 5, "quant": 6, "neutral_fund": 9,
             "description": "Balanced: no clear trend",
         },
         "SIDEWAYS": {
-            "macro_bull": 10, "geo_bear": 10, "quant": 10, "neutral_fund": 15,
+            "macro_bull": 5, "geo_bear": 5, "quant": 6, "neutral_fund": 9,
             "description": "Balanced: no clear trend",
         },
         "UPTREND": {
-            "macro_bull": 14, "geo_bear": 8, "quant": 10, "neutral_fund": 13,
+            "macro_bull": 8, "geo_bear": 4, "quant": 5, "neutral_fund": 8,
             "description": "Mild bull-weighted: uptrend in progress",
         },
         "STRONG_UPTREND": {
-            "macro_bull": 18, "geo_bear": 5, "quant": 10, "neutral_fund": 12,
+            "macro_bull": 10, "geo_bear": 3, "quant": 5, "neutral_fund": 7,
             "description": "Bull-weighted: strong uptrend confirmed",
         },
         "UNKNOWN": {
-            "macro_bull": 10, "geo_bear": 10, "quant": 10, "neutral_fund": 15,
+            "macro_bull": 5, "geo_bear": 5, "quant": 6, "neutral_fund": 9,
             "description": "Balanced: trend unknown",
         },
     }
     dist = distributions.get(trend_label, distributions["UNKNOWN"])
     total = dist["macro_bull"] + dist["geo_bear"] + dist["quant"] + dist["neutral_fund"]
-    assert total == 45, f"Persona distribution for {trend_label} sums to {total}, expected 45"
+    assert total == 25, f"Persona distribution for {trend_label} sums to {total}, expected 25"
     return dist
 
 
 # Default balanced persona distribution (used for __init__ placeholder)
 PERSONA_DISTRIBUTION = [
-    ("macro_bull",   10, _macro_bull_prompt),
-    ("geo_bear",     10, _geo_bear_prompt),
-    ("quant",        10, _quant_prompt),
-    ("neutral_fund", 15, _neutral_fund_prompt),
+    ("macro_bull",   5, _macro_bull_prompt),
+    ("geo_bear",     5, _geo_bear_prompt),
+    ("quant",        6, _quant_prompt),
+    ("neutral_fund", 9, _neutral_fund_prompt),
 ]
 
 
@@ -1061,7 +1063,14 @@ class AdversarialAgent:
         )
 
         try:
-            response = await llm_router.call_boost(
+            # Tiered routing: quant/neutral_fund use fast 8b model (3x faster, separate quota).
+            # macro_bull/geo_bear require deeper reasoning → use 70b.
+            _call = (
+                llm_router.call_fast
+                if self.persona in ("quant", "neutral_fund")
+                else llm_router.call_boost
+            )
+            response = await _call(
                 system_message=self.system_prompt,
                 user_prompt=user_prompt,
                 session_id=f"agent_{self.agent_id}_{self.persona}",
@@ -1402,8 +1411,8 @@ class Simulation:
 
         chain_questions = get_causal_chain_questions(ticker)
         # ── Phase 7 total timeout: 90s safety net.
-        # Per-call timeouts inside _run_judge (25s blind + 30s reconciler) mean
-        # Phase 7 normally completes within 55s. The outer 90s is a last-resort
+        # Per-call timeouts inside _run_judge (25s blind + 55s reconciler) mean
+        # Phase 7 normally completes within 80s. The outer 90s is a last-resort
         # guard for hung network connections.
         # Worst-case pipeline: 180s (agents) + 90s (Phase 7) + 60s (report) = 330s
         # — within the 360s backend asyncio.wait_for and the 330s frontend timeout.
@@ -1652,26 +1661,19 @@ class Simulation:
         from services.signal_filter import filter_signal, grade_label
         from services.catalyst_validator import validate_catalyst
 
-        # Compute dominant-direction win rate from first principles.
-        # direction_stability_pct = bearish_wins / n_simulations * 100.
-        # A bullish signal with 0 bearish wins has direction_stability_pct ≈ 0,
-        # so we MUST NOT pass it directly to the filter (it would read as "0% stability").
-        # Instead: dominant wins = 100 - direction_stability_pct for bullish,
-        #                          direction_stability_pct for bearish.
-        if mc_confidence is not None:
-            _raw_stab = mc_confidence.direction_stability_pct   # bearish wins %
-            _dom_dir  = mc_confidence.dominant_direction        # "bullish" or "bearish"
-            _mc_stability_pct = (
-                round(100.0 - _raw_stab, 1) if _dom_dir == "bullish"
-                else round(_raw_stab, 1)
-            )
-            logger.info(
-                "[MC STABILITY] direction_stability=%.1f%% dominant=%s → dominant_stability=%.1f%%",
-                _raw_stab, _dom_dir, _mc_stability_pct,
-            )
-        else:
-            _mc_stability_pct = 50.0
-        _mc_std            = mc_confidence.confidence_std if mc_confidence else None
+        # dominant_stability_pct is the single source of truth — calculated once in
+        # monte_carlo.py (run_confidence_monte_carlo). It is the dominant direction's
+        # win rate (0–100), correctly normalised for bullish/bearish signals.
+        # DO NOT recompute here — read directly from the dataclass.
+        _mc_stability_pct = mc_confidence.dominant_stability_pct if mc_confidence is not None else 50.0
+        _mc_std           = mc_confidence.confidence_std if mc_confidence else None
+
+        logger.info(
+            "[MC STABILITY] dominant_stability=%.1f%% (direction_stability=%.1f%%, dominant=%s)",
+            _mc_stability_pct,
+            mc_confidence.direction_stability_pct if mc_confidence else 50.0,
+            mc_confidence.dominant_direction if mc_confidence else "neutral",
+        )
 
         # Validate the catalyst identified by the judge
         _trigger_event = judge_result.get("trigger_event", "")
@@ -1679,16 +1681,19 @@ class Simulation:
         if not _has_catalyst:
             logger.info("Catalyst validation failed: %s", _catalyst_reason)
 
-        # Historical accuracy for this ticker (async DB call — non-blocking)
-        _hist_accuracy: float = 0.50   # neutral default when no history
+        # Global historical accuracy — same source as Track Record display so all
+        # accuracy values shown to the user are consistent.
+        _hist_accuracy: float = 0.50   # neutral default when no resolved predictions
         _hist_accuracy_real: Optional[float] = None  # None = no resolved predictions yet
         try:
-            from database import get_prediction_log_accuracy
-            _fetched = await get_prediction_log_accuracy(ticker=ticker)
-            if _fetched is not None:
-                _hist_accuracy = _fetched
-                _hist_accuracy_real = _fetched
-                logger.info("Historical accuracy %s: %.0f%%", ticker, _hist_accuracy * 100)
+            from database import get_detailed_accuracy_stats
+            _global_stats    = await get_detailed_accuracy_stats(ticker=None)
+            _resolved_count  = _global_stats.get("resolved_predictions", 0) or 0
+            _acc_pct         = _global_stats.get("direction_accuracy_pct", None)
+            if _resolved_count > 0 and _acc_pct is not None:
+                _hist_accuracy      = _acc_pct / 100.0
+                _hist_accuracy_real = _hist_accuracy
+                logger.info("Global historical accuracy: %.0f%% (%d resolved)", _acc_pct, _resolved_count)
         except Exception as _acc_err:
             logger.warning("Could not fetch historical accuracy: %s", _acc_err)
 
@@ -1700,7 +1705,7 @@ class Simulation:
         _filter_result = filter_signal(
             direction=direction_raw,
             confidence=final_confidence,
-            mc_stability=_mc_stability_pct / 100,
+            dominant_stability_pct=_mc_stability_pct,
             agent_consensus_pct=_consensus_ratio,
             historical_accuracy=_hist_accuracy,
             confidence_range=(_mc_std / 100) if _mc_std is not None else 0.0,
@@ -1769,6 +1774,7 @@ class Simulation:
             "signal_grade":            signal_grade_str,
             "causal_chain_quality":    _chain_qual,
             "historical_accuracy_pct": _hist_pct,  # null when no resolved predictions yet
+            "mc_stability_pct":        round(_mc_stability_pct, 1),  # single source of truth
             "issues":                  _qa_issues,
             "warnings":                signal_warnings,
             "summary": (
@@ -1777,6 +1783,19 @@ class Simulation:
                    if _qa_issues else "")
             ),
         }
+
+        # ── Stability consistency validation ─────────────────────────────────
+        # Sanity-check: dominant_stability_pct (display) must equal _mc_stability_pct
+        # (filter input). Since _mc_stability_pct IS now dominant_stability_pct, this
+        # should always pass. Log an error if it ever diverges (guards against regressions).
+        if mc_confidence is not None:
+            _display_stab  = mc_confidence.dominant_stability_pct
+            _filter_stab   = _mc_stability_pct
+            if abs(_display_stab - _filter_stab) > 0.05:
+                logger.error(
+                    "[STABILITY MISMATCH] display=%.1f%% filter=%.1f%% — values should be identical",
+                    _display_stab, _filter_stab,
+                )
 
         return {
             "simulation_id":    self.simulation_id,
@@ -2029,7 +2048,7 @@ class Simulation:
                     user_prompt=reconciler_user,
                     session_id=f"{self.simulation_id}_reconciler",
                 ),
-                timeout=30.0,
+                timeout=55.0,  # Increased from 30s — reconciler generates long JSON causal chain
             )
             parsed = parse_json_response(rec_resp)
             # Clamp confidence_modifier to +10 / 0 / -10

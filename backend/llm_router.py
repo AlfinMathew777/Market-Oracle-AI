@@ -70,8 +70,8 @@ class LLMRouter:
         if not self._active:
             raise ValueError("No LLM API keys found. Set at least one of: GROQ_API_KEY, GEMINI_API_KEY, OPENROUTER_API_KEY")
 
-        # Limit concurrent calls to avoid burst rate-limit hits (Groq: 30 RPM)
-        self._semaphore = asyncio.Semaphore(10)
+        # Groq allows 30 RPM — run up to 20 concurrent to halve agent phase time
+        self._semaphore = asyncio.Semaphore(int(os.getenv("LLM_CONCURRENCY", "20")))
 
         logger.info(
             "LLM Router initialized — active providers: %s",
@@ -90,6 +90,18 @@ class LLMRouter:
         """Agent simulation: Groq-70b first (fastest), falls back through chain."""
         async with self._semaphore:
             return await self._call_with_fallback(self._active, system_message, user_prompt)
+
+    async def call_fast(self, system_message: str, user_prompt: str, session_id: str = "fast") -> str:
+        """Fast agent tier: Groq-8b first (3x faster), falls back to 70b on failure.
+        Use for simple pattern-matching agents (quant/neutral) where speed > depth.
+        """
+        # Prefer 8b → 70b → openrouter → gemini
+        fast_ordered = sorted(
+            self._active,
+            key=lambda p: (0 if p["name"] == "groq-8b" else 1 if p["name"] == "groq-70b" else 2),
+        )
+        async with self._semaphore:
+            return await self._call_with_fallback(fast_ordered, system_message, user_prompt)
 
     async def call_batch(self, model_type: str, prompts: List[Dict[str, str]]) -> List[str]:
         """Run many prompts concurrently — used for 50-agent simulation."""

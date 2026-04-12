@@ -152,6 +152,9 @@ async def init_db() -> None:
                     updated_at           TEXT NOT NULL DEFAULT (datetime('now'))
                 );
 
+                -- ── Migration: add full_json column for restart recovery ─────
+                -- ALTER TABLE is idempotent via the try/except in init_db().
+
                 -- ── Indexes ───────────────────────────────────────────────────
                 CREATE INDEX IF NOT EXISTS idx_sim_ticker   ON simulations(ticker);
                 CREATE INDEX IF NOT EXISTS idx_sim_created  ON simulations(created_at DESC);
@@ -189,6 +192,15 @@ async def init_db() -> None:
                     logger.info("Migrated prediction_log: added column %s", col)
                 except Exception:
                     pass  # Column already exists
+
+        # ── Migrate simulations table: add full_json for restart recovery ────
+        async with aiosqlite.connect(DB_PATH) as db:
+            try:
+                await db.execute("ALTER TABLE simulations ADD COLUMN full_json TEXT")
+                await db.commit()
+                logger.info("Migrated simulations: added full_json column")
+            except Exception:
+                pass  # Already exists
 
         _initialized = True
         logger.info("Database initialised at %s", DB_PATH)
@@ -262,7 +274,7 @@ async def save_simulation(
         await init_db()
         import json, time
 
-        p        = prediction if isinstance(prediction, dict) else prediction.model_dump()
+        p        = prediction if isinstance(prediction, dict) else prediction.model_dump(mode="json")
         check_at = int(time.time()) + 86400
 
         async with get_db() as db:
@@ -270,8 +282,9 @@ async def save_simulation(
                 """INSERT OR REPLACE INTO simulations
                    (id, ticker, direction, confidence, event_description, event_type,
                     country, causal_chain, agent_votes, execution_time,
-                    ticker_confidence, ticker_reasoning, outcome, check_at, created_at)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    ticker_confidence, ticker_reasoning, outcome, check_at, created_at,
+                    full_json)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (
                     simulation_id, ticker,
                     p.get("direction", "NEUTRAL"),
@@ -287,12 +300,34 @@ async def save_simulation(
                     "PENDING",
                     check_at,
                     datetime.now(timezone.utc).isoformat(),
+                    json.dumps(p),
                 ),
             )
             await db.commit()
         logger.info("Saved simulation %s to simulations table", simulation_id)
     except Exception as e:
         logger.error("Failed to save simulation %s: %s", simulation_id, e)
+
+
+async def get_simulation_full_json(simulation_id: str) -> Optional[dict]:
+    """Recover a completed simulation's full prediction JSON from SQLite.
+    Used to resurrect simulations lost from in-memory store after a server restart.
+    Returns None if not found or full_json column is empty.
+    """
+    try:
+        await init_db()
+        import json as _json
+        async with get_db() as db:
+            db.row_factory = lambda c, r: dict(zip([d[0] for d in c.description], r))
+            async with db.execute(
+                "SELECT full_json FROM simulations WHERE id = ?", (simulation_id,)
+            ) as cur:
+                row = await cur.fetchone()
+        if row and row.get("full_json"):
+            return _json.loads(row["full_json"])
+    except Exception as e:
+        logger.warning("get_simulation_full_json failed for %s: %s", simulation_id, e)
+    return None
 
 
 async def get_prediction_history(
@@ -473,7 +508,7 @@ async def get_prediction_log_accuracy(ticker: Optional[str] = None) -> Optional[
     """Return rolling accuracy from prediction_log as a 0-1 float."""
     try:
         await init_db()
-        where  = "WHERE prediction_correct IS NOT NULL" + (" AND ticker=?" if ticker else "")
+        where  = "WHERE prediction_correct IS NOT NULL AND excluded_from_stats = 0" + (" AND ticker=?" if ticker else "")
         params = [ticker] if ticker else []
         async with get_db() as db:
             async with db.execute(

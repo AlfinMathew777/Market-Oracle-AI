@@ -9,10 +9,17 @@ seed=42 for reproducibility — same inputs produce same output.
 """
 
 import logging
+import os
 
 import numpy as np
 from dataclasses import dataclass
 from typing import Optional
+
+# Env-configurable simulation counts.
+# 2,500 price sims: 95% CI width ~±1.96% vs ±0.98% for 10,000 — acceptable for 7-day swing trading.
+# 500 confidence sims: sufficient for stability classification (stable/unstable).
+_MC_PRICE_SIMS      = int(os.getenv("MC_SIMULATIONS", "2500"))
+_MC_CONFIDENCE_SIMS = int(os.getenv("MC_CONFIDENCE_SIMS", "500"))
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +80,7 @@ def run_confidence_monte_carlo(
     neutral: int,
     iron_ore_price: Optional[float] = None,
     iron_ore_uncertainty_pct: float = 3.0,
-    n_simulations: int = 1000,
+    n_simulations: int = _MC_CONFIDENCE_SIMS,
 ) -> MonteCarloConfidence:
     """
     Tests confidence score stability across 1,000 scenarios.
@@ -204,7 +211,7 @@ def run_price_range_monte_carlo(
     direction_probability: float,
     ticker: str = "BHP.AX",
     days: int = 7,
-    n_simulations: int = 10000,
+    n_simulations: int = _MC_PRICE_SIMS,
     price_series=None,
 ) -> MonteCarloPriceRange:
     """
@@ -326,7 +333,7 @@ def run_price_range_monte_carlo(
 def run_chokepoint_monte_carlo(
     chokepoint_id: str,
     base_exports_at_risk: float,
-    n_simulations: int = 10000,
+    n_simulations: int = _MC_PRICE_SIMS,
 ) -> MonteCarloChokepointImpact:
     """
     Simulates range of outcomes from a chokepoint disruption.

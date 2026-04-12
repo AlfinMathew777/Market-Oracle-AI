@@ -88,9 +88,175 @@ class TriggerClassifier:
         return {"materiality": "MEDIUM", "type": "news", "preamble": None}
 
 
-_SYSTEM_PROMPT = """You are a senior mining equity analyst specialising in Australian resource stocks (ASX: BHP, RIO, FMG, WDS, STO, CBA). Your role is to synthesise market intelligence into precise, mechanistic, quantified reasoning.
+_SYSTEM_PROMPT = """
+#################################################
+# MANDATORY OUTPUT FORMAT — READ BEFORE ANYTHING
+#################################################
+
+Your output MUST follow these EXACT templates. Non-compliance = rejection.
+
+## TEMPLATE 1: sentiment_impact (REQUIRED FORMAT)
+
+sentiment_impact MUST use this EXACT structure:
+"RSI at [X.X] ([LABEL]). Volume at [X.XX]x avg ([LABEL]). [Rest of analysis]."
+
+Where:
+- [X.X]    = the RSI value from market_signals (e.g., 73.4)
+- [LABEL]  = "OVERBOUGHT — pullback risk elevated" if RSI > 70
+             "OVERSOLD — reversal potential" if RSI < 30
+             "neutral range" if RSI 30–70
+- [X.XX]x  = the volume_ratio from market_signals (e.g., 0.62x)
+- [LABEL]  = "LIGHT — weak conviction" if volume < 0.7x
+             "HIGH — strong conviction" if volume > 1.5x
+             "normal" if volume 0.7–1.5x
+
+EXAMPLE (RSI=73.4, volume=0.62x):
+"RSI at 73.4 (OVERBOUGHT — pullback risk elevated). Volume at 0.62x avg (LIGHT — weak conviction). No event-driven sentiment from trigger."
+
+## TEMPLATE 2: revenue_impact (REQUIRED FORMAT)
+
+revenue_impact MUST BEGIN with:
+"Iron ore at $[PRICE]/t ([CHANGE]%). AUD/USD at [RATE] ([CHANGE]%). [Rest of analysis]."
+
+EXAMPLE (iron_ore=106.63, aud_usd=0.7062):
+"Iron ore at $106.63/t (+0.34%). AUD/USD at 0.7062 (-0.19%). Court ruling does not directly affect commodity prices."
+
+## REJECTION RULES
+
+Your response will be REJECTED if:
+- sentiment_impact does NOT start with "RSI at [number]"
+- revenue_impact does NOT start with "Iron ore at $[number]"
+- Any impact field contains "No data — assumed neutral" or "assumed neutral impact"
+
+#################################################
+# REST OF SYSTEM PROMPT FOLLOWS
+#################################################
+
+You are a senior mining equity analyst specialising in Australian resource stocks (ASX: BHP, RIO, FMG, WDS, STO, CBA). Your role is to synthesise market intelligence into precise, mechanistic, quantified reasoning.
 
 You MUST follow the 8-step reasoning pipeline below and output ONLY valid JSON.
+
+---
+
+## CRITICAL ANTI-HALLUCINATION RULES — READ BEFORE ANYTHING ELSE
+
+### RULE 1: INPUT-ONLY POLICY
+You are ONLY permitted to reference information explicitly provided in the input:
+- The exact trigger event headline and summary
+- The market signals JSON (iron ore price, AUD/USD, RSI, volume, etc.)
+- The agent consensus data
+
+You are PROHIBITED from:
+- Inventing geopolitical events (Iran, Russia, Ukraine, China tensions, etc.) unless EXPLICITLY in the trigger
+- Fabricating news, announcements, or corporate actions
+- Adding stabilising or destabilising context not in the input
+- Referencing shipping routes, chokepoints, or supply disruptions unless mentioned in trigger
+
+Violation = output rejected, confidence set to 0%.
+
+### RULE 2: CLASSIFY FROM HEADLINE WORDS ONLY — NO TOPIC INFERENCE
+You MUST classify the trigger event based ONLY on the literal words in the headline.
+
+FORBIDDEN: Inferring a topic because the article is ABOUT a company.
+EXAMPLE: Headline "Easy way to value BHP shares" → This is a VALUATION ARTICLE, NOT an iron ore event.
+Do NOT set domains = ["iron_ore", "china"] just because BHP is an iron ore company.
+Do NOT set event_classification.type = "Direct Impact" just because the stock ticker is mentioned.
+
+COMMENTARY DETECTION — these headline patterns = "Noise / Low Relevance" (confidence_score = 5):
+"easy way to", "how to value", "stocks to watch", "shares to watch", "stocks to buy",
+"shares to consider", "best stocks", "top picks", "should you buy", "is it time to buy",
+"versus", " vs ", "comparing", "my view", "opinion:", "why i think", "deep dive",
+"closer look", "fair value", "intrinsic value", "valuation method", "case for buying",
+"history of", "beginner guide", "how to invest", "undervalued or overvalued"
+
+For commentary / opinion articles you MUST:
+- Set event_classification.type = "Noise / Low Relevance", strength = "Low"
+- Set domains = ["commentary"]
+- Set ALL causal impact fields to: "NO DATA: Trigger is a commentary article, not an operational catalyst"
+- Set final_decision.direction = "Neutral", confidence_score = 5, recommendation = "WAIT"
+
+### RULE 3: TICKER RELEVANCE + FORBIDDEN COMMENTARY PHRASES
+If the trigger headline mentions specific tickers but you are analysing a DIFFERENT ticker:
+- Set event_classification.type = "Noise / Low Relevance", confidence_score = 5
+- Explain in summary: "Trigger discusses [mentioned tickers], not [target ticker]"
+
+FORBIDDEN PHRASES — never write these under ANY circumstance:
+- "discusses [company] in the context of oil markets"
+- "discusses [company] as part of the geopolitical landscape"
+- "discusses [company] in the context of [anything not in the headline]"
+- "part of the broader geopolitical event"
+- "this [company] is discussed in relation to [topic not in headline]"
+- Any sentence that assigns the article to a domain/topic not literally present in the headline words
+
+### RULE 4: NO TAUTOLOGIES + MANDATORY RSI/VOLUME CITATION
+Never write causal chains where X leads to X:
+BANNED: "Stable oil prices may lead to stable energy costs"
+BANNED: "Steady iron ore prices indicate stable demand"
+REQUIRED: "Oil at $78.50/bbl (-2.1% WoW) reduces diesel costs by ~$0.50/t for Pilbara haulage"
+
+MANDATORY: If RSI or volume_ratio data is provided in the input signals:
+- sentiment_impact MUST start with the exact RSI value: "RSI at [exact number] ([overbought/neutral/oversold])."
+- If volume_ratio is also provided: follow immediately with "Volume at [exact ratio]x avg ([elevated/normal/light])."
+- Omitting a provided RSI/volume value = automatic -10% confidence penalty
+
+### RULE 5: CONFIDENCE HARD CAPS
+- Maximum possible confidence: 85%
+- Commentary article trigger: Maximum 5%
+- Irrelevant ticker trigger: Maximum 5%
+- Missing iron ore price data: Maximum 45%
+- Missing RSI data: Maximum 55%
+
+---
+
+## MANDATORY: TECHNICAL DATA CITATION RULES
+
+### UNDERSTANDING YOUR DATA SOURCES
+
+You receive TWO types of data in every request:
+
+1. **EVENT DATA** (from trigger headline/summary) — may be empty or irrelevant
+2. **TECHNICAL DATA** (from market_signals JSON) — RSI, volume, iron ore, AUD/USD — ALWAYS present
+
+You MUST cite technical data even when the trigger is commentary/noise.
+
+### NEVER WRITE "No data" FOR sentiment_impact
+
+The market_signals JSON always contains RSI and volume. There is no excuse for "No data" in sentiment_impact.
+
+EXACT REQUIRED FORMAT:
+```
+"RSI at [VALUE] ([LABEL]). Volume at [VALUE]x avg ([LABEL]). [Event sentiment or 'No event-driven sentiment from trigger.']"
+```
+
+RSI labels:
+- RSI > 70 → "OVERBOUGHT — pullback risk elevated"
+- RSI < 30 → "OVERSOLD — reversal potential"
+- RSI 30–70 → "neutral range"
+
+Volume labels:
+- Volume < 0.7x → "LIGHT — weak conviction"
+- Volume > 1.5x → "HIGH — strong conviction"
+- Volume 0.7–1.5x → "normal"
+
+EXAMPLES:
+
+Commentary trigger + overbought RSI:
+```json
+{"sentiment_impact": "RSI at 73.4 (OVERBOUGHT — pullback risk elevated). Volume at 0.62x avg (LIGHT — weak conviction). No event-driven sentiment from trigger."}
+```
+
+Material event + normal technicals:
+```json
+{"sentiment_impact": "RSI at 55.2 (neutral range). Volume at 1.1x avg (normal). Event sentiment: positive — earnings beat expectations."}
+```
+
+### SAME RULE FOR OTHER IMPACT FIELDS WITH COMMENTARY TRIGGERS
+
+For commentary/irrelevant triggers use these exact phrases (NOT "No data — assumed neutral"):
+
+- cost_impact: "No event-driven cost impact from trigger."
+- revenue_impact: "Iron ore at $[X]/t ([+/-]%). AUD/USD at [X]. No event-driven revenue impact from trigger."
+- demand_impact: "No event-driven demand signal from trigger."
 
 ---
 
@@ -120,6 +286,39 @@ You MUST follow the 8-step reasoning pipeline below and output ONLY valid JSON.
 **demand_impact**: Must reference China PMI, steel output, construction, or inventories. Example: "China Caixin Manufacturing PMI 49.7 (sub-50 = contraction). Port Hedland iron ore inventories at 148Mt (+6Mt MoM). Steel mill capacity utilisation 78% (below 82% prior year). Net: bearish demand signal."
 
 **sentiment_impact**: Must reference a specific technical level, fund flow, or positioning indicator. Example: "BHP trading at 14.2x forward P/E vs 5yr average 13.8x — slight premium. RSI 52 neutral zone. No significant options positioning shifts noted. Net: neutral sentiment."
+
+---
+
+## CAUSAL LOGIC RULES — EVENT TYPE CONSTRAINTS
+
+### LEGAL / COURT EVENTS
+For triggers about lawsuits, court rulings, evidence disputes, settlements:
+
+- cost_impact: "No direct cost impact from legal proceedings. [Cite any cost data available] Operations unaffected."
+- revenue_impact: "Iron ore at $[X]/t ([chg]%). AUD/USD at [X]. Legal proceedings do not affect commodity prices or export revenue."
+- demand_impact: "No demand signal from trigger. Chinese steel demand is driven by construction/infrastructure, not Australian court outcomes."
+- sentiment_impact: "RSI at [X] ([label]). Volume at [X]x avg ([label]). Legal [win/loss] may [reduce/increase] litigation risk, creating short-term [positive/negative] investor sentiment."
+
+Legal events affect: investor sentiment, future liability risk, management bandwidth
+Legal events DO NOT affect: iron ore spot price, Chinese steel demand, AUD/USD, production costs
+
+FORBIDDEN for legal triggers:
+- "may positively impact iron ore prices" (courts do not set commodity prices)
+- "may increase Chinese steel mill demand" (China is unaffected by Australian court rulings)
+- "reduces risk of supply disruptions" (evidence exclusions do not affect mining operations)
+- "may affect production volumes" (unless the ruling explicitly orders an operational halt)
+
+### ANALYST / RATING EVENTS
+For triggers about analyst upgrades/downgrades, price target changes, broker notes:
+- revenue_impact: Cite current price vs new target. Do NOT claim the rating changes commodity prices.
+- demand_impact: "Analyst rating does not affect iron ore demand fundamentals."
+- sentiment_impact: Cite RSI/volume then note: "Analyst [upgrade/downgrade] may [increase/decrease] institutional flow."
+
+### MACRO / FED / RBA EVENTS
+For triggers about interest rate decisions, inflation data, central bank policy:
+- cost_impact: "Higher rates increase BHP's financing costs — apply only if debt refinancing is imminent."
+- revenue_impact: Cite iron ore and AUD/USD, noting rate impact on AUD (rate hike = AUD appreciation = revenue headwind).
+- demand_impact: "Rate hikes slow construction activity — indirect bearish signal for steel/iron ore demand."
 
 ---
 
@@ -252,6 +451,34 @@ Output ONLY this JSON (no markdown, no text outside the braces):
   "data_provenance": {}
 }
 
+---
+
+## SELF-CHECK — RUN THIS BEFORE OUTPUTTING
+
+Before writing your JSON, answer these 5 questions internally:
+
+1. **Is the trigger a commentary/opinion/valuation article?**
+   YES → confidence_score = 5, type = "Noise / Low Relevance", all impacts = "NO DATA: commentary"
+   NO → continue
+
+2. **Did I invent any geopolitical event, country conflict, or supply disruption NOT in the trigger headline?**
+   YES → remove it from causal chain immediately
+   NO → continue
+
+3. **Did I assign a topic domain (e.g. "oil markets", "China tensions") based on inference rather than headline words?**
+   YES → change type to "Noise / Low Relevance", remove invented domains
+   NO → continue
+
+4. **Does my sentiment_impact cite the exact RSI number provided in the input?**
+   If RSI was provided in the input and I did NOT cite it → prepend "RSI at [value] ([label])." to sentiment_impact
+
+5. **Did I write any BANNED phrase (e.g. "discusses X in the context of Y", "part of broader geopolitical event")?**
+   YES → rewrite that sentence with a specific mechanism or "NO DATA" statement
+
+Only output JSON after all 5 checks pass.
+
+---
+
 HARD RULES:
 1. Never guess — base all reasoning on causal logic from provided data
 2. Never hallucinate market data — use ONLY values provided in the input
@@ -326,26 +553,24 @@ def _build_user_prompt(
     dist_52w = market_signals.get("dist_from_52w_high_pct") or market_signals.get("distance_from_52w_high")
     consec_down = market_signals.get("consecutive_down_days", 0) or 0
 
-    # Build citation block — only include rows where data is present
+    # ── Build market signals table (shown in full below the box) ────────────
     cite_rows = []
     if iron_ore:
         chg_str = f"{iron_ore_chg:+.2f}%" if iron_ore_chg else "chg N/A"
-        cite_rows.append(f"  Iron Ore 62% Fe : ${_fmt(iron_ore)}/t ({chg_str}) ← MUST cite in revenue_impact")
+        cite_rows.append(f"  Iron Ore 62% Fe : ${_fmt(iron_ore)}/t ({chg_str})")
     if aud_usd:
         chg_str = f"{aud_usd_chg:+.3f}%" if aud_usd_chg else "chg N/A"
-        cite_rows.append(f"  AUD/USD         : {_fmt(aud_usd, decimals=4)} ({chg_str}) ← MUST cite in revenue_impact")
+        cite_rows.append(f"  AUD/USD         : {_fmt(aud_usd, decimals=4)} ({chg_str})")
     if brent:
         cite_rows.append(f"  Brent Crude     : ${_fmt(brent)}/bbl ({brent_chg:+.2f}%)")
     if current_price:
         cite_rows.append(f"  Stock Price     : ${_fmt(current_price)}")
     if rsi is not None:
-        rsi_label = "overbought" if float(rsi) > 70 else "oversold" if float(rsi) < 30 else "neutral"
-        cite_rows.append(f"  RSI(14)         : {_fmt(rsi)} ({rsi_label}) ← MUST cite in sentiment_impact")
+        cite_rows.append(f"  RSI(14)         : {_fmt(rsi)}")
     if macd and macd != "N/A":
         cite_rows.append(f"  MACD Signal     : {macd}")
     if volume_ratio:
-        vol_label = "elevated" if float(volume_ratio) > 1.2 else "light" if float(volume_ratio) < 0.8 else "normal"
-        cite_rows.append(f"  Volume vs Avg   : {_fmt(volume_ratio)}x ({vol_label}) ← cite in sentiment_impact")
+        cite_rows.append(f"  Volume vs Avg   : {_fmt(volume_ratio)}x")
     if d1 is not None:
         cite_rows.append(f"  1-Day Return    : {_fmt(d1, suffix='%', decimals=2)}")
     if d5 is not None:
@@ -357,30 +582,91 @@ def _build_user_prompt(
     if consec_down:
         cite_rows.append(f"  Consecutive Down Days: {consec_down}")
 
-    citation_block = "\n".join(cite_rows) if cite_rows else "  (No key signals available)"
+    signals_table = "\n".join(cite_rows) if cite_rows else "  (No key signals available)"
 
-    # Revenue instruction
-    if iron_ore and aud_usd:
-        rev_instruction = (
-            f"revenue_impact MUST begin with: "
-            f"'Iron ore at ${_fmt(iron_ore)}/t ({iron_ore_chg:+.1f}%). "
-            f"AUD/USD at {_fmt(aud_usd, decimals=4)}.' then add your analysis."
-        )
-    elif iron_ore:
-        rev_instruction = f"revenue_impact MUST begin with: 'Iron ore at ${_fmt(iron_ore)}/t ({iron_ore_chg:+.1f}%).' then add your analysis."
-    else:
-        rev_instruction = "revenue_impact: cite commodity price if available, otherwise state NO DATA."
+    # ── Compute RSI/volume labels ─────────────────────────────────────────────
+    rsi_label = "neutral"
+    if rsi is not None:
+        rsi_f = float(rsi)
+        if rsi_f > 70:
+            rsi_label = "OVERBOUGHT — pullback risk elevated"
+        elif rsi_f < 30:
+            rsi_label = "OVERSOLD — reversal potential"
 
-    # Sentiment instruction
+    vol_label = "normal"
+    if volume_ratio is not None:
+        vol_f = float(volume_ratio)
+        if vol_f < 0.7:
+            vol_label = "LIGHT — weak conviction"
+        elif vol_f > 1.5:
+            vol_label = "HIGH — strong conviction"
+
+    # ── Build exact citation strings (Python-computed, LLM must copy verbatim) ─
     if rsi is not None and volume_ratio is not None:
-        sent_instruction = (
-            f"sentiment_impact MUST begin with: 'RSI at {_fmt(rsi)} ({rsi_label}). "
-            f"Volume at {_fmt(volume_ratio)}x avg ({vol_label}).' then add your analysis."
+        exact_sentiment = (
+            f"RSI at {float(rsi):.1f} ({rsi_label}). "
+            f"Volume at {float(volume_ratio):.2f}x avg ({vol_label})."
         )
     elif rsi is not None:
-        sent_instruction = f"sentiment_impact MUST begin with: 'RSI at {_fmt(rsi)} ({rsi_label}).' then add your analysis."
+        exact_sentiment = f"RSI at {float(rsi):.1f} ({rsi_label})."
     else:
-        sent_instruction = "sentiment_impact: cite RSI/volume if available, otherwise state NO DATA."
+        exact_sentiment = "RSI data unavailable."
+
+    if iron_ore and aud_usd:
+        exact_revenue = (
+            f"Iron ore at ${float(iron_ore):.2f}/t ({iron_ore_chg:+.2f}%). "
+            f"AUD/USD at {float(aud_usd):.4f} ({aud_usd_chg:+.2f}%)."
+        )
+    elif iron_ore:
+        exact_revenue = f"Iron ore at ${float(iron_ore):.2f}/t ({iron_ore_chg:+.2f}%)."
+    else:
+        exact_revenue = "Iron ore price unavailable."
+
+    # ── Revenue / sentiment citation instructions ─────────────────────────────
+    if iron_ore and aud_usd:
+        rev_instruction = (
+            f"revenue_impact MUST begin with: '{exact_revenue}' then add your analysis."
+        )
+    elif iron_ore:
+        rev_instruction = f"revenue_impact MUST begin with: '{exact_revenue}' then add your analysis."
+    else:
+        rev_instruction = "revenue_impact: state 'Iron ore price unavailable.' then add analysis."
+
+    if rsi is not None and volume_ratio is not None:
+        sent_instruction = (
+            f"sentiment_impact MUST begin with: '{exact_sentiment}' "
+            f"Then add event sentiment OR 'No event-driven sentiment from trigger.' if commentary."
+        )
+    elif rsi is not None:
+        sent_instruction = (
+            f"sentiment_impact MUST begin with: '{exact_sentiment}' "
+            f"Then add event sentiment OR 'No event-driven sentiment from trigger.' if commentary."
+        )
+    else:
+        sent_instruction = "sentiment_impact: state 'RSI data unavailable.' then add event sentiment if any."
+
+    # ── Unicode box with pre-computed mandatory strings ───────────────────────
+    w = 70
+    def _box_row(text: str) -> str:
+        return f"\u2551  {text:<{w - 4}}\u2551"
+
+    mandatory_box = "\n".join([
+        "\u2554" + "\u2550" * (w - 2) + "\u2557",
+        _box_row("MANDATORY: COPY THESE EXACT STRINGS INTO YOUR JSON OUTPUT"),
+        "\u2560" + "\u2550" * (w - 2) + "\u2563",
+        _box_row(""),
+        _box_row("sentiment_impact MUST BEGIN WITH:"),
+        _box_row(f'  "{exact_sentiment}"'),
+        _box_row(""),
+        _box_row("revenue_impact MUST BEGIN WITH:"),
+        _box_row(f'  "{exact_revenue}"'),
+        _box_row(""),
+        _box_row("COPY THESE EXACTLY. Do not paraphrase. Do not omit."),
+        _box_row('NEVER write "No data — assumed neutral" in any field.'),
+        _box_row("For commentary triggers: append 'No event-driven [X] from trigger.'"),
+        _box_row(""),
+        "\u255a" + "\u2550" * (w - 2) + "\u255d",
+    ])
 
     total = sum(agent_votes.values())
     return f"""## ANALYSIS REQUEST
@@ -393,21 +679,23 @@ def _build_user_prompt(
 
 ---
 
-## DATA YOU MUST CITE — DO NOT IGNORE THESE NUMBERS
+{mandatory_box}
 
-{citation_block}
+## ALL MARKET SIGNALS
 
-### REQUIRED CITATION FORMAT
+{signals_table}
+
+### CITATION RULES
 - {rev_instruction}
 - {sent_instruction}
-- cost_impact: name a real cost driver (diesel/freight/labour/energy) OR write exactly: "No material cost catalyst. Operations stable."
-- demand_impact: cite China PMI / steel data if in signals, otherwise state: "China PMI data unavailable."
+- cost_impact: name a real cost driver (diesel/freight/labour/energy) OR write: "No event-driven cost impact from trigger."
+- demand_impact: cite China PMI / steel data if in signals, otherwise write: "No event-driven demand signal from trigger."
 
-FORBIDDEN: "price is stable", "demand is neutral", "unlikely to affect", "will not significantly impact", "no significant changes"
+FORBIDDEN PHRASES: "price is stable", "demand is neutral", "unlikely to affect", "will not significantly impact", "no significant changes", "No data — assumed neutral", "assumed neutral impact"
 
 ---
 
-### FULL MARKET SIGNALS (use all available data)
+### FULL MARKET SIGNALS JSON
 ```json
 {json.dumps(market_signals, indent=2)}
 ```
@@ -536,12 +824,39 @@ class ReasoningSynthesizer:
             dropped = len(market_signals) - len(relevant_signals)
             logger.debug("Filtered %d irrelevant signal(s) for %s", dropped, stock_ticker)
 
-        # ── Trigger materiality classification ─────────────────────────────────
+        # ── Trigger materiality classification (keyword-based, fast) ─────────────
         trigger_meta = TriggerClassifier.classify(news_headline, news_summary)
         logger.info(
             "Trigger materiality [%s]: %s (%s)",
             stock_ticker, trigger_meta["materiality"], trigger_meta["type"],
         )
+
+        # ── LLM pre-flight classifier (Prompt 2) — cheap 8b call ──────────────
+        # Only run when keyword classifier didn't already flag as LOW materiality.
+        _llm_classify: Dict[str, Any] = {}
+        if trigger_meta["materiality"] != "LOW":
+            try:
+                _llm_classify = await self._llm_classify_trigger(
+                    news_headline, news_summary, stock_ticker
+                )
+                # If LLM says skip, override trigger_meta to LOW
+                if _llm_classify.get("skip_simulation"):
+                    trigger_meta = {
+                        "materiality": "LOW",
+                        "type": _llm_classify.get("classification", "commentary").lower(),
+                        "preamble": (
+                            f"NOTE: LLM classifier identified '{news_headline}' as "
+                            f"{_llm_classify.get('classification', 'non-material')}: "
+                            f"{_llm_classify.get('reason', '')}. "
+                            "Classify as 'Noise / Low Relevance' with confidence_score = 5."
+                        ),
+                    }
+                    logger.info(
+                        "LLM pre-flight: skipping full synthesis for %s (%s)",
+                        stock_ticker, _llm_classify.get("classification"),
+                    )
+            except Exception as _clf_err:
+                logger.debug("LLM pre-flight classifier skipped: %s", _clf_err)
 
         # ── News category classification (13-class, fast keyword-based) ────────
         news_classification: Optional[Dict[str, Any]] = None
@@ -722,6 +1037,17 @@ class ReasoningSynthesizer:
             result.adjustments_applied = adjustments_applied
             result.reasoning_quality_issues = quality_issues
 
+            # ── QA validation (Prompt 3) — post-synthesis confidence penalties ──
+            try:
+                await self._qa_validate(
+                    result=result,
+                    trigger_text=f"{news_headline}. {news_summary}",
+                    target_ticker=stock_ticker,
+                    market_signals=relevant_signals,
+                )
+            except Exception as _qa_err:
+                logger.debug("QA validation skipped (non-fatal): %s", _qa_err)
+
             return result
 
         except ValidationError as exc:
@@ -737,6 +1063,151 @@ class ReasoningSynthesizer:
             return _fallback_output(stock_ticker, agent_votes, str(exc))
 
     # ── helpers ────────────────────────────────────────────────────────────────
+
+    async def _llm_classify_trigger(
+        self,
+        headline: str,
+        summary: str,
+        target_ticker: str,
+    ) -> Dict[str, Any]:
+        """
+        Prompt 2: Fast LLM pre-flight check before running the full synthesis.
+        Uses call_fast (8b model) to classify trigger materiality.
+        Returns a dict with skip_simulation flag and classification metadata.
+        Falls back to {"skip_simulation": False} on any error.
+        """
+        _CLASSIFY_SYSTEM = (
+            "You are a news trigger classifier for an ASX stock prediction system. "
+            "Classify the headline as MATERIAL or non-material. Output ONLY valid JSON."
+        )
+        _CLASSIFY_USER = f"""Classify this news headline for ASX stock analysis.
+
+Headline: {headline}
+Summary: {summary[:300]}
+Target Ticker: {target_ticker}
+
+MATERIAL EVENTS (real catalyst): earnings, dividends, acquisitions, guidance, production updates,
+price surges/plunges, regulatory changes, geopolitical events affecting supply chains,
+analyst upgrades/downgrades.
+
+NON-MATERIAL (skip analysis): stock commentary ("easy way to value", "stocks to watch",
+"should you buy", "top picks"), opinion pieces, educational articles, listicles, comparisons.
+
+Output ONLY this JSON:
+{{"is_material": true, "classification": "MATERIAL_EVENT", "target_ticker_relevant": true, "skip_simulation": false, "confidence": 0.9, "reason": "Direct earnings announcement"}}
+
+Valid classifications: MATERIAL_EVENT | COMMENTARY | LISTICLE | OPINION | EDUCATIONAL | IRRELEVANT_TICKER"""
+
+        try:
+            raw = await self._router.call_fast(
+                system_message=_CLASSIFY_SYSTEM,
+                user_prompt=_CLASSIFY_USER,
+                session_id=f"classify:{target_ticker}",
+            )
+            result = parse_json_response(raw)
+            logger.info(
+                "LLM trigger classification [%s]: %s (skip=%s, conf=%.0f%%)",
+                target_ticker,
+                result.get("classification", "?"),
+                result.get("skip_simulation", False),
+                float(result.get("confidence", 0)) * 100,
+            )
+            return result
+        except Exception as _e:
+            logger.debug("LLM trigger classifier failed (non-fatal): %s", _e)
+            return {"skip_simulation": False, "classification": "UNKNOWN", "is_material": True}
+
+    async def _qa_validate(
+        self,
+        result: "ReasoningOutput",
+        trigger_text: str,
+        target_ticker: str,
+        market_signals: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """
+        Prompt 3: Post-synthesis QA validator.
+        Checks for hallucinations, tautologies, missing citations, and geographic errors.
+        Returns penalty dict; applies confidence adjustment directly to result.
+        Falls back gracefully on any error.
+        """
+        _QA_SYSTEM = (
+            "You are a QA validator for stock prediction reasoning. "
+            "Find logical errors, hallucinations, and circular reasoning. Output ONLY valid JSON."
+        )
+
+        import json as _json
+        try:
+            chain = (
+                result.causal_chain.model_dump()
+                if hasattr(result.causal_chain, "model_dump")
+                else {}
+            )
+            fd = (
+                result.final_decision.model_dump()
+                if hasattr(result.final_decision, "model_dump")
+                else {}
+            )
+        except Exception:
+            return {}
+
+        _QA_USER = f"""Validate this stock prediction reasoning for errors.
+
+Trigger: {trigger_text[:400]}
+Target Ticker: {target_ticker}
+Iron Ore Price: {market_signals.get('iron_ore_62fe') or market_signals.get('iron_ore_price', 'N/A')}
+RSI: {market_signals.get('rsi_14', 'N/A')}
+Volume Ratio: {market_signals.get('volume_ratio') or market_signals.get('volume_vs_avg', 'N/A')}
+
+Causal Chain:
+{_json.dumps(chain, indent=2)[:800]}
+
+Final Decision: {_json.dumps(fd)}
+Original Confidence: {fd.get('confidence_score', 0)}
+
+CHECK FOR:
+1. HALLUCINATION: Did the chain invent countries/events/facts not in the trigger? (-25% per instance)
+2. TAUTOLOGY: Does "X leads to X" (stable prices → stable costs)? (-15% per instance)
+3. MISSING_DATA: Does any impact field lack at least one number? (-10% per missing)
+4. GEOGRAPHIC_ERROR: For BHP/RIO/FMG — does chain mention Malacca for iron ore? (-20%)
+5. IRRELEVANT_TRIGGER: Is this a commentary/valuation article, not a real event? (cap at 5%)
+
+Output ONLY this JSON:
+{{"is_valid": true, "total_penalty_percent": 0, "issues": [], "adjusted_confidence": {fd.get('confidence_score', 0)}, "summary": "No issues found"}}"""
+
+        try:
+            raw = await self._router.call_fast(
+                system_message=_QA_SYSTEM,
+                user_prompt=_QA_USER,
+                session_id=f"qa:{target_ticker}",
+            )
+            qa_result = parse_json_response(raw)
+
+            penalty = int(qa_result.get("total_penalty_percent", 0))
+            issues = qa_result.get("issues", [])
+
+            if penalty > 0 and issues:
+                original = result.final_decision.confidence_score
+                adjusted = max(5, min(original, original - penalty))
+                if adjusted < original:
+                    result.final_decision.confidence_score = adjusted
+                    if not hasattr(result, "adjustments_applied") or result.adjustments_applied is None:
+                        result.adjustments_applied = []
+                    result.adjustments_applied.append({
+                        "type": "qa_validation_penalty",
+                        "original": original,
+                        "adjusted": adjusted,
+                        "reason": f"QA validator: {len(issues)} issue(s) — {qa_result.get('summary', '')}",
+                    })
+                    logger.info(
+                        "QA validation [%s]: confidence %d → %d (-%d%%, %d issue(s))",
+                        target_ticker, original, adjusted, penalty, len(issues),
+                    )
+
+            return qa_result
+
+        except Exception as _e:
+            logger.debug("QA validator failed (non-fatal): %s", _e)
+            return {}
 
     def _post_process_inject_data(
         self,
