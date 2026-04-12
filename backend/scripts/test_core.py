@@ -1410,6 +1410,56 @@ class Simulation:
             top_critical_news = "None"
 
         chain_questions = get_causal_chain_questions(ticker)
+
+        # ── Inject live market data into chain questions so the reconciler
+        # is forced to cite exact RSI/volume/iron-ore values in its output ────
+        _rsi        = market_ctx.get("ticker_rsi")
+        _vol        = market_ctx.get("volume_ratio") or market_ctx.get("volume_vs_avg")
+        _iron       = market_ctx.get("iron_ore_price")
+        _iron_chg   = market_ctx.get("iron_ore_change_pct", 0) or 0
+        _audusd     = market_ctx.get("audusd_rate")
+        _audusd_chg = market_ctx.get("audusd_change_pct", 0) or 0
+
+        if _rsi is not None:
+            _rsi_f = float(_rsi)
+            _rsi_label = (
+                "OVERBOUGHT — pullback risk elevated" if _rsi_f > 70
+                else "OVERSOLD — reversal potential" if _rsi_f < 30
+                else "neutral range"
+            )
+            _rsi_str = f"RSI at {_rsi_f:.1f} ({_rsi_label})"
+        else:
+            _rsi_str = "RSI unavailable"
+
+        if _vol is not None:
+            _vol_f = float(_vol)
+            _vol_label = (
+                "LIGHT — weak conviction" if _vol_f < 0.7
+                else "HIGH — strong conviction" if _vol_f > 1.5
+                else "normal"
+            )
+            _vol_str = f"Volume at {_vol_f:.2f}x avg ({_vol_label})"
+        else:
+            _vol_str = "volume unavailable"
+
+        _sent_prefix = f"{_rsi_str}. {_vol_str}."
+        chain_questions = {**chain_questions, "sentiment": (
+            f"BEGIN YOUR ANSWER WITH: '{_sent_prefix}' "
+            f"Then state what this event means for {ticker} investor sentiment."
+        )}
+
+        if _iron is not None:
+            _rev_prefix = (
+                f"Iron ore at ${float(_iron):.2f}/t ({_iron_chg:+.2f}%). "
+                f"AUD/USD at {float(_audusd):.4f} ({_audusd_chg:+.2f}%)."
+                if _audusd is not None
+                else f"Iron ore at ${float(_iron):.2f}/t ({_iron_chg:+.2f}%)."
+            )
+            chain_questions = {**chain_questions, "revenue": (
+                f"BEGIN YOUR ANSWER WITH: '{_rev_prefix}' "
+                f"Then state how this event affects {ticker} revenue."
+            )}
+
         # ── Phase 7 total timeout: 90s safety net.
         # Per-call timeouts inside _run_judge (25s blind + 55s reconciler) mean
         # Phase 7 normally completes within 80s. The outer 90s is a last-resort
