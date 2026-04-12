@@ -1414,7 +1414,7 @@ class Simulation:
         # ── Inject live market data into chain questions so the reconciler
         # is forced to cite exact RSI/volume/iron-ore values in its output ────
         _rsi        = market_ctx.get("ticker_rsi")
-        _vol        = market_ctx.get("volume_ratio") or market_ctx.get("volume_vs_avg")
+        _vol        = market_ctx.get("ticker_volume_vs_avg")
         _iron       = market_ctx.get("iron_ore_price")
         _iron_chg   = market_ctx.get("iron_ore_change_pct", 0) or 0
         _audusd     = market_ctx.get("audusd_rate")
