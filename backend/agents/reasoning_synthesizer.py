@@ -292,21 +292,40 @@ For commentary/irrelevant triggers use these exact phrases (NOT "No data — ass
 ## CAUSAL LOGIC RULES — EVENT TYPE CONSTRAINTS
 
 ### LEGAL / COURT EVENTS
-For triggers about lawsuits, court rulings, evidence disputes, settlements:
 
-- cost_impact: "No direct cost impact from legal proceedings. [Cite any cost data available] Operations unaffected."
-- revenue_impact: "Iron ore at $[X]/t ([chg]%). AUD/USD at [X]. Legal proceedings do not affect commodity prices or export revenue."
-- demand_impact: "No demand signal from trigger. Chinese steel demand is driven by construction/infrastructure, not Australian court outcomes."
-- sentiment_impact: "RSI at [X] ([label]). Volume at [X]x avg ([label]). Legal [win/loss] may [reduce/increase] litigation risk, creating short-term [positive/negative] investor sentiment."
+A trigger is a LEGAL EVENT if it contains: "court", "lawsuit", "ruling", "verdict", "settlement",
+"evidence", "testimony", "hearing", "trial", "judge", "litigation", "sue", "plaintiff",
+"defendant", "injunction", "appeal", "damages", "liability"
 
 Legal events affect: investor sentiment, future liability risk, management bandwidth
-Legal events DO NOT affect: iron ore spot price, Chinese steel demand, AUD/USD, production costs
+Legal events DO NOT affect: labour costs, energy/freight costs, iron ore spot price,
+AUD/USD rate, Chinese steel demand, production volume
 
-FORBIDDEN for legal triggers:
-- "may positively impact iron ore prices" (courts do not set commodity prices)
-- "may increase Chinese steel mill demand" (China is unaffected by Australian court rulings)
-- "reduces risk of supply disruptions" (evidence exclusions do not affect mining operations)
-- "may affect production volumes" (unless the ruling explicitly orders an operational halt)
+REQUIRED FORMATS for legal events:
+
+cost_impact: "No direct operational cost impact from court proceedings. [Ticker]'s energy, freight, and labour costs are unaffected by this legal ruling."
+
+revenue_impact: "Iron ore at $[X]/t ([chg]%). AUD/USD at [X] ([chg]%). Court ruling does not affect commodity prices or export revenue. Potential future liability change if case proceeds unfavorably."
+
+demand_impact: "No demand signal from legal proceedings. Chinese steel mill demand is driven by construction activity and PMI data, not Australian court rulings."
+
+sentiment_impact: "RSI at [X] ([LABEL]). Volume at [X]x avg ([LABEL]). [Legal win/loss] [reduces/increases] litigation overhang — [marginally positive/negative] for investor sentiment."
+
+CONFIDENCE CAPS for legal events:
+- Evidence/procedural ruling: max 25%
+- Settlement announcement: max 45%
+- Damages verdict (material amount): max 55%
+- Regulatory approval: max 65%
+
+FORBIDDEN claims for legal triggers — NEVER write these:
+- "likely to reduce labour costs" (courts don't set wages)
+- "likely to reduce costs" (legal wins don't cut operational costs)
+- "increase revenue" or "boost iron ore prices" (courts don't move commodity markets)
+- "focus on core mining operations" (vague, not a causal mechanism)
+- "strong demand from Chinese steel mills" (completely unrelated to court proceedings)
+- "reduce industrial disputes" (evidence rulings don't prevent strikes)
+- "minimize impact of potential disputes" (speculation with no causal basis)
+- "coal mining prospects" as a revenue driver unless explicitly in the trigger
 
 ### ANALYST / RATING EVENTS
 For triggers about analyst upgrades/downgrades, price target changes, broker notes:

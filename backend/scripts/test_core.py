@@ -1460,6 +1460,54 @@ class Simulation:
                 f"Then state how this event affects {ticker} revenue."
             )}
 
+        # ── Legal event detection — override chain questions with constrained
+        # templates so the reconciler cannot fabricate operational impacts ─────
+        _LEGAL_KEYWORDS = (
+            "court", "lawsuit", "ruling", "verdict", "settlement",
+            "evidence", "testimony", "hearing", "trial", "judge",
+            "litigation", "sue ", "sued", "plaintiff", "defendant",
+            "injunction", "appeal", "damages", "liability", "legal",
+        )
+        _trigger_lower = top_critical_news.lower() + " " + event_context[:200].lower()
+        _is_legal_event = any(kw in _trigger_lower for kw in _LEGAL_KEYWORDS)
+
+        if _is_legal_event:
+            logger.info("Legal event detected — injecting constrained chain questions for %s", ticker)
+            _rev_legal = (
+                f"{_rev_prefix} Court ruling does not affect commodity prices or export revenue. "
+                f"Potential future liability change if case proceeds."
+                if _iron is not None
+                else (
+                    "Court ruling does not affect commodity prices or export revenue. "
+                    "Potential future liability change if case proceeds."
+                )
+            )
+            chain_questions = {
+                **chain_questions,
+                "cost": (
+                    "State EXACTLY: 'No direct operational cost impact from court proceedings. "
+                    f"{ticker}'s energy, freight, and labour costs are unaffected by this legal ruling.' "
+                    "Do NOT say courts reduce labour costs, energy costs, or operational expenses."
+                ),
+                "revenue": (
+                    f"BEGIN YOUR ANSWER WITH: '{_rev_prefix if _iron else 'Commodity prices unchanged.'}' "
+                    "Then state: 'Court ruling does not affect commodity prices or export revenue.' "
+                    "Do NOT claim the ruling increases revenue or iron ore prices."
+                ),
+                "demand": (
+                    "State EXACTLY: 'No demand signal from legal proceedings. "
+                    "Chinese steel mill demand is driven by construction activity and PMI data, "
+                    "not Australian court rulings.' "
+                    "Do NOT claim the ruling affects Chinese steel demand or iron ore volumes."
+                ),
+                "sentiment": (
+                    f"BEGIN YOUR ANSWER WITH: '{_sent_prefix}' "
+                    "Then state how the legal outcome affects INVESTOR SENTIMENT ONLY — "
+                    "not operational metrics, not commodity prices. "
+                    "Legal win = reduced litigation overhang = marginally positive sentiment."
+                ),
+            }
+
         # ── Phase 7 total timeout: 90s safety net.
         # Per-call timeouts inside _run_judge (25s blind + 55s reconciler) mean
         # Phase 7 normally completes within 80s. The outer 90s is a last-resort
