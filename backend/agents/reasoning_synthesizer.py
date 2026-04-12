@@ -542,7 +542,13 @@ def _build_user_prompt(
     current_price = market_signals.get("current_price")
     rsi = market_signals.get("rsi_14")
     macd = market_signals.get("macd_signal", "N/A")
-    volume_ratio = market_signals.get("volume_ratio") or market_signals.get("volume_vs_avg")
+    volume_ratio = (
+        market_signals.get("volume_ratio")
+        or market_signals.get("volume_vs_avg")
+        or market_signals.get("ticker_volume_vs_avg")
+        or market_signals.get("vol_ratio")
+        or market_signals.get("relative_volume")
+    )
     brent = market_signals.get("brent_price")
     brent_chg = market_signals.get("brent_change_pct", 0) or 0
 
@@ -1226,7 +1232,13 @@ Output ONLY this JSON:
         iron_ore_chg = market_signals.get("iron_ore_change_pct") or 0
         aud_usd = market_signals.get("aud_usd")
         rsi = market_signals.get("rsi_14")
-        volume_ratio = market_signals.get("volume_ratio") or market_signals.get("volume_vs_avg")
+        volume_ratio = (
+            market_signals.get("volume_ratio")
+            or market_signals.get("volume_vs_avg")
+            or market_signals.get("ticker_volume_vs_avg")
+            or market_signals.get("vol_ratio")
+            or market_signals.get("relative_volume")
+        )
 
         # ── Revenue: prepend iron ore price if missing ────────────────────────
         rev = processed.get("revenue_impact") or processed.get("revenue_signal") or ""
