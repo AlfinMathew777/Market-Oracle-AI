@@ -1,0 +1,22 @@
+app            = "market-oracle-workers"
+primary_region = "syd"
+
+[build]
+  dockerfile = "Dockerfile.worker"
+
+[env]
+  ENVIRONMENT        = "production"
+  PAPER_MODE         = "false"
+  WORKER_TYPE        = "simulation"
+  USE_SIMULATION_QUEUE = "true"
+
+# Workers have no inbound HTTP traffic — no [http_service] block
+[[vm]]
+  size = "shared-cpu-1x"
+
+# Keep machines alive — workers block on Redis BZPOPMIN, they must stay running
+[deploy]
+  strategy = "rolling"
+
+# No health check via HTTP; rely on Fly machine restart policy
+# The worker exits cleanly on SIGTERM, so Fly will restart it if it crashes
