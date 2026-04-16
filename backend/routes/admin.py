@@ -188,3 +188,79 @@ async def validation_summary(days: int = 30):
 
     from validation.outcome_checker import get_validation_summary
     return await get_validation_summary(days=days)
+
+
+# ── Alert endpoints ────────────────────────────────────────────────────────────
+
+class AcknowledgeRequest(BaseModel):
+    by: str = "admin"
+
+
+@router.get("/api/alerts")
+async def list_alerts(
+    status: str = Query(default="active", pattern="^(active|all)$"),
+    limit: int = Query(default=50, ge=1, le=500),
+):
+    """
+    GET /api/alerts?status=active          — unacknowledged alerts, newest first
+    GET /api/alerts?status=all&limit=100   — full alert history
+
+    No authentication required (safe for monitoring dashboards).
+    """
+    from monitoring.alerts import get_active_alerts, get_alert_history
+    if status == "active":
+        alerts = await get_active_alerts()
+    else:
+        alerts = await get_alert_history(limit=limit)
+    return {
+        "status": "success",
+        "count": len(alerts),
+        "alerts": alerts,
+    }
+
+
+@router.post("/api/alerts/{alert_id}/acknowledge")
+async def ack_alert(alert_id: int, request: Request, body: AcknowledgeRequest):
+    """
+    POST /api/alerts/{id}/acknowledge
+    Body: {"by": "alfin"}
+
+    Marks an alert as acknowledged. Requires: X-API-Key header.
+    """
+    from server import require_api_key
+    require_api_key(request)
+
+    from monitoring.alerts import acknowledge_alert
+    success = await acknowledge_alert(alert_id, body.by)
+    if not success:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Alert {alert_id} not found or already acknowledged",
+        )
+    return {
+        "status": "acknowledged",
+        "alert_id": alert_id,
+        "by": body.by,
+        "acknowledged_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+@router.post("/api/admin/check-alerts")
+async def trigger_alert_check(request: Request):
+    """
+    POST /api/admin/check-alerts
+
+    Manually run all alert checks. Returns any newly created alerts.
+    Requires: X-API-Key header.
+    """
+    from server import require_api_key
+    require_api_key(request)
+
+    from monitoring.alerts import check_all_alerts
+    new_alerts = await check_all_alerts()
+    return {
+        "status": "success",
+        "new_alerts": len(new_alerts),
+        "alerts": new_alerts,
+        "checked_at": datetime.now(timezone.utc).isoformat(),
+    }
