@@ -106,6 +106,7 @@ function App() {
   const navigateTo = (tab) => {
     if (tab === "track-record") window.location.hash = "#/track-record";
     else if (tab === "simulation") window.location.hash = "#/simulation";
+    else if (tab === "accuracy") window.location.hash = "#/accuracy";
     else window.location.hash = "#/";
     setActiveTab(tab);
   };
