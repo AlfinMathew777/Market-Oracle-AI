@@ -1,0 +1,103 @@
+name: Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  push:
+    branches: [main, staging]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install linters
+        run: pip install ruff mypy bandit safety
+
+      - name: Run Ruff
+        run: ruff check backend/ --output-format=github
+
+      - name: Run MyPy
+        run: mypy backend/ || true  # Non-blocking initially
+        continue-on-error: true
+
+      - name: Run Bandit (security)
+        run: |
+          bandit -r backend/ -f json -o bandit-report.json --skip B101 || true
+          bandit -r backend/ --skip B101 --severity-level medium
+
+      - name: Check dependencies (Safety)
+        run: safety check -r backend/requirements.txt --json > safety-report.json || true
+
+      - name: Upload security reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports
+          path: |
+            bandit-report.json
+            safety-report.json
+
+  complexity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install tools
+        run: pip install radon xenon
+
+      - name: Check cyclomatic complexity
+        run: |
+          radon cc backend/ -a -s -nc --json > complexity.json
+          echo "## Complexity Report" >> $GITHUB_STEP_SUMMARY
+          radon cc backend/ -a -s -nc >> $GITHUB_STEP_SUMMARY
+
+      - name: Enforce complexity limits
+        run: xenon backend/ --max-absolute C --max-modules B --max-average A
+        continue-on-error: true
+
+  coverage-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          cd backend
+          pip install -r requirements.txt
+          pip install pytest-cov
+
+      - name: Run tests with coverage
+        env:
+          ENVIRONMENT: test
+          PAPER_MODE: "true"
+        run: |
+          cd backend
+          pytest tests/ --cov=. --cov-report=xml --cov-report=term \
+            --ignore=tests/load \
+            --ignore=tests/chaos \
+            -q
+
+      - name: Coverage summary
+        run: |
+          cd backend
+          echo "## Coverage Report" >> $GITHUB_STEP_SUMMARY
+          coverage report >> $GITHUB_STEP_SUMMARY
