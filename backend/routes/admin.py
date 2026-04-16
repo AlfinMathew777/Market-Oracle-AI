@@ -18,7 +18,7 @@ Endpoints:
 import logging
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel
 
 from system_state import activate_kill_switch, get_system_state, is_signals_enabled, resume_signals
