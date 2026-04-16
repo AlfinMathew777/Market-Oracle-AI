@@ -81,6 +81,18 @@ function App() {
   const abortPollRef = useRef(false); // set true to cancel current poll loop
   const wsRef = useRef(null); // WebSocket reference for live prices
 
+  // Fetch server environment once on mount — drives the header badge
+  useEffect(() => {
+    directFetch(`${BACKEND_URL}/api/health`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.environment && d.environment !== "production") {
+          setServerEnvironment(d.environment);
+        }
+      })
+      .catch(() => {}); // Non-critical — badge simply won't show on error
+  }, []);
+
   // Safety net: whenever prediction arrives, force-open card and clear simulation overlay
   useEffect(() => {
     if (prediction) {
