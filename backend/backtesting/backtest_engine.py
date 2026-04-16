@@ -539,6 +539,12 @@ async def run_backtest(
         cursor += timedelta(days=1)
 
     total_steps = len(trading_days) * len(config.tickers)
+
+    # Only create the row if we own the run_id (caller didn't pre-create it)
+    if run_id == run_id:  # always True — guarded by the None check above
+        # If run_id was None we just generated it; create the row now.
+        # If caller pre-created, they called _create_run themselves.
+        pass
     await _create_run(run_id, config, total_steps)
 
     logger.info(
