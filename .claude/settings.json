@@ -70,6 +70,11 @@
             "type": "command",
             "command": "bash .claude/hooks/auto-deploy.sh",
             "timeout": 60
+          },
+          {
+            "type": "command",
+            "command": "powershell -File .claude/hooks/sound-complete.ps1 -Result success",
+            "timeout": 5
           }
         ]
       }
