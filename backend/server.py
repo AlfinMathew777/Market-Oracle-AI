@@ -294,7 +294,11 @@ async def lifespan(app: FastAPI):
 
     asyncio.create_task(_boot_cleanup())
 
-    logger.info("Startup complete — cache pre-warm and accuracy checks running in background")
+    from system_state import PAPER_MODE
+    logger.info(
+        "Startup complete — PAPER_MODE=%s | cache pre-warm and accuracy checks running in background",
+        PAPER_MODE,
+    )
     yield
 
 
