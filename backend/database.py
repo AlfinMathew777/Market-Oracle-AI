@@ -1,21 +1,31 @@
-"""SQLite persistence layer for Market Oracle AI.
+"""Persistence layer for Market Oracle AI.
+
+Supports two backends:
+  - SQLite  (default, local dev): when DATABASE_URL is not set
+  - PostgreSQL (staging/prod):    when DATABASE_URL is set
 
 Tables:
   simulations    — existing prediction history (backward compatible)
   events         — de-duplicated ACLED events
   prediction_log — Upgrade 5: full prediction log with reflection fields
 
-DB path: /data/aussieintel.db on Render/Railway (persistent disk),
-         ./aussieintel.db in local dev.
+DB path (SQLite): /data/aussieintel.db on Railway (persistent disk),
+                  ./aussieintel.db in local dev.
 """
 
 import os
 import asyncio
 import logging
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 
 logger = logging.getLogger(__name__)
+
+# ── Backend selection ─────────────────────────────────────────────────────────
+
+DATABASE_URL = os.environ.get("DATABASE_URL", "")
+_USE_POSTGRES = bool(DATABASE_URL)
 
 _DB_DIR = os.environ.get("DATA_DIR", "/data" if os.path.isdir("/data") else ".")
 DB_PATH = os.path.join(_DB_DIR, "aussieintel.db")
@@ -25,7 +35,17 @@ _initialized = False
 
 
 def get_db():
-    """Return an aiosqlite connection context manager. Use as: async with get_db() as db:"""
+    """
+    Return an async context manager yielding a DB connection.
+
+    - PostgreSQL: yields a PgConnection (db/connection.py)
+    - SQLite:     yields an aiosqlite connection
+
+    Use as: async with get_db() as db:
+    """
+    if _USE_POSTGRES:
+        from db.connection import get_pg_db
+        return get_pg_db()
     import aiosqlite
     return aiosqlite.connect(DB_PATH)
 
@@ -36,6 +56,12 @@ async def init_db() -> None:
     async with _init_lock:
         if _initialized:
             return
+
+        if _USE_POSTGRES:
+            await _init_postgres()
+            _initialized = True
+            return
+
         import aiosqlite
         async with aiosqlite.connect(DB_PATH) as db:
             await db.executescript("""
