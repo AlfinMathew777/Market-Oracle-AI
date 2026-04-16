@@ -264,3 +264,24 @@ async def trigger_alert_check(request: Request):
         "alerts": new_alerts,
         "checked_at": datetime.now(timezone.utc).isoformat(),
     }
+
+
+@router.get("/api/admin/regions")
+async def region_health():
+    """
+    GET /api/admin/regions
+
+    Returns the health and latency of every deployed Fly.io region, plus
+    the region this instance is currently running in.
+
+    No authentication required — safe for uptime monitors.
+    """
+    from monitoring.region_health import check_all_regions, get_current_region
+
+    regions = await check_all_regions()
+    return {
+        "status": "success",
+        "current_region": get_current_region(),
+        "regions": regions,
+        "checked_at": datetime.now(timezone.utc).isoformat(),
+    }
