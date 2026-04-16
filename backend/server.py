@@ -318,6 +318,8 @@ async def lifespan(app: FastAPI):
     asyncio.create_task(_boot_cleanup())
 
     log_environment_banner()
+    from config.secrets import validate_secrets
+    validate_secrets()
     from system_state import PAPER_MODE
     logger.info(
         "Startup complete — ENV=%s | PAPER_MODE=%s | cache pre-warm and accuracy checks running in background",
