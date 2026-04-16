@@ -1,0 +1,433 @@
+/* ── Page shell ─────────────────────────────────────────────────────────────── */
+.ad-page {
+  background: #05050f;
+  color: #ccc;
+  font-family: 'Inter', 'Segoe UI', sans-serif;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+/* ── Loading ─────────────────────────────────────────────────────────────────── */
+.ad-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  gap: 16px;
+  color: #555;
+  background: #05050f;
+  font-family: 'Inter', 'Segoe UI', sans-serif;
+}
+.ad-spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid rgba(51, 102, 255, 0.2);
+  border-top-color: #3366ff;
+  border-radius: 50%;
+  animation: ad-spin 0.8s linear infinite;
+}
+@keyframes ad-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Header section ──────────────────────────────────────────────────────────── */
+.ad-header-section {
+  background: linear-gradient(160deg, #08080f 0%, #0d0d1f 100%);
+  border: 1px solid rgba(51, 102, 255, 0.3);
+  border-radius: 12px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.ad-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.ad-header-title {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: #3366ff;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.ad-logo-dot { font-size: 10px; color: #3366ff; }
+
+.ad-header-subtitle {
+  font-size: 11px;
+  color: #444;
+  margin-top: 5px;
+  letter-spacing: 0.3px;
+}
+
+.ad-header-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.ad-days-select {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(51, 102, 255, 0.3);
+  border-radius: 6px;
+  color: #aaa;
+  font-size: 12px;
+  padding: 6px 10px;
+  cursor: pointer;
+  outline: none;
+  font-family: 'Inter', sans-serif;
+}
+.ad-days-select:hover { border-color: rgba(51, 102, 255, 0.6); color: #ccc; }
+.ad-days-select option { background: #0d0d1f; }
+
+.ad-last-updated {
+  font-size: 11px;
+  color: #445;
+  letter-spacing: 0.2px;
+}
+
+/* ── Error banner ─────────────────────────────────────────────────────────────── */
+.ad-error {
+  background: rgba(255, 51, 102, 0.08);
+  border: 1px solid rgba(255, 51, 102, 0.2);
+  border-radius: 6px;
+  padding: 10px 14px;
+  font-size: 12px;
+  color: #ff3366;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.ad-retry-btn {
+  background: rgba(255, 51, 102, 0.15);
+  border: 1px solid rgba(255, 51, 102, 0.3);
+  border-radius: 4px;
+  color: #ff3366;
+  font-size: 11px;
+  padding: 3px 10px;
+  cursor: pointer;
+}
+.ad-retry-btn:hover { background: rgba(255, 51, 102, 0.25); }
+
+/* ── Stat cards ──────────────────────────────────────────────────────────────── */
+.ad-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+@media (max-width: 700px) {
+  .ad-stat-grid { grid-template-columns: 1fr 1fr; }
+}
+
+.ad-stat-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 8px;
+  padding: 16px;
+  text-align: center;
+}
+.ad-stat-value {
+  font-size: 32px;
+  font-weight: 800;
+  line-height: 1;
+  color: #fff;
+  font-family: 'Courier New', monospace;
+}
+.ad-stat-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: #555;
+  margin-top: 6px;
+}
+.ad-stat-sub {
+  font-size: 11px;
+  color: #444;
+  margin-top: 4px;
+}
+
+/* ── Generic section container ───────────────────────────────────────────────── */
+.ad-section {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 10px;
+  padding: 20px;
+}
+
+.ad-section-title {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: #3366ff;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.ad-section-subtitle {
+  font-size: 11px;
+  color: #445;
+  margin-bottom: 20px;
+}
+
+/* ── Confidence band chart ────────────────────────────────────────────────────── */
+.ad-bands {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.ad-band-row {
+  display: grid;
+  grid-template-columns: 56px 1fr 44px 80px;
+  align-items: center;
+  gap: 12px;
+}
+
+.ad-band-label {
+  font-size: 11px;
+  color: #667;
+  font-family: 'Courier New', monospace;
+  text-align: right;
+}
+
+.ad-band-bar-wrap {
+  position: relative;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 3px;
+  height: 18px;
+  overflow: visible;
+}
+
+.ad-band-bar {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.4s ease-out;
+  min-width: 2px;
+}
+
+/* 50% threshold marker */
+.ad-band-fifty-mark {
+  position: absolute;
+  left: 50%;
+  top: -3px;
+  bottom: -3px;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.15);
+  pointer-events: none;
+}
+
+.ad-band-pct {
+  font-size: 13px;
+  font-weight: 700;
+  font-family: 'Courier New', monospace;
+  text-align: right;
+}
+
+.ad-band-count {
+  font-size: 10px;
+  color: #445;
+  white-space: nowrap;
+}
+
+.ad-band-axis-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 9px;
+  color: #334;
+  font-family: monospace;
+  margin-top: 4px;
+  padding: 0 68px 0 68px;
+}
+
+/* ── Direction breakdown ──────────────────────────────────────────────────────── */
+.ad-dir-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+@media (max-width: 500px) {
+  .ad-dir-grid { grid-template-columns: 1fr; }
+}
+
+.ad-dir-card {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 8px;
+  padding: 20px;
+  text-align: center;
+}
+
+.ad-dir-icon {
+  font-size: 24px;
+  line-height: 1;
+  margin-bottom: 6px;
+}
+.ad-dir-name {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+}
+.ad-dir-rate {
+  font-size: 36px;
+  font-weight: 800;
+  font-family: 'Courier New', monospace;
+  line-height: 1;
+}
+.ad-dir-sub {
+  font-size: 10px;
+  color: #555;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-top: 4px;
+}
+.ad-dir-total {
+  font-size: 11px;
+  color: #445;
+  margin-top: 10px;
+}
+.ad-dir-breakdown {
+  font-size: 11px;
+  color: #556;
+  margin-top: 6px;
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+}
+.ad-dir-sep { color: #334; }
+
+/* ── Validations table ────────────────────────────────────────────────────────── */
+.ad-table-wrap {
+  overflow-x: auto;
+  border-radius: 6px;
+}
+
+.ad-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.ad-table th {
+  background: rgba(255, 255, 255, 0.04);
+  color: #556;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  padding: 8px 10px;
+  text-align: left;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  white-space: nowrap;
+}
+
+.ad-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  color: #aaa;
+  vertical-align: middle;
+}
+
+.ad-table tbody tr:last-child td { border-bottom: none; }
+
+/* Row color coding by outcome */
+.ad-row-correct td { background: rgba(0, 255, 136, 0.03); }
+.ad-row-correct:hover td { background: rgba(0, 255, 136, 0.07) !important; }
+.ad-row-incorrect td { background: rgba(255, 51, 102, 0.03); }
+.ad-row-incorrect:hover td { background: rgba(255, 51, 102, 0.07) !important; }
+.ad-row-neutral td { background: transparent; }
+.ad-row-neutral:hover td { background: rgba(255, 255, 255, 0.02) !important; }
+
+.ad-table tbody tr { transition: background 0.15s; }
+
+.ad-cell-date { color: #556; font-size: 11px; white-space: nowrap; }
+.ad-cell-ticker {
+  font-family: 'Courier New', monospace;
+  font-weight: 700;
+  color: #ccc;
+  font-size: 12px;
+}
+.ad-cell-mono {
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+}
+
+.ad-table-empty {
+  text-align: center;
+  padding: 32px 16px;
+  color: #445;
+  font-size: 12px;
+}
+
+/* Outcome badges */
+.ad-outcome {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  font-family: monospace;
+  white-space: nowrap;
+}
+.ad-outcome-correct {
+  background: rgba(0, 255, 136, 0.12);
+  color: #00ff88;
+  border: 1px solid rgba(0, 255, 136, 0.25);
+}
+.ad-outcome-incorrect {
+  background: rgba(255, 51, 102, 0.12);
+  color: #ff3366;
+  border: 1px solid rgba(255, 51, 102, 0.25);
+}
+.ad-outcome-neutral {
+  background: rgba(255, 255, 255, 0.05);
+  color: #667;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* ── Trend sparkline ──────────────────────────────────────────────────────────── */
+.ad-trend-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  overflow: visible;
+}
+
+.ad-trend-empty {
+  padding: 20px;
+  text-align: center;
+  color: #445;
+  font-size: 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 6px;
+  border: 1px dashed rgba(255, 255, 255, 0.06);
+}
+
+/* ── Disclaimer ───────────────────────────────────────────────────────────────── */
+.ad-disclaimer {
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 6px;
+  font-size: 11px;
+  color: #445;
+  line-height: 1.5;
+}
+.ad-disclaimer strong { color: #556; }

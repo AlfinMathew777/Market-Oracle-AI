@@ -70,7 +70,8 @@ function outcomeLabel(row) {
 function computeTrend(history) {
   const byDay = {};
   history.forEach((r) => {
-    if (r.prediction_correct === null || r.prediction_correct === undefined) return;
+    if (r.prediction_correct === null || r.prediction_correct === undefined)
+      return;
     const day = (r.resolved_at || r.predicted_at || "").slice(0, 10);
     if (!day) return;
     if (!byDay[day]) byDay[day] = { correct: 0, total: 0 };
@@ -92,7 +93,8 @@ function TrendSparkline({ points }) {
   if (!points || points.length < 2) {
     return (
       <div className="ad-trend-empty">
-        Insufficient data for trend — needs at least 2 days of resolved predictions
+        Insufficient data for trend — needs at least 2 days of resolved
+        predictions
       </div>
     );
   }
@@ -103,7 +105,9 @@ function TrendSparkline({ points }) {
   const innerW = W - pad.left - pad.right;
   const innerH = H - pad.top - pad.bottom;
 
-  const xs = points.map((_, i) => pad.left + (i / (points.length - 1)) * innerW);
+  const xs = points.map(
+    (_, i) => pad.left + (i / (points.length - 1)) * innerW,
+  );
   const ys = points.map((p) => pad.top + (1 - p.rate) * innerH);
 
   const polyline = xs.map((x, i) => `${x},${ys[i]}`).join(" ");
@@ -186,7 +190,8 @@ function TrendSparkline({ points }) {
           strokeWidth="1.5"
         >
           <title>
-            {points[i].date}: {Math.round(points[i].rate * 100)}% ({points[i].total} signals)
+            {points[i].date}: {Math.round(points[i].rate * 100)}% (
+            {points[i].total} signals)
           </title>
         </circle>
       ))}
@@ -299,7 +304,6 @@ export default function AccuracyDashboard() {
 
   return (
     <div className="ad-page">
-
       {/* ── 1. HEADER ── */}
       <div className="ad-header-section">
         <div className="ad-header-row">
@@ -309,7 +313,8 @@ export default function AccuracyDashboard() {
               SYSTEM ACCURACY
             </div>
             <div className="ad-header-subtitle">
-              24-hour prediction validation · quality signals only (&gt;5% confidence)
+              24-hour prediction validation · quality signals only (&gt;5%
+              confidence)
             </div>
           </div>
           <div className="ad-header-controls">
@@ -356,7 +361,9 @@ export default function AccuracyDashboard() {
           <div className="ad-stat-card">
             <div
               className="ad-stat-value"
-              style={{ color: hitRate != null ? hitRateColor(hitRate) : "#666" }}
+              style={{
+                color: hitRate != null ? hitRateColor(hitRate) : "#666",
+              }}
             >
               {hitRatePct != null ? `${hitRatePct}%` : "—"}
             </div>
@@ -405,7 +412,8 @@ export default function AccuracyDashboard() {
       <div className="ad-section">
         <div className="ad-section-title">HIT RATE BY CONFIDENCE BAND</div>
         <div className="ad-section-subtitle">
-          Higher confidence signals should predict better outcomes — validates our threshold logic
+          Higher confidence signals should predict better outcomes — validates
+          our threshold logic
         </div>
         <div className="ad-bands">
           {bandOrder.map((band) => {
@@ -470,9 +478,7 @@ export default function AccuracyDashboard() {
                 className="ad-dir-card"
                 style={{
                   borderColor:
-                    pct != null
-                      ? `${color}44`
-                      : "rgba(255,255,255,0.07)",
+                    pct != null ? `${color}44` : "rgba(255,255,255,0.07)",
                 }}
               >
                 <div className="ad-dir-icon" style={{ color }}>
@@ -493,10 +499,12 @@ export default function AccuracyDashboard() {
                 </div>
                 {d && (
                   <div className="ad-dir-breakdown">
-                    <span style={{ color: "#00ff88" }}>{d.correct ?? 0} correct</span>
+                    <span style={{ color: "#00ff88" }}>
+                      {d.correct ?? 0} correct
+                    </span>
                     <span className="ad-dir-sep">·</span>
                     <span style={{ color: "#ff3366" }}>
-                      {(total - (d.correct ?? 0))} incorrect
+                      {total - (d.correct ?? 0)} incorrect
                     </span>
                   </div>
                 )}
@@ -527,8 +535,8 @@ export default function AccuracyDashboard() {
               {recentTable.length === 0 && (
                 <tr>
                   <td colSpan={8} className="ad-table-empty">
-                    No validated predictions in this period yet.
-                    Predictions resolve 24 hours after they are generated.
+                    No validated predictions in this period yet. Predictions
+                    resolve 24 hours after they are generated.
                   </td>
                 </tr>
               )}
@@ -556,7 +564,9 @@ export default function AccuracyDashboard() {
                         {(row.predicted_direction || "").toUpperCase()}
                       </span>
                     </td>
-                    <td className="ad-cell-mono">{formatConf(row.confidence)}</td>
+                    <td className="ad-cell-mono">
+                      {formatConf(row.confidence)}
+                    </td>
                     <td className="ad-cell-mono">
                       {formatPrice(row.bhp_price_at_prediction)}
                     </td>
@@ -595,16 +605,17 @@ export default function AccuracyDashboard() {
       <div className="ad-section">
         <div className="ad-section-title">ACCURACY TREND</div>
         <div className="ad-section-subtitle">
-          Daily hit rate over the selected period · dots show individual day accuracy
+          Daily hit rate over the selected period · dots show individual day
+          accuracy
         </div>
         <TrendSparkline points={trendPoints} />
       </div>
 
       {/* ── DISCLAIMER ── */}
       <div className="ad-disclaimer">
-        <strong>Research only.</strong> Past accuracy does not predict future results.
-        Market Oracle AI signals are experimental and for informational purposes only.
-        Not financial advice.
+        <strong>Research only.</strong> Past accuracy does not predict future
+        results. Market Oracle AI signals are experimental and for informational
+        purposes only. Not financial advice.
       </div>
     </div>
   );
