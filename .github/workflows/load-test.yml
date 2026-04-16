@@ -1,0 +1,105 @@
+name: Load Test — Market Oracle AI
+
+on:
+  workflow_dispatch:           # Manual trigger from GitHub Actions UI
+    inputs:
+      target_host:
+        description: "Backend URL to test (default: staging)"
+        required: false
+        default: "https://staging.asx.marketoracle.ai"
+      users:
+        description: "Peak concurrent users"
+        required: false
+        default: "50"
+      spawn_rate:
+        description: "Users spawned per second"
+        required: false
+        default: "5"
+      duration:
+        description: "Test duration (e.g. 3m, 5m)"
+        required: false
+        default: "3m"
+  schedule:
+    # Run against staging every weekday at 01:00 UTC (off-peak for ASX)
+    - cron: "0 1 * * 1-5"
+
+jobs:
+  load-test:
+    name: Locust Load Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install load test dependencies
+        run: |
+          pip install locust==2.24.0 requests
+
+      - name: Wait for backend health
+        env:
+          TARGET: ${{ github.event.inputs.target_host || 'https://staging.asx.marketoracle.ai' }}
+        run: |
+          echo "Waiting for $TARGET to be healthy..."
+          for i in $(seq 1 12); do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$TARGET/api/health" || echo "000")
+            if [ "$STATUS" = "200" ]; then
+              echo "Backend is healthy (HTTP $STATUS)"
+              break
+            fi
+            echo "Attempt $i: HTTP $STATUS — retrying in 10s"
+            sleep 10
+          done
+
+      - name: Run Locust headless
+        env:
+          TARGET: ${{ github.event.inputs.target_host || 'https://staging.asx.marketoracle.ai' }}
+          USERS: ${{ github.event.inputs.users || '50' }}
+          SPAWN_RATE: ${{ github.event.inputs.spawn_rate || '5' }}
+          DURATION: ${{ github.event.inputs.duration || '3m' }}
+          LOAD_TEST_API_KEY: ${{ secrets.LOAD_TEST_API_KEY }}
+          PYTHONPATH: ${{ github.workspace }}/backend
+        run: |
+          locust \
+            -f backend/tests/load/locustfile.py \
+            --host "$TARGET" \
+            --headless \
+            -u "$USERS" \
+            -r "$SPAWN_RATE" \
+            -t "$DURATION" \
+            --html docs/load-report.html \
+            --csv docs/load-results \
+            --loglevel INFO
+        # Exit code non-zero if thresholds breached (see on_quitting hook)
+
+      - name: Upload load report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: load-test-report-${{ github.run_number }}
+          path: |
+            docs/load-report.html
+            docs/load-results*.csv
+          retention-days: 30
+
+      - name: Comment p95 summary on PR
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const csv = fs.readFileSync('docs/load-results_stats.csv', 'utf8');
+            const lines = csv.split('\n').slice(0, 10).join('\n');
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## Load Test Results\n\`\`\`\n${lines}\n\`\`\`\n[Full report artifact](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`
+            });
