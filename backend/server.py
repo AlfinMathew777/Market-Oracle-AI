@@ -167,6 +167,21 @@ async def _hourly_tasks():
             logger.warning("Prediction log auto-resolve failed: %s", e)
 
 
+async def _alert_check_loop():
+    """Run all alert checks every 5 minutes."""
+    # Brief initial delay so DB and caches are warm before first check
+    await asyncio.sleep(120)
+    while True:
+        try:
+            from monitoring.alerts import check_all_alerts
+            new = await check_all_alerts()
+            if new:
+                logger.info("Alert loop: %d new alert(s)", len(new))
+        except Exception as e:
+            logger.warning("Alert check loop failed: %s", e)
+        await asyncio.sleep(300)  # 5 minutes
+
+
 async def _news_refresh_loop():
     """Refresh Australian news cache every 15 minutes."""
     while True:
