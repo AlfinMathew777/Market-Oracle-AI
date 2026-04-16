@@ -1,0 +1,27 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.4.0
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-json
+      - id: check-added-large-files
+        args: ['--maxkb=500']
+      - id: detect-private-key
+
+  - repo: local
+    hooks:
+      - id: pytest-quick
+        name: pytest quick check
+        entry: bash -c 'cd backend && pytest tests/ -x -q --ignore=tests/load --ignore=tests/chaos'
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
