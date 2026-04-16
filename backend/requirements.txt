@@ -3,6 +3,10 @@ loguru>=0.7.0
 # ── Test infrastructure ────────────────────────────────────────────────────
 pytest-asyncio>=0.21.0
 pytest-cov>=4.0.0
+# ── Load testing (dev/CI only — not installed in production) ──────────────
+# locust>=2.24.0   # uncomment locally: pip install locust
+# ── PostgreSQL (optional — required only when DATABASE_URL is set) ─────────
+asyncpg>=0.29.0
 # ── Quant Engine additions (Phase 1 — do not remove) ──────────────────────
 scipy>=1.13.0
 statsmodels>=0.14.2
