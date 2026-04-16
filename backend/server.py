@@ -64,6 +64,7 @@ from routes.trade_execution import router as trade_router
 from routes.accuracy import router as accuracy_router
 from routes.stream import router as stream_router
 from routes.news import router as news_router
+from routes.admin import router as admin_router  # Kill switch + system status
 
 # Import services
 from services.ais_service import start_ais_background_stream, get_port_hedland_status
