@@ -163,7 +163,12 @@ async def fetch_historical_data(ticker: str, start: str, end: str) -> pd.DataFra
         df = yf.Ticker(ticker).history(start=buf_start, end=end, interval="1d")
         if df.empty:
             raise ValueError(f"yfinance returned no data for {ticker}")
-        df.index = pd.to_datetime(df.index).normalize()
+        # Strip timezone (ASX data comes as Australia/Sydney-aware).
+        # We work entirely in tz-naive date space — only the calendar date matters.
+        idx = pd.to_datetime(df.index)
+        if idx.tz is not None:
+            idx = idx.tz_convert("UTC").tz_localize(None)
+        df.index = idx.normalize()
         return df[["Open", "High", "Low", "Close", "Volume"]].copy()
 
     loop = asyncio.get_event_loop()
