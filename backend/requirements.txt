@@ -1,5 +1,7 @@
 # ── Observability ──────────────────────────────────────────────────────────
 loguru>=0.7.0
+# ── Redis job queue (native Redis — separate from Upstash HTTP client) ──────
+redis>=5.0.0
 # ── Test infrastructure ────────────────────────────────────────────────────
 pytest-asyncio>=0.21.0
 pytest-cov>=4.0.0
