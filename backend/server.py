@@ -73,7 +73,12 @@ from services.news_service import get_asx_news_sentiment
 from services.gdelt_service import get_gdelt_sentiment_score
 
 ROOT_DIR = Path(__file__).parent
-load_dotenv(ROOT_DIR / '.env')
+
+# Load environment-specific .env file (.env.development / .env.staging / .env.production)
+# Falls back to generic .env if the env-specific file doesn't exist.
+# config.environment must be imported BEFORE any other module reads env vars.
+from config.environment import ENV, log_environment_banner
+load_dotenv(ROOT_DIR / '.env')  # base .env still loaded as lowest-priority fallback
 
 # Configure logging with UTF-8 handler so unicode in LLM responses never crashes
 _log_handler = logging.StreamHandler(sys.stderr)
