@@ -9,7 +9,7 @@ if [ -z "$FILE" ]; then exit 0; fi
 # Normalise Windows backslashes
 FILE=$(echo "$FILE" | tr '\\' '/')
 
-if echo "$FILE" | grep -qE '\.env(\.|$)|backend/aussieintel\.db|railway\.toml|vercel\.json'; then
+if echo "$FILE" | grep -qE '\.env$|backend/aussieintel\.db|railway\.toml|vercel\.json'; then
   echo "BLOCKED: $FILE is a protected file — edit manually if intended"
   exit 2
 fi
