@@ -483,6 +483,7 @@ async def health_check(request: Request):
 
     return {
         "status": "operational",
+        "environment": ENV,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "data_sources": data_sources,
         "live_data_sources": f"{live_count}/{len(data_sources)}",
