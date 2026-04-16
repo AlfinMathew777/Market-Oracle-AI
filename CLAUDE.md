@@ -152,3 +152,32 @@ For multi-instance deploys, switch to Redis-backed limiter.
 | 2026-04-06 | EMERGENT_LLM_KEY (sk-emergent-9EfCeA20...) | Exposed in git history — **rotate immediately** |
 | 2026-04-06 | FRED_API_KEY (845738...) | Exposed in git history — rotate at fred.stlouisfed.org |
 | 2026-04-06 | MARKETAUX_API_KEY (UNZzV1IH...) | Exposed in git history — rotate at marketaux.com |
+
+## Auto-Update Memory Rules
+
+Memory lives at `~/.claude/projects/c--Users-HP-Market-Oracle-AI/memory/`.
+
+Update the appropriate file **after a change is verified working**. Keep entries to 3–4 lines. Skip minor edits (formatting, typos, comments). Don't duplicate existing entries.
+
+### Architecture Decisions
+After changing confidence thresholds, Monte Carlo settings, agent counts, API configs, semaphore limits, or any core system parameter — append to `project_architecture_decisions.md`:
+
+```
+### [YYYY-MM-DD] Decision Title
+- What: <what changed>
+- Why: <reasoning>
+- Impact: <expected outcome>
+```
+
+### Bug Fixes
+After fixing bugs that required meaningful debugging effort — append to `project_bugs_fixed.md`:
+
+```
+### [YYYY-MM-DD] Bug Title
+- Symptom: <what was broken>
+- Cause: <root cause>
+- Fix: <solution>
+```
+
+### Focus Changes
+When priorities shift to new features or modules — update `project_current_focus.md` to reflect current work.
