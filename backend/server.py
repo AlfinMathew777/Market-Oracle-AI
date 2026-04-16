@@ -468,9 +468,19 @@ async def health_check(request: Request):
             "source": "acleddata.com"
         }
 
+    async def check_redis():
+        try:
+            from services.market_data_cache import redis_health
+            rh = await redis_health()
+            status = "OK" if rh["status"] == "ok" else ("UNAVAILABLE" if not rh["configured"] else "DEGRADED")
+            return "Redis", {"status": status, "latency_ms": rh.get("latency_ms"), "configured": rh["configured"]}
+        except Exception as e:
+            return "Redis", {"status": "ERROR", "error": str(e)}
+
     results = await asyncio.gather(
         check_fred(), check_marketaux(), check_gdelt(),
-        check_yfinance(), check_aisstream(), check_acled()
+        check_yfinance(), check_aisstream(), check_acled(),
+        check_redis(),
     )
 
     data_sources = {name: result for name, result in results}
