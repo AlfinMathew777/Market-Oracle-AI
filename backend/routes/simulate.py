@@ -159,6 +159,10 @@ async def run_simulation(request: Request, body: SimulationRequest, background_t
     """
     POST /api/simulate — starts a background simulation, returns simulation_id immediately.
 
+    When USE_SIMULATION_QUEUE=true and Redis is reachable, the job is enqueued for a
+    dedicated worker process (horizontal scaling). Otherwise falls back to the in-process
+    background task path.
+
     The client should poll GET /api/simulate/status/{simulation_id} every 5 seconds.
     When status is 'completed' or 'partial', the prediction field contains the report.
     """
@@ -210,6 +214,38 @@ async def run_simulation(request: Request, body: SimulationRequest, background_t
             },
         }
 
+    # ── Queue path (optional — only when Redis queue is enabled) ─────────────
+    from queue.simulation_queue import QUEUE_ENABLED, queue as sim_queue
+    if QUEUE_ENABLED:
+        try:
+            # Resolve ticker for priority routing before enqueuing
+            if body.affected_tickers and len(body.affected_tickers) > 0:
+                ticker = body.affected_tickers[0]
+            else:
+                from event_ticker_mapping import map_event_to_ticker
+                ticker, _, _ = map_event_to_ticker(event_data)
+
+            await sim_queue.enqueue(
+                simulation_id=simulation_id,
+                ticker=ticker,
+                event_data=event_data,
+                affected_tickers=body.affected_tickers or [],
+                priority=5,
+            )
+            logger.info("Enqueued simulation %s (ticker=%s)", simulation_id, ticker)
+            return {
+                "status": "queued",
+                "simulation_id": simulation_id,
+                "poll_url": f"/api/simulate/status/{simulation_id}",
+            }
+        except Exception as _q_err:
+            # Redis unavailable — fall through to in-process path
+            logger.warning(
+                "Queue enqueue failed for %s (%s) — falling back to in-process",
+                simulation_id, _q_err,
+            )
+
+    # ── In-process fallback path ─────────────────────────────────────────────
     active_simulations[simulation_id] = {
         'status': 'running',
         'started_at': datetime.now().isoformat(),
