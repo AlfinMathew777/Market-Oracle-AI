@@ -3,7 +3,7 @@
 > **Geopolitical intelligence platform that predicts ASX market impact in real-time.**
 > A 50-agent AI swarm analyses global conflict events and translates them into actionable ASX stock predictions using live data from 12+ sources.
 
-![CI](https://github.com/AlfinMathew777/Market-Oracle-AI/actions/workflows/ci.yml/badge.svg) ![Python](https://img.shields.io/badge/Python-3.11-blue) ![React](https://img.shields.io/badge/React-19-61DAFB) ![FastAPI](https://img.shields.io/badge/FastAPI-0.110-009688) ![License](https://img.shields.io/badge/license-MIT-green)
+![CI](https://github.com/AlfinMathew777/Market-Oracle-AI/actions/workflows/ci.yml/badge.svg) ![Coverage](https://img.shields.io/badge/coverage-85%25%2B-brightgreen) ![Tests](https://img.shields.io/badge/tests-160%2B-blue) ![Python](https://img.shields.io/badge/Python-3.11-blue) ![React](https://img.shields.io/badge/React-19-61DAFB) ![FastAPI](https://img.shields.io/badge/FastAPI-0.110-009688) ![License](https://img.shields.io/badge/license-MIT-green)
 
 ---
 
