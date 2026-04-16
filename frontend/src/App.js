@@ -74,6 +74,8 @@ function App() {
   const [livePrice, setLivePrice] = useState(null);
   const [reasoningData, setReasoningData] = useState(null);
 
+  const [serverEnvironment, setServerEnvironment] = useState(null); // 'development' | 'staging' | 'production'
+
   const arcTimeoutRef = useRef(null);
   const isSimulatingRef = useRef(false); // ref-based guard — immune to React closure staleness
   const abortPollRef = useRef(false); // set true to cancel current poll loop
