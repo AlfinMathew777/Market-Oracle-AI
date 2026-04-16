@@ -357,6 +357,40 @@ market-oracle-ai/
 
 ---
 
+## Code Quality Standards
+
+All code goes through automated review on every push and PR:
+
+| Tool | Purpose | Gate |
+|------|---------|------|
+| **Ruff** | Linting + formatting | Blocking |
+| **MyPy** | Type checking | Non-blocking (initially) |
+| **Bandit** | Security scanning (OWASP) | Medium+ severity blocking |
+| **Safety** | Dependency CVE checks | Reported, non-blocking |
+| **Radon/Xenon** | Cyclomatic complexity | Max C per function, B per module |
+| **pytest-cov** | Test coverage | Reported in PR summary |
+
+**Set up pre-commit hooks locally:**
+```bash
+pip install -r requirements-dev.txt
+pre-commit install        # runs ruff + hooks on every commit
+pre-commit install --hook-type pre-push  # runs pytest on push
+```
+
+**Run checks manually:**
+```bash
+ruff check backend/          # lint
+ruff format backend/         # format
+mypy backend/                # type check
+bandit -r backend/ --skip B101 --severity-level medium  # security
+```
+
+**AI code review** — run `/review` in Claude Code to get a full review of your
+current diff against Market Oracle-specific patterns (kill switch, confidence
+caps, geographic logic, look-ahead bias).
+
+---
+
 ## License
 
 MIT
