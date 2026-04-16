@@ -178,6 +178,43 @@ served from.
 
 ---
 
+### Scaling Workers (horizontal simulation scaling)
+
+When simulation load is high, offload jobs to dedicated worker processes via
+the Redis-backed priority queue.
+
+**One-time setup:**
+```bash
+# Create the workers app (separate from the API app)
+fly apps create market-oracle-workers
+
+# Share secrets — workers need Redis and LLM keys
+fly secrets set REDIS_URL=... ANTHROPIC_API_KEY=... \
+    USE_SIMULATION_QUEUE=true \
+    --app market-oracle-workers
+
+# Deploy worker fleet (uses fly.worker.toml + Dockerfile.worker)
+fly deploy --config fly.worker.toml
+
+# Scale to 3 workers (each handles one simulation at a time)
+fly scale count 3 --app market-oracle-workers
+```
+
+**Enable queue on the API side:**
+```bash
+# Set on the main API app so POST /api/simulate enqueues instead of running inline
+fly secrets set REDIS_URL=... USE_SIMULATION_QUEUE=true --app market-oracle-ai
+```
+
+**Queue health** is visible in `GET /api/health` under the `queue` key:
+```json
+{
+  "queue": { "enabled": true, "queued": 2, "processing": 1 }
+}
+```
+
+---
+
 ### Backend → Render.com (free tier)
 
 1. Push repo to GitHub
