@@ -12,6 +12,7 @@ These endpoints match that convention for consistency with the codebase.
 """
 
 import logging
+import re
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from slowapi import Limiter
@@ -22,7 +23,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 _limiter = Limiter(key_func=get_remote_address)
 
-_MAX_TICKER_LEN = 12
+_TICKER_REGEX = re.compile(r"^[A-Z0-9]{1,6}\.AX$")
 
 
 def _validate_ticker(raw: str) -> str:
@@ -30,11 +31,11 @@ def _validate_ticker(raw: str) -> str:
     t = raw.strip().upper()
     if not t:
         raise HTTPException(status_code=400, detail="Ticker cannot be empty")
-    if len(t) > _MAX_TICKER_LEN:
-        raise HTTPException(status_code=400, detail=f"Ticker too long (max {_MAX_TICKER_LEN} chars)")
     # Tolerate callers that omit the .AX suffix
     if not t.endswith(".AX"):
         t = f"{t}.AX"
+    if not _TICKER_REGEX.match(t):
+        raise HTTPException(status_code=400, detail=f"Invalid ticker format: {t}. Expected format: XXX.AX")
     return t
 
 

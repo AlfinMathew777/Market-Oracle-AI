@@ -56,8 +56,8 @@ async def get_asx_news(
         }
 
     except Exception as e:
-        logger.error(f"News fetch failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("News fetch failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Unable to fetch news")
 
 
 @router.get("/api/news/asx/categories")

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { ChevronDown, ChevronUp, RefreshCw } from 'lucide-react';
 import './PredictionHistory.css';
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
 
 const PredictionHistory = ({ latestPrediction }) => {
   const [history, setHistory] = useState([]);

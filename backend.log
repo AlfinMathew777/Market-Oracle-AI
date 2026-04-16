@@ -1,213 +1,1531 @@
 INFO:     Will watch for changes in these directories: ['C:\\Users\\HP\\Market-Oracle-AI\\backend']
-INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
-INFO:     Started reloader process [14516] using WatchFiles
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     Started reloader process [15308] using WatchFiles
+WARNING:services.prediction_evaluator:scikit-learn not available, using manual metric calculation
 INFO:server:CORS allowed origins: ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:3001', 'http://127.0.0.1:3001', 'https://asx.marketoracle.ai']
-INFO:     Started server process [4776]
+INFO:     Started server process [22968]
 INFO:     Waiting for application startup.
 INFO:server:AussieIntel starting...
 INFO:database:Database initialised at .\aussieintel.db
 INFO:services.ais_service:? AISStream background thread started
 INFO:server:Startup complete — cache pre-warm and accuracy checks running in background
+INFO:services.ais_service:Connecting to AISStream WebSocket (attempt 1/5)...
 INFO:     Application startup complete.
 INFO:services.asx_service:Batch-fetching 17 ASX tickers via yfinance...
-INFO:services.ais_service:Connecting to AISStream WebSocket (attempt 1/5)...
+INFO:services.prediction_resolver:auto_resolve: found 2 predictions to resolve
+INFO:services.prediction_resolver:auto_resolve: resolved 0/2 predictions
+INFO:httpx:HTTP Request: GET https://www.miningweekly.com/rss "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://feeds.bbci.co.uk/news/world/rss.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.smh.com.au/rss/business.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.afr.com/rss "HTTP/1.1 404 Not Found"
 INFO:services.acled_service:? ACLED OAuth token obtained
 INFO:services.acled_service:Fetching live ACLED events for 17 countries...
+INFO:httpx:HTTP Request: GET https://www.rba.gov.au/rss/rss-cb-media-releases.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://stockhead.com.au/feed/ "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.theaustralian.com.au/feed "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://www.abc.net.au/news/feed/2942460/rss.xml "HTTP/1.1 200 OK"
 INFO:services.ais_service:? AISStream connected - monitoring Port Hedland vessels
-ERROR:services.acled_service:ACLED error: 403 Client Error: Forbidden for url: https://acleddata.com/api/acled/read?_format=json&country=China%3AOR%3Acountry%3DIran%3AOR%3Acountry%3DDemocratic+Republic+of+Congo%3AOR%3Acountry%3DTaiwan%3AOR%3Acountry%3DSudan%3AOR%3Acountry%3DArgentina%3AOR%3Acountry%3DChile%3AOR%3Acountry%3DPapua+New+Guinea%3AOR%3Acountry%3DIndonesia%3AOR%3Acountry%3DMyanmar%3AOR%3Acountry%3DUkraine%3AOR%3Acountry%3DRussia%3AOR%3Acountry%3DIsrael%3AOR%3Acountry%3DYemen%3AOR%3Acountry%3DAustralia%3AOR%3Acountry%3DUnited+States%3AOR%3Acountry%3DSingapore&fields=event_id_cnty%7Cevent_date%7Cevent_type%7Ccountry%7Clocation%7Clatitude%7Clongitude%7Cfatalities%7Cnotes&limit=50&event_date=2026-01-05&event_date_where=%3E%3D ? falling back to demo
+INFO:services.asx_service:? BHP.AX: $53.98 (-1.06%)
+INFO:httpx:HTTP Request: GET https://www.mining.com/feed/ "HTTP/1.1 200 OK"
+ERROR:services.acled_service:ACLED error: 403 Client Error: Forbidden for url: https://acleddata.com/api/acled/read?_format=json&country=China%3AOR%3Acountry%3DIran%3AOR%3Acountry%3DDemocratic+Republic+of+Congo%3AOR%3Acountry%3DTaiwan%3AOR%3Acountry%3DSudan%3AOR%3Acountry%3DArgentina%3AOR%3Acountry%3DChile%3AOR%3Acountry%3DPapua+New+Guinea%3AOR%3Acountry%3DIndonesia%3AOR%3Acountry%3DMyanmar%3AOR%3Acountry%3DUkraine%3AOR%3Acountry%3DRussia%3AOR%3Acountry%3DIsrael%3AOR%3Acountry%3DYemen%3AOR%3Acountry%3DAustralia%3AOR%3Acountry%3DUnited+States%3AOR%3Acountry%3DSingapore&fields=event_id_cnty%7Cevent_date%7Cevent_type%7Ccountry%7Clocation%7Clatitude%7Clongitude%7Cfatalities%7Cnotes&limit=50&event_date=2026-01-12&event_date_where=%3E%3D ? falling back to demo
 INFO:server:Cache pre-warmed: ACLED events
-INFO:services.asx_service:? BHP.AX: $51.23 (-2.53%)
-INFO:services.asx_service:? RIO.AX: $161.62 (-3.27%)
-INFO:services.asx_service:? FMG.AX: $20.25 (-3.98%)
-INFO:routes.data:Redis miss — fetching macro context live
-INFO:services.asx_service:? WDS.AX: $34.93 (-0.46%)
-INFO:services.asx_service:? STO.AX: $8.08 (+1.38%)
-INFO:services.asx_service:? MIN.AX: $52.68 (-6.58%)
-INFO:services.asx_service:? PLS.AX: $5.09 (-3.96%)
+INFO:httpx:HTTP Request: GET https://oilprice.com/rss/main "HTTP/1.1 200 OK"
+INFO:server:News cache refreshed: 30 articles
+INFO:services.asx_service:? RIO.AX: $171.23 (-0.31%)
+INFO:services.asx_service:? FMG.AX: $20.26 (-1.32%)
+INFO:services.asx_service:? WDS.AX: $33.28 (-0.15%)
+INFO:services.asx_service:? STO.AX: $7.90 (-0.63%)
 INFO:services.gdelt_service:Querying GDELT API for topic: 'Strait of Hormuz shipping tanker Iran'
-WARNING:services.macro_service:FRED API failed, using fallback
-INFO:services.asx_service:? CBA.AX: $172.80 (+0.52%)
-ERROR:services.gdelt_service:GDELT API error: Expecting value: line 1 column 1 (char 0)
+INFO:services.asx_service:? MIN.AX: $57.98 (-0.41%)
+INFO:services.asx_service:? PLS.AX: $5.36 (+1.13%)
+WARNING:services.gdelt_service:GDELT rate limit hit - checking for stale cache
+INFO:services.gdelt_service:Cached rate-limited response for 'Strait of Hormuz shipping tanker Iran'
 INFO:services.gdelt_service:Querying GDELT API for topic: 'Strait of Malacca shipping piracy China'
-INFO:services.asx_service:? WBC.AX: $39.85 (-0.52%)
-ERROR:yfinance:HTTP Error 404: {"quoteSummary":{"result":null,"error":{"code":"Not Found","description":"Quote not found for symbol: IRON.AX"}}}
-INFO:services.asx_service:? ANZ.AX: $36.63 (+0.71%)
-ERROR:services.gdelt_service:GDELT API error: Expecting value: line 1 column 1 (char 0)
+INFO:services.asx_service:? CBA.AX: $183.38 (+0.47%)
+WARNING:services.gdelt_service:GDELT rate limit hit - checking for stale cache
+INFO:services.gdelt_service:Cached rate-limited response for 'Strait of Malacca shipping piracy China'
 INFO:services.gdelt_service:Querying GDELT API for topic: 'Bab el-Mandeb Houthi Red Sea shipping'
-ERROR:services.macro_service:Error fetching Brent Crude: name 'FRED_API_KEY' is not defined
-ERROR:services.macro_service:Error fetching Gold price: name 'FRED_API_KEY' is not defined
-INFO:routes.data:Redis miss — fetching FRED macro live
-INFO:services.asx_service:? NAB.AX: $41.80 (-0.29%)
-INFO:services.asx_service:? NST.AX: $21.91 (-0.86%)
-ERROR:services.fred_service:FRED error fetching RBAAONBMIND: 400 Client Error: Bad Request for url: https://api.stlouisfed.org/fred/series/observations?series_id=RBAAONBMIND&api_key=d7ab722d4145d2c01d09fe0d87260ddb&file_type=json&limit=1&sort_order=desc
-ERROR:services.gdelt_service:GDELT API error: Expecting value: line 1 column 1 (char 0)
+INFO:services.asx_service:? WBC.AX: $42.77 (+0.28%)
+INFO:services.asx_service:? ANZ.AX: $38.84 (+0.23%)
+WARNING:services.gdelt_service:GDELT rate limit hit - checking for stale cache
+INFO:services.gdelt_service:Cached rate-limited response for 'Bab el-Mandeb Houthi Red Sea shipping'
 INFO:services.gdelt_service:Querying GDELT API for topic: 'Suez Canal shipping blockage Egypt'
-INFO:services.asx_service:? EVN.AX: $13.02 (-4.62%)
-INFO:services.fred_service:FRED: aud_usd = 0.689
-INFO:services.asx_service:? WES.AX: $73.34 (-0.12%)
-INFO:services.fred_service:FRED: unemployment_rate = 4.07532
-INFO:services.asx_service:? WOW.AX: $37.01 (+1.26%)
-INFO:services.asx_service:? LYC.AX: $19.41 (-1.22%)
-INFO:services.fred_service:FRED: long_term_rate = 4.77
-INFO:services.fred_service:FRED: cpi = 130.671
-INFO:services.asx_service:? ^AXJO: $8579.50 (-1.06%)
+INFO:services.asx_service:? NAB.AX: $45.36 (-0.31%)
+INFO:services.asx_service:? NST.AX: $24.48 (+0.04%)
+INFO:services.asx_service:? EVN.AX: $13.55 (-2.66%)
+INFO:services.asx_service:? WES.AX: $76.32 (-0.26%)
+INFO:services.asx_service:? WOW.AX: $36.83 (-0.94%)
+INFO:services.asx_service:? LYC.AX: $21.77 (-0.41%)
+INFO:services.asx_service:? ^AXJO: $8960.60 (-0.14%)
 INFO:services.asx_service:? Batch fetch complete: 17 tickers cached for 5 min
-INFO:services.fred_service:FRED: gdp_growth = 607475000000.0
-ERROR:services.fred_service:FRED error fetching NAEXKP01AUQ189S: 400 Client Error: Bad Request for url: https://api.stlouisfed.org/fred/series/observations?series_id=NAEXKP01AUQ189S&api_key=d7ab722d4145d2c01d09fe0d87260ddb&file_type=json&limit=1&sort_order=desc
-INFO:services.abs_service:? FRED live data merged into Australian macro indicators
-INFO:     127.0.0.1:0 - "GET /api/data/macro-context HTTP/1.1" 200 OK
 INFO:server:Cache pre-warmed: ASX prices
-INFO:     127.0.0.1:0 - "GET /api/data/australian-macro HTTP/1.1" 200 OK
-INFO:     127.0.0.1:0 - "GET /api/data/chokepoints?enriched=false HTTP/1.1" 200 OK
 INFO:routes.data:Cache miss — fetching live events
 INFO:services.acled_service:Fetching live ACLED events for 17 countries...
-ERROR:services.acled_service:ACLED error: 403 Client Error: Forbidden for url: https://acleddata.com/api/acled/read?_format=json&country=China%3AOR%3Acountry%3DIran%3AOR%3Acountry%3DDemocratic+Republic+of+Congo%3AOR%3Acountry%3DTaiwan%3AOR%3Acountry%3DSudan%3AOR%3Acountry%3DArgentina%3AOR%3Acountry%3DChile%3AOR%3Acountry%3DPapua+New+Guinea%3AOR%3Acountry%3DIndonesia%3AOR%3Acountry%3DMyanmar%3AOR%3Acountry%3DUkraine%3AOR%3Acountry%3DRussia%3AOR%3Acountry%3DIsrael%3AOR%3Acountry%3DYemen%3AOR%3Acountry%3DAustralia%3AOR%3Acountry%3DUnited+States%3AOR%3Acountry%3DSingapore&fields=event_id_cnty%7Cevent_date%7Cevent_type%7Ccountry%7Clocation%7Clatitude%7Clongitude%7Cfatalities%7Cnotes&limit=50&event_date=2026-01-05&event_date_where=%3E%3D ? falling back to demo
-INFO:routes.data:ACLED unavailable — fetching RSS live events
-INFO:routes.data:Redis miss — fetching ASX prices live
-INFO:services.asx_service:Returning cached ASX prices
-INFO:services.gdelt_service:Querying GDELT API for topic: 'China steel production'
-INFO:     127.0.0.1:0 - "GET /api/data/asx-prices HTTP/1.1" 200 OK
-INFO:services.fred_service:Returning cached FRED data
-INFO:services.news_service:Fetching MarketAux sentiment for 1 tickers...
-INFO:services.gdelt_service:Querying GDELT API for topic: 'Australia iron ore'
-INFO:routes.data:Redis miss — fetching FRED macro live
-INFO:services.fred_service:Returning cached FRED data
-INFO:services.abs_service:? FRED live data merged into Australian macro indicators
-INFO:routes.data:Redis miss — fetching macro context live
-INFO:services.news_service:MarketAux: 1 articles, avg sentiment: 0.483, signal: BULLISH
-WARNING:services.macro_service:FRED API failed, using fallback
 WARNING:services.gdelt_service:No GDELT articles found for topic: Suez Canal shipping blockage Egypt
 INFO:services.gdelt_service:Querying GDELT API for topic: 'Cape of Good Hope shipping reroute'
-ERROR:yfinance:HTTP Error 404: {"quoteSummary":{"result":null,"error":{"code":"Not Found","description":"Quote not found for symbol: IRON.AX"}}}
-ERROR:services.macro_service:Error fetching Brent Crude: name 'FRED_API_KEY' is not defined
-ERROR:services.macro_service:Error fetching Gold price: name 'FRED_API_KEY' is not defined
-INFO:     127.0.0.1:0 - "GET /api/data/australian-macro HTTP/1.1" 200 OK
-INFO:     127.0.0.1:0 - "GET /api/data/macro-context HTTP/1.1" 200 OK
-INFO:     127.0.0.1:0 - "GET /api/data/chokepoints?enriched=false HTTP/1.1" 200 OK
-INFO:     127.0.0.1:0 - "GET /api/predict/history?limit=50 HTTP/1.1" 200 OK
 WARNING:services.gdelt_service:GDELT rate limit hit - checking for stale cache
-INFO:services.gdelt_service:Cached rate-limited response for 'China steel production'
-INFO:services.gdelt_service:Querying GDELT API for topic: 'China iron ore imports'
-WARNING:services.gdelt_service:GDELT rate limit hit - checking for stale cache
-INFO:services.gdelt_service:Cached rate-limited response for 'Australia iron ore'
-INFO:     127.0.0.1:52541 - "GET /api/health HTTP/1.1" 200 OK
-INFO:routes.data:Redis miss — fetching ASX prices live
-INFO:services.asx_service:Returning cached ASX prices
-INFO:     127.0.0.1:0 - "GET /api/data/asx-prices HTTP/1.1" 200 OK
-INFO:routes.data:Redis miss — fetching FRED macro live
-INFO:services.fred_service:Returning cached FRED data
-INFO:services.abs_service:? FRED live data merged into Australian macro indicators
-INFO:     127.0.0.1:0 - "GET /api/data/australian-macro HTTP/1.1" 200 OK
-INFO:     127.0.0.1:0 - "GET /main.e35e70fb25f450e9faec.hot-update.json HTTP/1.1" 200 OK
-INFO:routes.data:Redis miss — fetching macro context live
-ERROR:services.gdelt_service:GDELT API error: Expecting value: line 1 column 1 (char 0)
+INFO:services.gdelt_service:Cached rate-limited response for 'Cape of Good Hope shipping reroute'
 INFO:services.gdelt_service:Querying GDELT API for topic: 'Lombok Strait Indonesia shipping iron ore'
-WARNING:services.gdelt_service:GDELT rate limit hit - checking for stale cache
-INFO:services.gdelt_service:Cached rate-limited response for 'China iron ore imports'
-INFO:services.gdelt_service:Querying GDELT API for topic: 'China manufacturing PMI'
-WARNING:services.macro_service:FRED API failed, using fallback
-ERROR:yfinance:HTTP Error 404: {"quoteSummary":{"result":null,"error":{"code":"Not Found","description":"Quote not found for symbol: IRON.AX"}}}
-ERROR:services.macro_service:Error fetching Brent Crude: name 'FRED_API_KEY' is not defined
-ERROR:services.macro_service:Error fetching Gold price: name 'FRED_API_KEY' is not defined
-INFO:     127.0.0.1:0 - "GET /api/data/macro-context HTTP/1.1" 200 OK
-INFO:routes.data:Cache miss — fetching live events
-INFO:services.acled_service:Fetching live ACLED events for 17 countries...
+ERROR:services.acled_service:ACLED error: 403 Client Error: Forbidden for url: https://acleddata.com/api/acled/read?_format=json&country=China%3AOR%3Acountry%3DIran%3AOR%3Acountry%3DDemocratic+Republic+of+Congo%3AOR%3Acountry%3DTaiwan%3AOR%3Acountry%3DSudan%3AOR%3Acountry%3DArgentina%3AOR%3Acountry%3DChile%3AOR%3Acountry%3DPapua+New+Guinea%3AOR%3Acountry%3DIndonesia%3AOR%3Acountry%3DMyanmar%3AOR%3Acountry%3DUkraine%3AOR%3Acountry%3DRussia%3AOR%3Acountry%3DIsrael%3AOR%3Acountry%3DYemen%3AOR%3Acountry%3DAustralia%3AOR%3Acountry%3DUnited+States%3AOR%3Acountry%3DSingapore&fields=event_id_cnty%7Cevent_date%7Cevent_type%7Ccountry%7Clocation%7Clatitude%7Clongitude%7Cfatalities%7Cnotes&limit=50&event_date=2026-01-12&event_date_where=%3E%3D ? falling back to demo
+INFO:routes.data:ACLED unavailable — fetching RSS live events
 WARNING:services.gdelt_service:GDELT rate limit hit - checking for stale cache
 INFO:services.gdelt_service:Cached rate-limited response for 'Lombok Strait Indonesia shipping iron ore'
 INFO:services.gdelt_service:Querying GDELT API for topic: 'Panama Canal drought water level shipping'
 WARNING:services.gdelt_service:GDELT rate limit hit - checking for stale cache
-INFO:services.gdelt_service:Cached rate-limited response for 'China manufacturing PMI'
-INFO:services.gdelt_service:Querying GDELT API for topic: 'China economic slowdown'
-ERROR:services.acled_service:ACLED error: 403 Client Error: Forbidden for url: https://acleddata.com/api/acled/read?_format=json&country=China%3AOR%3Acountry%3DIran%3AOR%3Acountry%3DDemocratic+Republic+of+Congo%3AOR%3Acountry%3DTaiwan%3AOR%3Acountry%3DSudan%3AOR%3Acountry%3DArgentina%3AOR%3Acountry%3DChile%3AOR%3Acountry%3DPapua+New+Guinea%3AOR%3Acountry%3DIndonesia%3AOR%3Acountry%3DMyanmar%3AOR%3Acountry%3DUkraine%3AOR%3Acountry%3DRussia%3AOR%3Acountry%3DIsrael%3AOR%3Acountry%3DYemen%3AOR%3Acountry%3DAustralia%3AOR%3Acountry%3DUnited+States%3AOR%3Acountry%3DSingapore&fields=event_id_cnty%7Cevent_date%7Cevent_type%7Ccountry%7Clocation%7Clatitude%7Clongitude%7Cfatalities%7Cnotes&limit=50&event_date=2026-01-05&event_date_where=%3E%3D ? falling back to demo
-INFO:routes.data:ACLED unavailable — fetching RSS live events
-INFO:routes.data:Redis miss — fetching FRED macro live
-INFO:services.fred_service:Returning cached FRED data
-INFO:services.abs_service:? FRED live data merged into Australian macro indicators
-INFO:     127.0.0.1:0 - "GET /api/data/chokepoint-impact?chokepoints=hormuz,malacca,bab_el_mandeb,suez,lombok&duration_days=7 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:0 - "GET /api/data/chokepoints?enriched=false HTTP/1.1" 200 OK
-INFO:     127.0.0.1:0 - "GET /api/data/australian-macro HTTP/1.1" 200 OK
-INFO:     127.0.0.1:0 - "GET /api/data/chokepoints?enriched=false HTTP/1.1" 200 OK
-INFO:     127.0.0.1:0 - "GET /api/predict/history?limit=50 HTTP/1.1" 200 OK
-WARNING:services.gdelt_service:GDELT rate limit hit - checking for stale cache
 INFO:services.gdelt_service:Cached rate-limited response for 'Panama Canal drought water level shipping'
 INFO:services.gdelt_service:Querying GDELT API for topic: 'Bosphorus Turkey Russia oil shipping'
-INFO:services.gdelt_service:GDELT cache HIT for 'China steel production' (age: 7s)
-INFO:services.gdelt_service:GDELT cache HIT for 'China iron ore imports' (age: 4s)
-INFO:routes.data:Redis miss — fetching macro context live
-INFO:services.gdelt_service:GDELT cache HIT for 'China manufacturing PMI' (age: 1s)
-INFO:services.gdelt_service:Querying GDELT API for topic: 'China economic slowdown'
-WARNING:services.macro_service:FRED API failed, using fallback
-ERROR:yfinance:HTTP Error 404: {"quoteSummary":{"result":null,"error":{"code":"Not Found","description":"Quote not found for symbol: IRON.AX"}}}
-ERROR:services.macro_service:Error fetching Brent Crude: name 'FRED_API_KEY' is not defined
-ERROR:services.macro_service:Error fetching Gold price: name 'FRED_API_KEY' is not defined
-INFO:     127.0.0.1:0 - "GET /api/data/macro-context HTTP/1.1" 200 OK
-INFO:     127.0.0.1:0 - "GET /api/data/chokepoints?enriched=false HTTP/1.1" 200 OK
-INFO:     127.0.0.1:0 - "GET /api/data/chokepoints?enriched=false HTTP/1.1" 200 OK
-INFO:services.acled_service:RSS live events fetched: 7 events from feeds
-INFO:     127.0.0.1:50155 - "GET /api/data/acled HTTP/1.1" 200 OK
-INFO:routes.data:Redis miss — fetching ASX prices live
-INFO:services.asx_service:Returning cached ASX prices
-INFO:     127.0.0.1:50155 - "GET /api/data/asx-prices HTTP/1.1" 200 OK
-INFO:     127.0.0.1:0 - "GET /api/data/chokepoint-impact?chokepoints=hormuz,malacca,bab_el_mandeb,suez,lombok&duration_days=7 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50155 - "GET /api/data/port-hedland HTTP/1.1" 200 OK
-INFO:services.gdelt_service:GDELT result: 19 articles, avg tone: 0.00, sentiment: neutral
-INFO:services.gdelt_service:GDELT result cached for 'China economic slowdown' (TTL: 3600s)
-INFO:     127.0.0.1:0 - "GET /api/data/china-demand HTTP/1.1" 200 OK
-INFO:services.gdelt_service:GDELT result: 1 articles, avg tone: 0.00, sentiment: neutral
-INFO:services.gdelt_service:GDELT result cached for 'Bosphorus Turkey Russia oil shipping' (TTL: 3600s)
+INFO:services.acled_service:RSS live events fetched: 15 events from feeds
+INFO:     127.0.0.1:50179 - "GET /api/data/acled HTTP/1.1" 200 OK
+WARNING:services.gdelt_service:No GDELT articles found for topic: Bosphorus Turkey Russia oil shipping
 INFO:services.gdelt_service:Querying GDELT API for topic: 'Baltic Sea NATO Russia shipping'
-INFO:services.acled_service:RSS live events fetched: 7 events from feeds
-INFO:     127.0.0.1:49793 - "GET /api/data/acled HTTP/1.1" 200 OK
-INFO:routes.data:Redis miss — fetching ASX prices live
-INFO:services.asx_service:Returning cached ASX prices
-INFO:     127.0.0.1:49793 - "GET /api/data/asx-prices HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49793 - "GET /api/data/port-hedland HTTP/1.1" 200 OK
-INFO:services.gdelt_service:GDELT result: 19 articles, avg tone: 0.00, sentiment: neutral
-INFO:services.gdelt_service:GDELT result cached for 'China economic slowdown' (TTL: 3600s)
-INFO:     127.0.0.1:0 - "GET /api/data/china-demand HTTP/1.1" 200 OK
-WARNING:services.gdelt_service:No GDELT articles found for topic: Baltic Sea NATO Russia shipping
+WARNING:services.gdelt_service:GDELT rate limit hit - checking for stale cache
+INFO:services.gdelt_service:Cached rate-limited response for 'Baltic Sea NATO Russia shipping'
 WARNING:services.chokepoint_monitor_service:Baltic Dry Index fetch failed: 400 Client Error: Bad Request for url: https://api.stlouisfed.org/fred/series/observations?series_id=BDRIY&api_key=d7ab722d4145d2c01d09fe0d87260ddb&sort_order=desc&limit=1&file_type=json
 INFO:server:Cache pre-warmed: Chokepoints
-INFO:routes.data:Redis miss — fetching ASX prices live
-INFO:services.asx_service:Returning cached ASX prices
-INFO:     127.0.0.1:0 - "GET /api/data/asx-prices HTTP/1.1" 200 OK
-INFO:routes.data:Redis miss — fetching ASX prices live
-INFO:services.asx_service:Returning cached ASX prices
-INFO:     127.0.0.1:0 - "GET /api/data/asx-prices HTTP/1.1" 200 OK
-INFO:routes.data:Redis miss — fetching macro context live
-WARNING:services.macro_service:FRED API failed, using fallback
-ERROR:yfinance:HTTP Error 404: {"quoteSummary":{"result":null,"error":{"code":"Not Found","description":"Quote not found for symbol: IRON.AX"}}}
-ERROR:services.macro_service:Error fetching Brent Crude: name 'FRED_API_KEY' is not defined
-ERROR:services.macro_service:Error fetching Gold price: name 'FRED_API_KEY' is not defined
-INFO:     127.0.0.1:0 - "GET /api/data/macro-context HTTP/1.1" 200 OK
-INFO:routes.data:Redis miss — fetching FRED macro live
+INFO:httpx:HTTP Request: GET https://www.abc.net.au/news/feed/2942460/rss.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.rba.gov.au/rss/rss-cb-media-releases.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://stockhead.com.au/feed/ "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.smh.com.au/rss/business.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.miningweekly.com/rss "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://www.theaustralian.com.au/feed "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://feeds.bbci.co.uk/news/world/rss.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.afr.com/rss "HTTP/1.1 404 Not Found"
+INFO:httpx:HTTP Request: GET https://www.mining.com/feed/ "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://oilprice.com/rss/main "HTTP/1.1 200 OK"
+ERROR:services.ais_service:AISStream WebSocket error: no close frame received or sent
+INFO:server:News cache refreshed: 25 articles
+WARNING:services.accuracy_tracker:Price fetch failed for BHP.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for BHP.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for BHP.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for BHP.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for LYC.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for BHP.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for BHP.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+INFO:services.ais_service:Connecting to AISStream WebSocket (attempt 2/5)...
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+ERROR:services.ais_service:AISStream connection error: [Errno 11001] getaddrinfo failed
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for LYC.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for BHP.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for BHP.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for BHP.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for BHP.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for BHP.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for BHP.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for BHP.AX: 'NoneType' object is not subscriptable
+INFO:services.accuracy_tracker:Resolved 0/29 pending reasoning predictions
+INFO:services.prediction_resolver:auto_resolve: found 2 predictions to resolve
+WARNING:services.prediction_resolver:auto_resolve: yfinance download failed for BHP.AX: 'NoneType' object is not subscriptable
+INFO:services.prediction_resolver:auto_resolve: resolved 0/2 predictions
+INFO:services.ais_service:Connecting to AISStream WebSocket (attempt 3/5)...
+ERROR:services.ais_service:AISStream connection error: [Errno 11001] getaddrinfo failed
+INFO:services.ais_service:Connecting to AISStream WebSocket (attempt 4/5)...
+INFO:services.accuracy_tracker:Resolved 0/29 pending reasoning predictions
+INFO:services.prediction_resolver:auto_resolve: found 6 predictions to resolve
+INFO:database:Resolution saved for sim_20260406_000548_1ebdf2: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_000] BHP.AX predicted=neutral actual=bullish (+2.10%) correct=None
+INFO:database:Resolution saved for sim_20260406_003240_a24e63: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_003] BHP.AX predicted=neutral actual=bullish (+2.10%) correct=None
+INFO:database:Resolution saved for sim_20260406_090759_8f58cf: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_090] BHP.AX predicted=neutral actual=bullish (+2.10%) correct=None
+INFO:database:Resolution saved for sim_20260406_092956_46f46b: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_092] BHP.AX predicted=neutral actual=bullish (+2.10%) correct=None
+INFO:database:Resolution saved for sim_20260406_095038_4ff755: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_095] BHP.AX predicted=neutral actual=bullish (+2.10%) correct=None
+INFO:database:Resolution saved for sim_20260406_102944_f2553a: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_102] BHP.AX predicted=neutral actual=bullish (+2.10%) correct=None
+INFO:services.prediction_resolver:auto_resolve: resolved 6/6 predictions
+INFO:server:Prediction log: resolved 6 predictions
+INFO:services.ais_service:? AISStream connected - monitoring Port Hedland vessels
+WARNING:  WatchFiles detected changes in 'server.py'. Reloading...
+ INFO:httpx:HTTP Request: GET https://www.smh.com.au/rss/business.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.abc.net.au/news/feed/2942460/rss.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.afr.com/rss "HTTP/1.1 404 Not Found"
+INFO:httpx:HTTP Request: GET https://stockhead.com.au/feed/ "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.miningweekly.com/rss "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://www.theaustralian.com.au/feed "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://www.rba.gov.au/rss/rss-cb-media-releases.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://feeds.bbci.co.uk/news/world/rss.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.mining.com/feed/ "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://oilprice.com/rss/main "HTTP/1.1 200 OK"
+INFO:server:News cache refreshed: 30 articles
+ERROR:services.ais_service:AISStream WebSocket error: no close frame received or sent
+INFO:services.ais_service:Connecting to AISStream WebSocket (attempt 2/5)...
+INFO:services.ais_service:? AISStream connected - monitoring Port Hedland vessels
+INFO:httpx:HTTP Request: GET https://www.abc.net.au/news/feed/2942460/rss.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.afr.com/rss "HTTP/1.1 404 Not Found"
+INFO:httpx:HTTP Request: GET https://www.theaustralian.com.au/feed "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://www.smh.com.au/rss/business.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://stockhead.com.au/feed/ "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.miningweekly.com/rss "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://www.rba.gov.au/rss/rss-cb-media-releases.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://feeds.bbci.co.uk/news/world/rss.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.mining.com/feed/ "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://oilprice.com/rss/main "HTTP/1.1 200 OK"
+INFO:server:News cache refreshed: 30 articles
+ERROR:services.ais_service:AISStream WebSocket error: no close frame received or sent
+INFO:services.ais_service:Connecting to AISStream WebSocket (attempt 2/5)...
+INFO:services.ais_service:? AISStream connected - monitoring Port Hedland vessels
+INFO:httpx:HTTP Request: GET https://www.abc.net.au/news/feed/2942460/rss.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.smh.com.au/rss/business.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.afr.com/rss "HTTP/1.1 404 Not Found"
+INFO:httpx:HTTP Request: GET https://stockhead.com.au/feed/ "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.rba.gov.au/rss/rss-cb-media-releases.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.theaustralian.com.au/feed "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://www.miningweekly.com/rss "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://feeds.bbci.co.uk/news/world/rss.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.mining.com/feed/ "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://oilprice.com/rss/main "HTTP/1.1 200 OK"
+INFO:server:News cache refreshed: 30 articles
+ERROR:services.ais_service:AISStream WebSocket error: no close frame received or sent
+INFO:services.ais_service:Connecting to AISStream WebSocket (attempt 2/5)...
+ERROR:services.ais_service:AISStream connection error: [Errno 11001] getaddrinfo failed
+WARNING:services.accuracy_tracker:Price fetch failed for BHP.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for BHP.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for BHP.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for BHP.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for LYC.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for BHP.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for BHP.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for LYC.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for BHP.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for BHP.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for BHP.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for BHP.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for BHP.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for BHP.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for BHP.AX: 'NoneType' object is not subscriptable
+INFO:services.accuracy_tracker:Resolved 0/29 pending reasoning predictions
+INFO:services.prediction_resolver:auto_resolve: found 9 predictions to resolve
+WARNING:services.prediction_resolver:auto_resolve: yfinance download failed for BHP.AX: 'NoneType' object is not subscriptable
+WARNING:services.prediction_resolver:auto_resolve: yfinance download failed for CBA.AX: 'NoneType' object is not subscriptable
+INFO:services.prediction_resolver:auto_resolve: resolved 0/9 predictions
+INFO:services.ais_service:Connecting to AISStream WebSocket (attempt 3/5)...
+ERROR:services.ais_service:AISStream connection error: [Errno 11001] getaddrinfo failed
+WARNING:services.accuracy_tracker:Price fetch failed for BHP.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for BHP.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for BHP.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for BHP.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for LYC.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for BHP.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for BHP.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for LYC.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for BHP.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for BHP.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for BHP.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for BHP.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for BHP.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for BHP.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for BHP.AX: 'NoneType' object is not subscriptable
+INFO:services.accuracy_tracker:Resolved 0/29 pending reasoning predictions
+INFO:services.prediction_resolver:auto_resolve: found 14 predictions to resolve
+WARNING:services.prediction_resolver:auto_resolve: yfinance download failed for BHP.AX: 'NoneType' object is not subscriptable
+WARNING:services.prediction_resolver:auto_resolve: yfinance download failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.prediction_resolver:auto_resolve: yfinance download failed for LYC.AX: 'NoneType' object is not subscriptable
+INFO:services.prediction_resolver:auto_resolve: resolved 0/14 predictions
+INFO:httpx:HTTP Request: GET https://feeds.bbci.co.uk/news/world/rss.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.smh.com.au/rss/business.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.abc.net.au/news/feed/2942460/rss.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.rba.gov.au/rss/rss-cb-media-releases.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.miningweekly.com/rss "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://stockhead.com.au/feed/ "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.afr.com/rss "HTTP/1.1 404 Not Found"
+INFO:httpx:HTTP Request: GET https://www.theaustralian.com.au/feed "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://www.mining.com/feed/ "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://oilprice.com/rss/main "HTTP/1.1 200 OK"
+INFO:server:News cache refreshed: 30 articles
+INFO:services.ais_service:Connecting to AISStream WebSocket (attempt 4/5)...
+INFO:services.ais_service:? AISStream connected - monitoring Port Hedland vessels
+ERROR:services.ais_service:AISStream WebSocket error: no close frame received or sent
+INFO:services.ais_service:Connecting to AISStream WebSocket (attempt 2/5)...
+ERROR:services.ais_service:AISStream connection error: [Errno 11001] getaddrinfo failed
+INFO:services.ais_service:Connecting to AISStream WebSocket (attempt 3/5)...
+INFO:services.ais_service:? AISStream connected - monitoring Port Hedland vessels
+INFO:httpx:HTTP Request: GET https://www.smh.com.au/rss/business.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.abc.net.au/news/feed/2942460/rss.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://feeds.bbci.co.uk/news/world/rss.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.theaustralian.com.au/feed "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://stockhead.com.au/feed/ "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.miningweekly.com/rss "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://www.rba.gov.au/rss/rss-cb-media-releases.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.afr.com/rss "HTTP/1.1 404 Not Found"
+INFO:httpx:HTTP Request: GET https://www.mining.com/feed/ "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://oilprice.com/rss/main "HTTP/1.1 200 OK"
+INFO:server:News cache refreshed: 30 articles
+INFO:database:Accuracy check: updated 18/18 predictions
+INFO:server:Accuracy check: resolved 18 predictions
+INFO:database:Updated outcome for reasoning prediction 567d6b8f-8243-4cc7-8dd7-1522cbcf6ec0: INCORRECT
+INFO:database:Updated outcome for reasoning prediction 920aa5ee-91f5-4357-a6e9-8b2226d70ebd: INCORRECT
+INFO:database:Updated outcome for reasoning prediction fa5774b8-2d81-46d1-9a3f-8532ab8d924e: INCORRECT
+INFO:database:Updated outcome for reasoning prediction 00aa288b-5145-4c3d-837a-1c9bdc6fb0be: INCORRECT
+INFO:database:Updated outcome for reasoning prediction d087eb78-9c08-44a2-9398-dd8df43657c5: INCORRECT
+INFO:database:Updated outcome for reasoning prediction ac86e29c-1df0-4632-86d9-56a8527d9b28: CORRECT
+INFO:database:Updated outcome for reasoning prediction ca045545-302c-4314-a810-c775b82451c4: INCORRECT
+INFO:database:Updated outcome for reasoning prediction 10bff5d8-0dae-4ac8-9e49-97a3a7fe5bcd: INCORRECT
+INFO:database:Updated outcome for reasoning prediction f5995854-4159-4ef3-9b4d-4c6a8acc3024: INCORRECT
+INFO:database:Updated outcome for reasoning prediction a57adbac-fa69-47f7-9c06-40533595ae19: INCORRECT
+INFO:database:Updated outcome for reasoning prediction 883cfe9e-fdae-49f0-8a8b-4e0dcb07ca8b: INCORRECT
+INFO:database:Updated outcome for reasoning prediction abdafa76-76c8-4182-8672-42e43a87e73a: INCORRECT
+INFO:database:Updated outcome for reasoning prediction 302d206e-678d-4953-ac47-c07d779c6250: INCORRECT
+INFO:database:Updated outcome for reasoning prediction b0fd5191-1ea1-4214-a696-47b5e110e9fa: INCORRECT
+INFO:database:Updated outcome for reasoning prediction 1b63618c-e11e-4a13-9fea-d6e682e93e72: INCORRECT
+INFO:database:Updated outcome for reasoning prediction 94baff6a-4798-4f4e-be46-769f7a467e3e: INCORRECT
+INFO:database:Updated outcome for reasoning prediction 1ae58183-69c4-46d0-bc53-55d8f72e0567: INCORRECT
+INFO:database:Updated outcome for reasoning prediction 3065438f-b99d-45ee-844b-f05e19e8ab75: INCORRECT
+INFO:database:Updated outcome for reasoning prediction 2ba1c940-4406-4bdf-bd87-1b4814b39232: INCORRECT
+INFO:database:Updated outcome for reasoning prediction c72bfaec-bb4c-4062-ad54-d1ec4690de8b: INCORRECT
+INFO:database:Updated outcome for reasoning prediction f56eb6bb-a85d-4aee-9994-a03ee54664e1: INCORRECT
+INFO:database:Updated outcome for reasoning prediction 880a8a90-2cb8-4ccc-8f9a-8178ff8982f9: INCORRECT
+INFO:database:Updated outcome for reasoning prediction a2c20a03-8447-48fe-845d-b93746d376cf: INCORRECT
+INFO:database:Updated outcome for reasoning prediction 2b4fbc70-3178-4ad3-80b6-d2f0c29d19b6: INCORRECT
+INFO:database:Updated outcome for reasoning prediction 3762b9b2-3141-4d1d-b1d0-3bb317f4ecd0: INCORRECT
+INFO:services.accuracy_tracker:Resolved 25/41 pending reasoning predictions
+INFO:server:Reasoning accuracy check: resolved 25 predictions
+INFO:services.prediction_resolver:auto_resolve: found 38 predictions to resolve
+INFO:database:Resolution saved for sim_20260406_000548_1ebdf2: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_000] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_003240_a24e63: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_003] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_090759_8f58cf: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_090] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_092956_46f46b: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_092] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_095038_4ff755: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_095] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_102944_f2553a: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_102] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_105620_8a3a0c: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_105] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_111608_b8feb2: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_111] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_114646_03266a: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_114] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_121440_ba781d: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_121] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_124952_8b2076: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_124] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_130155_4d87dd: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_130] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_142045_092842: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_142] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_145732_03247e: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_145] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_150634_a2cda5: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_150] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_151411_5c4300: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_151] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_151502_39110e: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_151] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_152914_2b919c: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_152] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_153849_126388: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_153] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_154709_6e5cd5: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_154] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_155120_024489: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_155] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_155658_51f5ca: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_155] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_184823_9159b3: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_184] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_185333_297243: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_185] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_185613_62343c: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_185] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_113034_5a046d: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_113] CBA.AX predicted=neutral actual=bullish (+3.54%) correct=None
+INFO:database:Resolution saved for sim_20260406_152224_2b28fe: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_152] CBA.AX predicted=neutral actual=bullish (+3.54%) correct=None
+INFO:database:Resolution saved for sim_20260406_123534_8fff2f: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_123] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_160400_b34d3f: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_160] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_164025_ca95ab: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_164] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_164923_b3e8bd: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_164] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_165514_d9e2bb: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_165] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_170745_730739: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_170] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_171753_61b984: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_171] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_172148_e27cbe: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_172] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_173044_2031d0: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_173] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_173300_6efd23: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_173] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_191829_c70777: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_191] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:services.prediction_resolver:auto_resolve: resolved 38/38 predictions
+INFO:server:Prediction log: resolved 38 predictions
+INFO:httpx:HTTP Request: GET https://www.smh.com.au/rss/business.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.abc.net.au/news/feed/2942460/rss.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://stockhead.com.au/feed/ "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.miningweekly.com/rss "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://www.rba.gov.au/rss/rss-cb-media-releases.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.theaustralian.com.au/feed "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://www.afr.com/rss "HTTP/1.1 404 Not Found"
+INFO:httpx:HTTP Request: GET https://feeds.bbci.co.uk/news/world/rss.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.mining.com/feed/ "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://oilprice.com/rss/main "HTTP/1.1 200 OK"
+INFO:server:News cache refreshed: 30 articles
+INFO:services.news_service:Fetching MarketAux sentiment for 1 tickers...
+INFO:services.gdelt_service:Querying GDELT API for topic: 'Australia iron ore'
+ERROR:services.fred_service:FRED error fetching RBAAONBMIND: 400 Client Error: Bad Request for url: https://api.stlouisfed.org/fred/series/observations?series_id=RBAAONBMIND&api_key=d7ab722d4145d2c01d09fe0d87260ddb&file_type=json&limit=1&sort_order=desc
+INFO:services.news_service:MarketAux: 1 articles, avg sentiment: 0.339, signal: BULLISH
+ERROR:services.fred_service:FRED error fetching DEXUSAL: 500 Server Error: Internal Server Error for url: https://api.stlouisfed.org/fred/series/observations?series_id=DEXUSAL&api_key=d7ab722d4145d2c01d09fe0d87260ddb&file_type=json&limit=1&sort_order=desc
+INFO:services.fred_service:FRED: unemployment_rate = 4.07532
+INFO:services.fred_service:FRED: long_term_rate = 4.77
+INFO:services.fred_service:FRED: cpi = 130.671
+WARNING:services.gdelt_service:GDELT rate limit hit - checking for stale cache
+INFO:services.gdelt_service:Cached rate-limited response for 'Australia iron ore'
+INFO:services.fred_service:FRED: gdp_growth = 607475000000.0
+ERROR:services.fred_service:FRED error fetching NAEXKP01AUQ189S: 500 Server Error: Internal Server Error for url: https://api.stlouisfed.org/fred/series/observations?series_id=NAEXKP01AUQ189S&api_key=d7ab722d4145d2c01d09fe0d87260ddb&file_type=json&limit=1&sort_order=desc
+INFO:     127.0.0.1:50302 - "GET /api/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64079 - "GET /api/health/infrastructure HTTP/1.1" 404 Not Found
 INFO:services.fred_service:Returning cached FRED data
-INFO:services.abs_service:? FRED live data merged into Australian macro indicators
-INFO:     127.0.0.1:0 - "GET /api/data/australian-macro HTTP/1.1" 200 OK
-INFO:routes.data:Redis miss — fetching ASX prices live
-INFO:services.asx_service:Returning cached ASX prices
-INFO:routes.data:Cache miss — fetching live events
-INFO:services.acled_service:Fetching live ACLED events for 17 countries...
-INFO:services.gdelt_service:GDELT cache HIT for 'China steel production' (age: 118s)
-INFO:services.gdelt_service:GDELT cache HIT for 'China iron ore imports' (age: 115s)
-INFO:services.gdelt_service:GDELT cache HIT for 'China manufacturing PMI' (age: 112s)
-INFO:services.gdelt_service:GDELT cache HIT for 'China economic slowdown' (age: 103s)
-ERROR:services.acled_service:ACLED error: 403 Client Error: Forbidden for url: https://acleddata.com/api/acled/read?_format=json&country=China%3AOR%3Acountry%3DIran%3AOR%3Acountry%3DDemocratic+Republic+of+Congo%3AOR%3Acountry%3DTaiwan%3AOR%3Acountry%3DSudan%3AOR%3Acountry%3DArgentina%3AOR%3Acountry%3DChile%3AOR%3Acountry%3DPapua+New+Guinea%3AOR%3Acountry%3DIndonesia%3AOR%3Acountry%3DMyanmar%3AOR%3Acountry%3DUkraine%3AOR%3Acountry%3DRussia%3AOR%3Acountry%3DIsrael%3AOR%3Acountry%3DYemen%3AOR%3Acountry%3DAustralia%3AOR%3Acountry%3DUnited+States%3AOR%3Acountry%3DSingapore&fields=event_id_cnty%7Cevent_date%7Cevent_type%7Ccountry%7Clocation%7Clatitude%7Clongitude%7Cfatalities%7Cnotes&limit=50&event_date=2026-01-05&event_date_where=%3E%3D ? falling back to demo
-INFO:routes.data:ACLED unavailable — fetching RSS live events
-INFO:     127.0.0.1:0 - "GET /api/data/asx-prices HTTP/1.1" 200 OK
-INFO:     127.0.0.1:0 - "GET /api/data/chokepoints?enriched=false HTTP/1.1" 200 OK
-INFO:     127.0.0.1:0 - "GET /api/data/china-demand HTTP/1.1" 200 OK
-INFO:routes.data:Redis miss — fetching macro context live
-WARNING:services.macro_service:FRED API failed, using fallback
-ERROR:yfinance:HTTP Error 404: {"quoteSummary":{"result":null,"error":{"code":"Not Found","description":"Quote not found for symbol: IRON.AX"}}}
-ERROR:services.macro_service:Error fetching Brent Crude: name 'FRED_API_KEY' is not defined
-ERROR:services.macro_service:Error fetching Gold price: name 'FRED_API_KEY' is not defined
-INFO:routes.data:Redis miss — fetching FRED macro live
+INFO:services.news_service:Fetching MarketAux sentiment for 1 tickers...
+INFO:services.gdelt_service:GDELT cache HIT for 'Australia iron ore' (age: 99s)
+INFO:services.news_service:MarketAux: 1 articles, avg sentiment: 0.339, signal: BULLISH
+INFO:     127.0.0.1:59899 - "GET /api/health HTTP/1.1" 200 OK
 INFO:services.fred_service:Returning cached FRED data
-INFO:services.abs_service:? FRED live data merged into Australian macro indicators
-INFO:     127.0.0.1:0 - "GET /api/data/macro-context HTTP/1.1" 200 OK
-INFO:     127.0.0.1:0 - "GET /api/data/australian-macro HTTP/1.1" 200 OK
-INFO:     127.0.0.1:0 - "GET /api/data/chokepoints?enriched=false HTTP/1.1" 200 OK
-INFO:     127.0.0.1:0 - "GET /api/predict/history?limit=50 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:0 - "GET /api/data/chokepoints?enriched=false HTTP/1.1" 200 OK
-INFO:     127.0.0.1:0 - "GET /api/data/chokepoint-impact?chokepoints=hormuz,malacca,bab_el_mandeb,suez,lombok&duration_days=7 HTTP/1.1" 200 OK
+INFO:services.news_service:Fetching MarketAux sentiment for 1 tickers...
+INFO:services.gdelt_service:GDELT cache HIT for 'Australia iron ore' (age: 110s)
+INFO:services.news_service:MarketAux: 1 articles, avg sentiment: 0.339, signal: BULLISH
+INFO:     127.0.0.1:56046 - "GET /api/health HTTP/1.1" 200 OK
+INFO:services.fred_service:Returning cached FRED data
+INFO:services.news_service:Fetching MarketAux sentiment for 1 tickers...
+INFO:services.gdelt_service:GDELT cache HIT for 'Australia iron ore' (age: 115s)
+INFO:services.news_service:MarketAux: 1 articles, avg sentiment: 0.339, signal: BULLISH
+INFO:     127.0.0.1:55890 - "GET /api/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58065 - "GET /api/health/infrastructure HTTP/1.1" 404 Not Found
+INFO:httpx:HTTP Request: GET https://www.miningweekly.com/rss "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://www.afr.com/rss "HTTP/1.1 404 Not Found"
+INFO:httpx:HTTP Request: GET https://www.smh.com.au/rss/business.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.theaustralian.com.au/feed "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://www.abc.net.au/news/feed/2942460/rss.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://feeds.bbci.co.uk/news/world/rss.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://stockhead.com.au/feed/ "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.rba.gov.au/rss/rss-cb-media-releases.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.mining.com/feed/ "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://oilprice.com/rss/main "HTTP/1.1 200 OK"
+INFO:server:News cache refreshed: 30 articles
+INFO:     127.0.0.1:50852 - "GET /api/health/infrastructure HTTP/1.1" 404 Not Found
+INFO:httpx:HTTP Request: GET https://www.miningweekly.com/rss "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://feeds.bbci.co.uk/news/world/rss.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.abc.net.au/news/feed/2942460/rss.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.smh.com.au/rss/business.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://stockhead.com.au/feed/ "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.rba.gov.au/rss/rss-cb-media-releases.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.afr.com/rss "HTTP/1.1 404 Not Found"
+INFO:httpx:HTTP Request: GET https://www.theaustralian.com.au/feed "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://www.mining.com/feed/ "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://oilprice.com/rss/main "HTTP/1.1 200 OK"
+INFO:server:News cache refreshed: 30 articles
+INFO:services.accuracy_tracker:Resolved 0/16 pending reasoning predictions
+INFO:httpx:HTTP Request: GET https://stockhead.com.au/feed/ "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.abc.net.au/news/feed/2942460/rss.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.rba.gov.au/rss/rss-cb-media-releases.xml "HTTP/1.1 200 OK"
+INFO:services.prediction_resolver:auto_resolve: found 38 predictions to resolve
+INFO:httpx:HTTP Request: GET https://feeds.bbci.co.uk/news/world/rss.xml "HTTP/1.1 200 OK"
+INFO:database:Resolution saved for sim_20260406_000548_1ebdf2: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_000] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:httpx:HTTP Request: GET https://www.smh.com.au/rss/business.xml "HTTP/1.1 200 OK"
+INFO:database:Resolution saved for sim_20260406_003240_a24e63: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_003] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:httpx:HTTP Request: GET https://www.afr.com/rss "HTTP/1.1 404 Not Found"
+INFO:httpx:HTTP Request: GET https://www.miningweekly.com/rss "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://www.theaustralian.com.au/feed "HTTP/1.1 403 Forbidden"
+INFO:database:Resolution saved for sim_20260406_090759_8f58cf: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_090] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_092956_46f46b: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_092] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_095038_4ff755: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_095] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_102944_f2553a: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_102] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_105620_8a3a0c: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_105] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_111608_b8feb2: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_111] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_114646_03266a: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_114] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_121440_ba781d: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_121] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_124952_8b2076: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_124] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_130155_4d87dd: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_130] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:httpx:HTTP Request: GET https://www.mining.com/feed/ "HTTP/1.1 200 OK"
+INFO:database:Resolution saved for sim_20260406_142045_092842: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_142] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:httpx:HTTP Request: GET https://oilprice.com/rss/main "HTTP/1.1 200 OK"
+INFO:server:News cache refreshed: 30 articles
+INFO:database:Resolution saved for sim_20260406_145732_03247e: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_145] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_150634_a2cda5: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_150] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_151411_5c4300: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_151] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_151502_39110e: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_151] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_152914_2b919c: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_152] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_153849_126388: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_153] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_154709_6e5cd5: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_154] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_155120_024489: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_155] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_155658_51f5ca: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_155] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_184823_9159b3: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_184] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_185333_297243: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_185] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_185613_62343c: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_185] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_113034_5a046d: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_113] CBA.AX predicted=neutral actual=bullish (+3.54%) correct=None
+INFO:database:Resolution saved for sim_20260406_152224_2b28fe: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_152] CBA.AX predicted=neutral actual=bullish (+3.54%) correct=None
+INFO:database:Resolution saved for sim_20260406_123534_8fff2f: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_123] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_160400_b34d3f: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_160] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_164025_ca95ab: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_164] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_164923_b3e8bd: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_164] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_165514_d9e2bb: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_165] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_170745_730739: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_170] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_171753_61b984: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_171] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_172148_e27cbe: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_172] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_173044_2031d0: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_173] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_173300_6efd23: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_173] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_191829_c70777: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_191] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:services.prediction_resolver:auto_resolve: resolved 38/38 predictions
+INFO:server:Prediction log: resolved 38 predictions
+ERROR:services.ais_service:AISStream WebSocket error: no close frame received or sent
+INFO:services.ais_service:Connecting to AISStream WebSocket (attempt 2/5)...
+INFO:services.ais_service:? AISStream connected - monitoring Port Hedland vessels
+INFO:httpx:HTTP Request: GET https://www.abc.net.au/news/feed/2942460/rss.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://feeds.bbci.co.uk/news/world/rss.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.miningweekly.com/rss "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://www.afr.com/rss "HTTP/1.1 404 Not Found"
+INFO:httpx:HTTP Request: GET https://www.rba.gov.au/rss/rss-cb-media-releases.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://stockhead.com.au/feed/ "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.theaustralian.com.au/feed "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://www.smh.com.au/rss/business.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.mining.com/feed/ "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://oilprice.com/rss/main "HTTP/1.1 200 OK"
+INFO:server:News cache refreshed: 30 articles
+ERROR:services.ais_service:AISStream WebSocket error: no close frame received or sent
+INFO:services.ais_service:Connecting to AISStream WebSocket (attempt 2/5)...
+INFO:services.ais_service:? AISStream connected - monitoring Port Hedland vessels
+ERROR:services.ais_service:AISStream WebSocket error: no close frame received or sent
+INFO:services.ais_service:Connecting to AISStream WebSocket (attempt 2/5)...
+INFO:services.ais_service:? AISStream connected - monitoring Port Hedland vessels
+ERROR:services.ais_service:AISStream WebSocket error: no close frame received or sent
+INFO:services.ais_service:Connecting to AISStream WebSocket (attempt 2/5)...
+ERROR:services.ais_service:AISStream connection error: [Errno 11001] getaddrinfo failed
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for LYC.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+INFO:services.accuracy_tracker:Resolved 0/16 pending reasoning predictions
+INFO:services.prediction_resolver:auto_resolve: found 38 predictions to resolve
+WARNING:services.prediction_resolver:auto_resolve: yfinance download failed for BHP.AX: 'NoneType' object is not subscriptable
+WARNING:services.prediction_resolver:auto_resolve: yfinance download failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.prediction_resolver:auto_resolve: yfinance download failed for LYC.AX: 'NoneType' object is not subscriptable
+INFO:services.prediction_resolver:auto_resolve: resolved 0/38 predictions
+INFO:services.ais_service:Connecting to AISStream WebSocket (attempt 3/5)...
+ERROR:services.ais_service:AISStream connection error: [Errno 11001] getaddrinfo failed
+INFO:services.accuracy_tracker:Resolved 0/16 pending reasoning predictions
+INFO:services.prediction_resolver:auto_resolve: found 38 predictions to resolve
+INFO:database:Resolution saved for sim_20260406_000548_1ebdf2: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_000] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:httpx:HTTP Request: GET https://stockhead.com.au/feed/ "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.afr.com/rss "HTTP/1.1 404 Not Found"
+INFO:httpx:HTTP Request: GET https://www.miningweekly.com/rss "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://www.theaustralian.com.au/feed "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://www.smh.com.au/rss/business.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.abc.net.au/news/feed/2942460/rss.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.rba.gov.au/rss/rss-cb-media-releases.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://feeds.bbci.co.uk/news/world/rss.xml "HTTP/1.1 200 OK"
+INFO:database:Resolution saved for sim_20260406_003240_a24e63: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_003] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_090759_8f58cf: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_090] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_092956_46f46b: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_092] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_095038_4ff755: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_095] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:services.ais_service:Connecting to AISStream WebSocket (attempt 4/5)...
+INFO:database:Resolution saved for sim_20260406_102944_f2553a: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_102] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:httpx:HTTP Request: GET https://www.mining.com/feed/ "HTTP/1.1 200 OK"
+INFO:database:Resolution saved for sim_20260406_105620_8a3a0c: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_105] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_111608_b8feb2: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_111] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_114646_03266a: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_114] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_121440_ba781d: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_121] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_124952_8b2076: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_124] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_130155_4d87dd: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_130] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:httpx:HTTP Request: GET https://oilprice.com/rss/main "HTTP/1.1 200 OK"
+INFO:database:Resolution saved for sim_20260406_142045_092842: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_142] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:server:News cache refreshed: 30 articles
+INFO:database:Resolution saved for sim_20260406_145732_03247e: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_145] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_150634_a2cda5: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_150] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_151411_5c4300: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_151] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_151502_39110e: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_151] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_152914_2b919c: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_152] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_153849_126388: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_153] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_154709_6e5cd5: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_154] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_155120_024489: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_155] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_155658_51f5ca: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_155] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_184823_9159b3: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_184] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_185333_297243: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_185] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_185613_62343c: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_185] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_113034_5a046d: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_113] CBA.AX predicted=neutral actual=bullish (+3.54%) correct=None
+INFO:database:Resolution saved for sim_20260406_152224_2b28fe: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_152] CBA.AX predicted=neutral actual=bullish (+3.54%) correct=None
+INFO:services.ais_service:? AISStream connected - monitoring Port Hedland vessels
+INFO:database:Resolution saved for sim_20260406_123534_8fff2f: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_123] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_160400_b34d3f: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_160] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_164025_ca95ab: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_164] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_164923_b3e8bd: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_164] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_165514_d9e2bb: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_165] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_170745_730739: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_170] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_171753_61b984: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_171] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_172148_e27cbe: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_172] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_173044_2031d0: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_173] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_173300_6efd23: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_173] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_191829_c70777: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_191] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:services.prediction_resolver:auto_resolve: resolved 38/38 predictions
+INFO:server:Prediction log: resolved 38 predictions
+INFO:httpx:HTTP Request: GET https://stockhead.com.au/feed/ "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.abc.net.au/news/feed/2942460/rss.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://feeds.bbci.co.uk/news/world/rss.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.miningweekly.com/rss "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://www.theaustralian.com.au/feed "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://www.rba.gov.au/rss/rss-cb-media-releases.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.smh.com.au/rss/business.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.afr.com/rss "HTTP/1.1 404 Not Found"
+INFO:httpx:HTTP Request: GET https://www.mining.com/feed/ "HTTP/1.1 200 OK"
+INFO:database:Updated outcome for reasoning prediction 432cefe2-6c45-4180-8e10-7f0a82647d89: CORRECT
+ERROR:services.ais_service:AISStream WebSocket error: no close frame received or sent
+INFO:services.accuracy_tracker:Resolved 1/16 pending reasoning predictions
+INFO:server:Reasoning accuracy check: resolved 1 predictions
+INFO:httpx:HTTP Request: GET https://oilprice.com/rss/main "HTTP/1.1 200 OK"
+INFO:server:News cache refreshed: 30 articles
+INFO:services.prediction_resolver:auto_resolve: found 38 predictions to resolve
+INFO:database:Resolution saved for sim_20260406_000548_1ebdf2: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_000] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_003240_a24e63: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_003] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_090759_8f58cf: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_090] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:services.ais_service:Connecting to AISStream WebSocket (attempt 2/5)...
+INFO:database:Resolution saved for sim_20260406_092956_46f46b: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_092] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_095038_4ff755: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_095] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_102944_f2553a: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_102] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_105620_8a3a0c: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_105] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_111608_b8feb2: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_111] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_114646_03266a: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_114] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_121440_ba781d: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_121] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_124952_8b2076: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_124] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_130155_4d87dd: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_130] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_142045_092842: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_142] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_145732_03247e: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_145] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_150634_a2cda5: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_150] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_151411_5c4300: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_151] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_151502_39110e: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_151] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_152914_2b919c: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_152] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_153849_126388: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_153] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_154709_6e5cd5: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_154] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_155120_024489: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_155] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_155658_51f5ca: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_155] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_184823_9159b3: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_184] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_185333_297243: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_185] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_185613_62343c: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_185] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_113034_5a046d: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_113] CBA.AX predicted=neutral actual=bullish (+3.54%) correct=None
+INFO:database:Resolution saved for sim_20260406_152224_2b28fe: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_152] CBA.AX predicted=neutral actual=bullish (+3.54%) correct=None
+INFO:database:Resolution saved for sim_20260406_123534_8fff2f: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_123] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_160400_b34d3f: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_160] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_164025_ca95ab: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_164] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_164923_b3e8bd: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_164] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:services.ais_service:? AISStream connected - monitoring Port Hedland vessels
+INFO:database:Resolution saved for sim_20260406_165514_d9e2bb: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_165] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_170745_730739: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_170] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_171753_61b984: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_171] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_172148_e27cbe: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_172] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_173044_2031d0: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_173] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_173300_6efd23: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_173] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_191829_c70777: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_191] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:services.prediction_resolver:auto_resolve: resolved 38/38 predictions
+INFO:server:Prediction log: resolved 38 predictions
+INFO:httpx:HTTP Request: GET https://www.abc.net.au/news/feed/2942460/rss.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.miningweekly.com/rss "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://www.smh.com.au/rss/business.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://feeds.bbci.co.uk/news/world/rss.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.theaustralian.com.au/feed "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://stockhead.com.au/feed/ "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.afr.com/rss "HTTP/1.1 404 Not Found"
+INFO:httpx:HTTP Request: GET https://www.rba.gov.au/rss/rss-cb-media-releases.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.mining.com/feed/ "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://oilprice.com/rss/main "HTTP/1.1 200 OK"
+INFO:server:News cache refreshed: 30 articles
+INFO:httpx:HTTP Request: GET https://www.afr.com/rss "HTTP/1.1 404 Not Found"
+INFO:httpx:HTTP Request: GET https://www.smh.com.au/rss/business.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.miningweekly.com/rss "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://www.theaustralian.com.au/feed "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://www.abc.net.au/news/feed/2942460/rss.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://stockhead.com.au/feed/ "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.rba.gov.au/rss/rss-cb-media-releases.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://feeds.bbci.co.uk/news/world/rss.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.mining.com/feed/ "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://oilprice.com/rss/main "HTTP/1.1 200 OK"
+INFO:server:News cache refreshed: 30 articles
+ERROR:services.ais_service:AISStream WebSocket error: no close frame received or sent
+INFO:services.ais_service:Connecting to AISStream WebSocket (attempt 2/5)...
+ERROR:services.ais_service:AISStream connection error: [Errno 11001] getaddrinfo failed
+INFO:services.ais_service:Connecting to AISStream WebSocket (attempt 3/5)...
+INFO:services.ais_service:? AISStream connected - monitoring Port Hedland vessels
+INFO:services.accuracy_tracker:Resolved 0/15 pending reasoning predictions
+INFO:services.prediction_resolver:auto_resolve: found 38 predictions to resolve
+INFO:httpx:HTTP Request: GET https://www.theaustralian.com.au/feed "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://www.smh.com.au/rss/business.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://stockhead.com.au/feed/ "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.afr.com/rss "HTTP/1.1 404 Not Found"
+INFO:httpx:HTTP Request: GET https://www.abc.net.au/news/feed/2942460/rss.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://feeds.bbci.co.uk/news/world/rss.xml "HTTP/1.1 200 OK"
+INFO:database:Resolution saved for sim_20260406_000548_1ebdf2: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_000] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_003240_a24e63: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_003] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:httpx:HTTP Request: GET https://www.miningweekly.com/rss "HTTP/1.1 403 Forbidden"
+INFO:database:Resolution saved for sim_20260406_090759_8f58cf: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_090] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_092956_46f46b: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_092] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:httpx:HTTP Request: GET https://www.rba.gov.au/rss/rss-cb-media-releases.xml "HTTP/1.1 200 OK"
+INFO:database:Resolution saved for sim_20260406_095038_4ff755: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_095] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_102944_f2553a: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_102] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_105620_8a3a0c: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_105] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_111608_b8feb2: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_111] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_114646_03266a: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_114] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_121440_ba781d: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_121] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_124952_8b2076: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_124] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_130155_4d87dd: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_130] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_142045_092842: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_142] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_145732_03247e: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_145] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_150634_a2cda5: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_150] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_151411_5c4300: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_151] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_151502_39110e: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_151] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_152914_2b919c: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_152] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_153849_126388: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_153] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_154709_6e5cd5: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_154] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_155120_024489: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_155] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_155658_51f5ca: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_155] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_184823_9159b3: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_184] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:httpx:HTTP Request: GET https://www.mining.com/feed/ "HTTP/1.1 200 OK"
+INFO:database:Resolution saved for sim_20260406_185333_297243: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_185] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:httpx:HTTP Request: GET https://oilprice.com/rss/main "HTTP/1.1 200 OK"
+INFO:database:Resolution saved for sim_20260406_185613_62343c: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_185] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:server:News cache refreshed: 30 articles
+INFO:database:Resolution saved for sim_20260406_113034_5a046d: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_113] CBA.AX predicted=neutral actual=bullish (+3.54%) correct=None
+INFO:database:Resolution saved for sim_20260406_152224_2b28fe: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_152] CBA.AX predicted=neutral actual=bullish (+3.54%) correct=None
+INFO:database:Resolution saved for sim_20260406_123534_8fff2f: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_123] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_160400_b34d3f: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_160] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_164025_ca95ab: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_164] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_164923_b3e8bd: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_164] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_165514_d9e2bb: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_165] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_170745_730739: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_170] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_171753_61b984: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_171] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_172148_e27cbe: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_172] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_173044_2031d0: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_173] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_173300_6efd23: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_173] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_191829_c70777: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_191] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:services.prediction_resolver:auto_resolve: resolved 38/38 predictions
+INFO:server:Prediction log: resolved 38 predictions
+INFO:httpx:HTTP Request: GET https://feeds.bbci.co.uk/news/world/rss.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.smh.com.au/rss/business.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.miningweekly.com/rss "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://www.abc.net.au/news/feed/2942460/rss.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.theaustralian.com.au/feed "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://stockhead.com.au/feed/ "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.afr.com/rss "HTTP/1.1 404 Not Found"
+INFO:httpx:HTTP Request: GET https://www.rba.gov.au/rss/rss-cb-media-releases.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.mining.com/feed/ "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://oilprice.com/rss/main "HTTP/1.1 200 OK"
+INFO:server:News cache refreshed: 30 articles
+INFO:httpx:HTTP Request: GET https://www.abc.net.au/news/feed/2942460/rss.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.smh.com.au/rss/business.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.afr.com/rss "HTTP/1.1 404 Not Found"
+INFO:httpx:HTTP Request: GET https://www.miningweekly.com/rss "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://www.theaustralian.com.au/feed "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://stockhead.com.au/feed/ "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://feeds.bbci.co.uk/news/world/rss.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.rba.gov.au/rss/rss-cb-media-releases.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.mining.com/feed/ "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://oilprice.com/rss/main "HTTP/1.1 200 OK"
+INFO:server:News cache refreshed: 30 articles
+INFO:httpx:HTTP Request: GET https://www.abc.net.au/news/feed/2942460/rss.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.smh.com.au/rss/business.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.theaustralian.com.au/feed "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://stockhead.com.au/feed/ "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.afr.com/rss "HTTP/1.1 404 Not Found"
+INFO:httpx:HTTP Request: GET https://www.miningweekly.com/rss "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://www.rba.gov.au/rss/rss-cb-media-releases.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://feeds.bbci.co.uk/news/world/rss.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.mining.com/feed/ "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://oilprice.com/rss/main "HTTP/1.1 200 OK"
+INFO:server:News cache refreshed: 30 articles
+ERROR:services.ais_service:AISStream WebSocket error: no close frame received or sent
+INFO:services.ais_service:Connecting to AISStream WebSocket (attempt 2/5)...
+INFO:services.ais_service:? AISStream connected - monitoring Port Hedland vessels
+INFO:services.accuracy_tracker:Resolved 0/15 pending reasoning predictions
+INFO:services.prediction_resolver:auto_resolve: found 38 predictions to resolve
+INFO:database:Resolution saved for sim_20260406_000548_1ebdf2: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_000] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_003240_a24e63: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_003] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_090759_8f58cf: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_090] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_092956_46f46b: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_092] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_095038_4ff755: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_095] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_102944_f2553a: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_102] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_105620_8a3a0c: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_105] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_111608_b8feb2: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_111] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_114646_03266a: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_114] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_121440_ba781d: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_121] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_124952_8b2076: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_124] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_130155_4d87dd: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_130] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_142045_092842: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_142] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_145732_03247e: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_145] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_150634_a2cda5: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_150] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_151411_5c4300: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_151] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_151502_39110e: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_151] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_152914_2b919c: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_152] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_153849_126388: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_153] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_154709_6e5cd5: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_154] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_155120_024489: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_155] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_155658_51f5ca: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_155] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_184823_9159b3: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_184] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_185333_297243: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_185] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_185613_62343c: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_185] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_113034_5a046d: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_113] CBA.AX predicted=neutral actual=bullish (+3.54%) correct=None
+INFO:database:Resolution saved for sim_20260406_152224_2b28fe: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_152] CBA.AX predicted=neutral actual=bullish (+3.54%) correct=None
+INFO:database:Resolution saved for sim_20260406_123534_8fff2f: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_123] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_160400_b34d3f: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_160] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_164025_ca95ab: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_164] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_164923_b3e8bd: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_164] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_165514_d9e2bb: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_165] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_170745_730739: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_170] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_171753_61b984: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_171] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_172148_e27cbe: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_172] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_173044_2031d0: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_173] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_173300_6efd23: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_173] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_191829_c70777: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_191] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:services.prediction_resolver:auto_resolve: resolved 38/38 predictions
+INFO:server:Prediction log: resolved 38 predictions
+INFO:httpx:HTTP Request: GET https://www.abc.net.au/news/feed/2942460/rss.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://stockhead.com.au/feed/ "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.smh.com.au/rss/business.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.rba.gov.au/rss/rss-cb-media-releases.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.theaustralian.com.au/feed "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://www.miningweekly.com/rss "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://www.afr.com/rss "HTTP/1.1 404 Not Found"
+INFO:httpx:HTTP Request: GET https://feeds.bbci.co.uk/news/world/rss.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.mining.com/feed/ "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://oilprice.com/rss/main "HTTP/1.1 200 OK"
+INFO:server:News cache refreshed: 30 articles
+INFO:httpx:HTTP Request: GET https://www.abc.net.au/news/feed/2942460/rss.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.afr.com/rss "HTTP/1.1 404 Not Found"
+INFO:httpx:HTTP Request: GET https://www.smh.com.au/rss/business.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://stockhead.com.au/feed/ "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.theaustralian.com.au/feed "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://www.rba.gov.au/rss/rss-cb-media-releases.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.miningweekly.com/rss "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://feeds.bbci.co.uk/news/world/rss.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.mining.com/feed/ "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://oilprice.com/rss/main "HTTP/1.1 200 OK"
+INFO:server:News cache refreshed: 30 articles
+ERROR:services.ais_service:AISStream WebSocket error: no close frame received or sent
+INFO:services.ais_service:Connecting to AISStream WebSocket (attempt 2/5)...
+ERROR:services.ais_service:AISStream connection error: [Errno 11001] getaddrinfo failed
+INFO:services.ais_service:Connecting to AISStream WebSocket (attempt 3/5)...
+ERROR:services.ais_service:AISStream connection error: [Errno 11001] getaddrinfo failed
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+INFO:services.accuracy_tracker:Resolved 0/15 pending reasoning predictions
+INFO:services.prediction_resolver:auto_resolve: found 38 predictions to resolve
+WARNING:services.prediction_resolver:auto_resolve: yfinance download failed for BHP.AX: 'NoneType' object is not subscriptable
+WARNING:services.prediction_resolver:auto_resolve: yfinance download failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.prediction_resolver:auto_resolve: yfinance download failed for LYC.AX: 'NoneType' object is not subscriptable
+INFO:services.prediction_resolver:auto_resolve: resolved 0/38 predictions
+INFO:services.ais_service:Connecting to AISStream WebSocket (attempt 4/5)...
+INFO:services.ais_service:? AISStream connected - monitoring Port Hedland vessels
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.accuracy_tracker:Price fetch failed for CBA.AX: 'NoneType' object is not subscriptable
+INFO:services.accuracy_tracker:Resolved 0/15 pending reasoning predictions
+INFO:services.prediction_resolver:auto_resolve: found 48 predictions to resolve
+WARNING:services.prediction_resolver:auto_resolve: yfinance download failed for BHP.AX: 'NoneType' object is not subscriptable
+WARNING:services.prediction_resolver:auto_resolve: yfinance download failed for CBA.AX: 'NoneType' object is not subscriptable
+WARNING:services.prediction_resolver:auto_resolve: yfinance download failed for LYC.AX: 'NoneType' object is not subscriptable
+INFO:services.prediction_resolver:auto_resolve: resolved 0/48 predictions
+ERROR:services.ais_service:AISStream WebSocket error: no close frame received or sent
+INFO:services.ais_service:Connecting to AISStream WebSocket (attempt 2/5)...
+ERROR:services.ais_service:AISStream connection error: [Errno 11001] getaddrinfo failed
+INFO:services.ais_service:Connecting to AISStream WebSocket (attempt 3/5)...
+ERROR:services.ais_service:AISStream connection error: [Errno 11001] getaddrinfo failed
+INFO:services.ais_service:Connecting to AISStream WebSocket (attempt 4/5)...
+ERROR:services.ais_service:AISStream connection error: [Errno 11001] getaddrinfo failed
+INFO:services.ais_service:Connecting to AISStream WebSocket (attempt 5/5)...
+ERROR:services.ais_service:AISStream connection error: [Errno 11001] getaddrinfo failed
+ERROR:services.ais_service:AISStream connection failed after max retries
+INFO:httpx:HTTP Request: GET https://www.smh.com.au/rss/business.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://stockhead.com.au/feed/ "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.afr.com/rss "HTTP/1.1 404 Not Found"
+INFO:httpx:HTTP Request: GET https://www.miningweekly.com/rss "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://feeds.bbci.co.uk/news/world/rss.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.theaustralian.com.au/feed "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://www.rba.gov.au/rss/rss-cb-media-releases.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.abc.net.au/news/feed/2942460/rss.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.mining.com/feed/ "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://oilprice.com/rss/main "HTTP/1.1 200 OK"
+INFO:server:News cache refreshed: 30 articles
+INFO:httpx:HTTP Request: GET https://www.abc.net.au/news/feed/2942460/rss.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.smh.com.au/rss/business.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.afr.com/rss "HTTP/1.1 404 Not Found"
+INFO:httpx:HTTP Request: GET https://stockhead.com.au/feed/ "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.miningweekly.com/rss "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://feeds.bbci.co.uk/news/world/rss.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.rba.gov.au/rss/rss-cb-media-releases.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.theaustralian.com.au/feed "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://www.mining.com/feed/ "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://oilprice.com/rss/main "HTTP/1.1 200 OK"
+INFO:server:News cache refreshed: 30 articles
+INFO:httpx:HTTP Request: GET https://feeds.bbci.co.uk/news/world/rss.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.afr.com/rss "HTTP/1.1 404 Not Found"
+INFO:httpx:HTTP Request: GET https://www.miningweekly.com/rss "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://www.smh.com.au/rss/business.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://stockhead.com.au/feed/ "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.abc.net.au/news/feed/2942460/rss.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.theaustralian.com.au/feed "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://www.rba.gov.au/rss/rss-cb-media-releases.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.mining.com/feed/ "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://oilprice.com/rss/main "HTTP/1.1 200 OK"
+INFO:server:News cache refreshed: 30 articles
+INFO:database:Updated outcome for reasoning prediction e8eca559-4b28-4a4e-849b-113be2840010: CORRECT
+INFO:database:Updated outcome for reasoning prediction 6d1f1b8a-aa99-4025-a175-006bfffaf55a: CORRECT
+INFO:database:Updated outcome for reasoning prediction 10a587f3-f4c3-4123-9dd3-f9b954d02f9d: CORRECT
+INFO:database:Updated outcome for reasoning prediction 4b44c57c-2f5f-48af-94e0-24fc12975a12: CORRECT
+INFO:database:Updated outcome for reasoning prediction 2daaf361-a11e-4ab2-8b63-3c5fcbeb2a16: CORRECT
+INFO:database:Updated outcome for reasoning prediction 2ca17b73-9354-417c-821d-81e8806d75ad: CORRECT
+INFO:database:Updated outcome for reasoning prediction 5ea7b110-c293-40bb-9d13-1d225db6ab4b: CORRECT
+INFO:database:Updated outcome for reasoning prediction 2f49ab9f-791f-4867-aaed-2fd9f97140fa: CORRECT
+INFO:database:Updated outcome for reasoning prediction b0f008b6-7cae-42f3-9607-f2e862d1b8de: CORRECT
+INFO:database:Updated outcome for reasoning prediction 8ec218cf-71a5-4714-9d65-156114fb0476: CORRECT
+INFO:database:Updated outcome for reasoning prediction 50a183ed-2f8a-4223-9d01-f1c3d00d794c: CORRECT
+INFO:database:Updated outcome for reasoning prediction 849fb619-1e23-4762-be98-d9c894f2a37d: CORRECT
+INFO:database:Updated outcome for reasoning prediction 7b8922ac-7434-46fc-a067-a368c5d5098b: CORRECT
+INFO:database:Updated outcome for reasoning prediction c870e8c7-709f-4bb5-9110-55655d288575: CORRECT
+INFO:services.accuracy_tracker:Resolved 14/15 pending reasoning predictions
+INFO:server:Reasoning accuracy check: resolved 14 predictions
+INFO:services.prediction_resolver:auto_resolve: found 48 predictions to resolve
+INFO:database:Resolution saved for sim_20260406_000548_1ebdf2: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_000] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_003240_a24e63: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_003] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_090759_8f58cf: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_090] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_092956_46f46b: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_092] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_095038_4ff755: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_095] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_102944_f2553a: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_102] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_105620_8a3a0c: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_105] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_111608_b8feb2: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_111] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_114646_03266a: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_114] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_121440_ba781d: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_121] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_124952_8b2076: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_124] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_130155_4d87dd: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_130] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_142045_092842: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_142] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_145732_03247e: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_145] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_150634_a2cda5: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_150] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_151411_5c4300: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_151] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_151502_39110e: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_151] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_152914_2b919c: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_152] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_153849_126388: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_153] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_154709_6e5cd5: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_154] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_155120_024489: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_155] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_155658_51f5ca: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_155] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_184823_9159b3: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_184] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_185333_297243: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_185] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_185613_62343c: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_185] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260408_224332_8ba866: bullish (correct=True)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260408_224] BHP.AX predicted=bullish actual=bullish (+2.90%) correct=True
+INFO:database:Resolution saved for sim_20260408_231853_beb00c: bullish (correct=True)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260408_231] BHP.AX predicted=bullish actual=bullish (+2.90%) correct=True
+INFO:database:Resolution saved for sim_20260408_233914_8131ba: bullish (correct=True)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260408_233] BHP.AX predicted=bullish actual=bullish (+2.90%) correct=True
+INFO:database:Resolution saved for sim_20260409_094421_f08081: bullish (correct=True)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260409_094] BHP.AX predicted=bullish actual=bullish (+2.90%) correct=True
+INFO:database:Resolution saved for sim_20260409_100646_0fc645: bullish (correct=True)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260409_100] BHP.AX predicted=bullish actual=bullish (+2.24%) correct=True
+INFO:database:Resolution saved for sim_20260409_124348_9c27b1: bullish (correct=True)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260409_124] BHP.AX predicted=bullish actual=bullish (+2.24%) correct=True
+INFO:database:Resolution saved for sim_20260409_125536_532cbc: bullish (correct=True)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260409_125] BHP.AX predicted=bullish actual=bullish (+2.24%) correct=True
+INFO:database:Resolution saved for sim_20260406_113034_5a046d: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_113] CBA.AX predicted=neutral actual=bullish (+3.54%) correct=None
+INFO:database:Resolution saved for sim_20260406_152224_2b28fe: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_152] CBA.AX predicted=neutral actual=bullish (+3.54%) correct=None
+INFO:database:Resolution saved for sim_20260409_102822_995715: bearish (correct=False)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260409_102] CBA.AX predicted=bullish actual=bearish (-2.41%) correct=False
+INFO:database:Resolution saved for sim_20260409_131149_1a1859: bearish (correct=False)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260409_131] CBA.AX predicted=bullish actual=bearish (-2.41%) correct=False
+INFO:database:Resolution saved for sim_20260406_123534_8fff2f: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_123] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_160400_b34d3f: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_160] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_164025_ca95ab: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_164] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_164923_b3e8bd: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_164] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_165514_d9e2bb: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_165] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_170745_730739: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_170] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_171753_61b984: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_171] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_172148_e27cbe: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_172] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_173044_2031d0: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_173] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_173300_6efd23: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_173] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_191829_c70777: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_191] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260409_114201_9b7bf4: bearish (correct=False)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260409_114] LYC.AX predicted=bullish actual=bearish (-5.10%) correct=False
+INFO:services.prediction_resolver:auto_resolve: resolved 48/48 predictions
+INFO:server:Prediction log: resolved 48 predictions
+INFO:httpx:HTTP Request: GET https://www.afr.com/rss "HTTP/1.1 404 Not Found"
+INFO:httpx:HTTP Request: GET https://www.abc.net.au/news/feed/2942460/rss.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.smh.com.au/rss/business.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.miningweekly.com/rss "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://www.rba.gov.au/rss/rss-cb-media-releases.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://stockhead.com.au/feed/ "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://feeds.bbci.co.uk/news/world/rss.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.theaustralian.com.au/feed "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://www.mining.com/feed/ "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://oilprice.com/rss/main "HTTP/1.1 200 OK"
+INFO:server:News cache refreshed: 30 articles
+INFO:httpx:HTTP Request: GET https://www.miningweekly.com/rss "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://www.afr.com/rss "HTTP/1.1 404 Not Found"
+INFO:httpx:HTTP Request: GET https://www.smh.com.au/rss/business.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://stockhead.com.au/feed/ "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.theaustralian.com.au/feed "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://feeds.bbci.co.uk/news/world/rss.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.abc.net.au/news/feed/2942460/rss.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.rba.gov.au/rss/rss-cb-media-releases.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.mining.com/feed/ "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://oilprice.com/rss/main "HTTP/1.1 200 OK"
+INFO:server:News cache refreshed: 30 articles
+INFO:httpx:HTTP Request: GET https://www.smh.com.au/rss/business.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.afr.com/rss "HTTP/1.1 404 Not Found"
+INFO:httpx:HTTP Request: GET https://www.miningweekly.com/rss "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://stockhead.com.au/feed/ "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://feeds.bbci.co.uk/news/world/rss.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.rba.gov.au/rss/rss-cb-media-releases.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.abc.net.au/news/feed/2942460/rss.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.theaustralian.com.au/feed "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://www.mining.com/feed/ "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://oilprice.com/rss/main "HTTP/1.1 200 OK"
+INFO:server:News cache refreshed: 30 articles
+INFO:httpx:HTTP Request: GET https://www.afr.com/rss "HTTP/1.1 404 Not Found"
+INFO:httpx:HTTP Request: GET https://www.smh.com.au/rss/business.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.miningweekly.com/rss "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://stockhead.com.au/feed/ "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://feeds.bbci.co.uk/news/world/rss.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.abc.net.au/news/feed/2942460/rss.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.rba.gov.au/rss/rss-cb-media-releases.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.theaustralian.com.au/feed "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://www.mining.com/feed/ "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://oilprice.com/rss/main "HTTP/1.1 200 OK"
+INFO:server:News cache refreshed: 30 articles
+INFO:services.accuracy_tracker:Resolved 0/1 pending reasoning predictions
+INFO:services.prediction_resolver:auto_resolve: found 38 predictions to resolve
+INFO:database:Resolution saved for sim_20260406_000548_1ebdf2: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_000] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_003240_a24e63: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_003] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_090759_8f58cf: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_090] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_092956_46f46b: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_092] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_095038_4ff755: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_095] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_102944_f2553a: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_102] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_105620_8a3a0c: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_105] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_111608_b8feb2: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_111] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_114646_03266a: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_114] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_121440_ba781d: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_121] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_124952_8b2076: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_124] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_130155_4d87dd: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_130] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_142045_092842: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_142] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_145732_03247e: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_145] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_150634_a2cda5: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_150] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_151411_5c4300: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_151] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_151502_39110e: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_151] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_152914_2b919c: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_152] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_153849_126388: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_153] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_154709_6e5cd5: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_154] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_155120_024489: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_155] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_155658_51f5ca: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_155] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_184823_9159b3: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_184] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_185333_297243: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_185] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_185613_62343c: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_185] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_113034_5a046d: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_113] CBA.AX predicted=neutral actual=bullish (+3.54%) correct=None
+INFO:database:Resolution saved for sim_20260406_152224_2b28fe: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_152] CBA.AX predicted=neutral actual=bullish (+3.54%) correct=None
+INFO:database:Resolution saved for sim_20260406_123534_8fff2f: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_123] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_160400_b34d3f: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_160] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_164025_ca95ab: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_164] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_164923_b3e8bd: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_164] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_165514_d9e2bb: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_165] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_170745_730739: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_170] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_171753_61b984: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_171] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_172148_e27cbe: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_172] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_173044_2031d0: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_173] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_173300_6efd23: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_173] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_191829_c70777: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_191] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:services.prediction_resolver:auto_resolve: resolved 38/38 predictions
+INFO:server:Prediction log: resolved 38 predictions
+INFO:httpx:HTTP Request: GET https://www.miningweekly.com/rss "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://www.afr.com/rss "HTTP/1.1 404 Not Found"
+INFO:httpx:HTTP Request: GET https://www.smh.com.au/rss/business.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://stockhead.com.au/feed/ "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.abc.net.au/news/feed/2942460/rss.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.theaustralian.com.au/feed "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://www.rba.gov.au/rss/rss-cb-media-releases.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://feeds.bbci.co.uk/news/world/rss.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.mining.com/feed/ "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://oilprice.com/rss/main "HTTP/1.1 200 OK"
+INFO:server:News cache refreshed: 30 articles
+INFO:httpx:HTTP Request: GET https://www.afr.com/rss "HTTP/1.1 404 Not Found"
+INFO:httpx:HTTP Request: GET https://www.miningweekly.com/rss "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://www.abc.net.au/news/feed/2942460/rss.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.smh.com.au/rss/business.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://stockhead.com.au/feed/ "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://feeds.bbci.co.uk/news/world/rss.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.theaustralian.com.au/feed "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://www.rba.gov.au/rss/rss-cb-media-releases.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.mining.com/feed/ "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://oilprice.com/rss/main "HTTP/1.1 200 OK"
+INFO:server:News cache refreshed: 30 articles
+INFO:httpx:HTTP Request: GET https://www.afr.com/rss "HTTP/1.1 404 Not Found"
+INFO:httpx:HTTP Request: GET https://www.miningweekly.com/rss "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://www.smh.com.au/rss/business.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://stockhead.com.au/feed/ "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://feeds.bbci.co.uk/news/world/rss.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.abc.net.au/news/feed/2942460/rss.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.theaustralian.com.au/feed "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://www.rba.gov.au/rss/rss-cb-media-releases.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.mining.com/feed/ "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://oilprice.com/rss/main "HTTP/1.1 200 OK"
+INFO:server:News cache refreshed: 30 articles
+INFO:     127.0.0.1:51640 - "GET /api/quant/monte-carlo/BHP.AX?horizon_days=30&n_simulations=5000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51640 - "GET /api/quant/monte-carlo/BHP.AX?horizon_days=30&n_simulations=5000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52565 - "GET /api/quant/monte-carlo/BHP.AX?horizon_days=30&n_simulations=5000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52565 - "GET /api/quant/monte-carlo/BHP.AX?horizon_days=30&n_simulations=5000 HTTP/1.1" 200 OK
+INFO:httpx:HTTP Request: GET https://www.smh.com.au/rss/business.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.afr.com/rss "HTTP/1.1 404 Not Found"
+INFO:httpx:HTTP Request: GET https://www.miningweekly.com/rss "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://stockhead.com.au/feed/ "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.rba.gov.au/rss/rss-cb-media-releases.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.abc.net.au/news/feed/2942460/rss.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.theaustralian.com.au/feed "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://feeds.bbci.co.uk/news/world/rss.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.mining.com/feed/ "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://oilprice.com/rss/main "HTTP/1.1 200 OK"
+INFO:server:News cache refreshed: 30 articles
+INFO:     127.0.0.1:54856 - "GET /api/quant/monte-carlo/BHP.AX?horizon_days=30&n_simulations=5000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54856 - "GET /api/quant/monte-carlo/BHP.AX?horizon_days=30&n_simulations=5000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55900 - "GET /api/quant/monte-carlo/BHP.AX?horizon_days=30&n_simulations=5000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55900 - "GET /api/quant/monte-carlo/BHP.AX?horizon_days=30&n_simulations=5000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51120 - "GET /api/quant/monte-carlo/BHP.AX?horizon_days=30&n_simulations=5000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51120 - "GET /api/quant/monte-carlo/BHP.AX?horizon_days=30&n_simulations=5000 HTTP/1.1" 200 OK
+INFO:services.accuracy_tracker:Resolved 0/1 pending reasoning predictions
+INFO:services.prediction_resolver:auto_resolve: found 40 predictions to resolve
+INFO:database:Resolution saved for sim_20260406_000548_1ebdf2: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_000] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_003240_a24e63: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_003] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_090759_8f58cf: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_090] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_092956_46f46b: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_092] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_095038_4ff755: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_095] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_102944_f2553a: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_102] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_105620_8a3a0c: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_105] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_111608_b8feb2: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_111] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_114646_03266a: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_114] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_121440_ba781d: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_121] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_124952_8b2076: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_124] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_130155_4d87dd: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_130] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_142045_092842: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_142] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_145732_03247e: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_145] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_150634_a2cda5: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_150] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_151411_5c4300: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_151] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_151502_39110e: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_151] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_152914_2b919c: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_152] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_153849_126388: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_153] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_154709_6e5cd5: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_154] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_155120_024489: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_155] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_155658_51f5ca: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_155] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_184823_9159b3: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_184] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_185333_297243: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_185] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_185613_62343c: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_185] BHP.AX predicted=neutral actual=bullish (+2.70%) correct=None
+INFO:database:Resolution saved for sim_20260406_113034_5a046d: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_113] CBA.AX predicted=neutral actual=bullish (+3.54%) correct=None
+INFO:database:Resolution saved for sim_20260406_152224_2b28fe: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_152] CBA.AX predicted=neutral actual=bullish (+3.54%) correct=None
+INFO:database:Resolution saved for sim_20260409_165228_16d9fc: bearish (correct=False)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260409_165] CBA.AX predicted=bullish actual=bearish (-2.42%) correct=False
+INFO:database:Resolution saved for sim_20260409_170559_ff17d8: bearish (correct=False)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260409_170] CBA.AX predicted=bullish actual=bearish (-2.42%) correct=False
+INFO:database:Resolution saved for sim_20260406_123534_8fff2f: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_123] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_160400_b34d3f: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_160] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_164025_ca95ab: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_164] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_164923_b3e8bd: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_164] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_165514_d9e2bb: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_165] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_170745_730739: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_170] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_171753_61b984: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_171] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_172148_e27cbe: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_172] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_173044_2031d0: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_173] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_173300_6efd23: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_173] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:database:Resolution saved for sim_20260406_191829_c70777: bullish (correct=None)
+INFO:services.prediction_resolver:auto_resolve: [sim_20260406_191] LYC.AX predicted=neutral actual=bullish (+5.86%) correct=None
+INFO:services.prediction_resolver:auto_resolve: resolved 40/40 predictions
+INFO:server:Prediction log: resolved 40 predictions
+INFO:httpx:HTTP Request: GET https://www.smh.com.au/rss/business.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.miningweekly.com/rss "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://www.afr.com/rss "HTTP/1.1 404 Not Found"
+INFO:httpx:HTTP Request: GET https://www.abc.net.au/news/feed/2942460/rss.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.theaustralian.com.au/feed "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://www.rba.gov.au/rss/rss-cb-media-releases.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://feeds.bbci.co.uk/news/world/rss.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.mining.com/feed/ "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://oilprice.com/rss/main "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://stockhead.com.au/feed/ "HTTP/1.1 200 OK"
+INFO:server:News cache refreshed: 30 articles
+INFO:     127.0.0.1:50173 - "GET /api/quant/monte-carlo/BHP.AX?horizon_days=30&n_simulations=5000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50173 - "GET /api/quant/monte-carlo/BHP.AX?horizon_days=30&n_simulations=5000 HTTP/1.1" 200 OK

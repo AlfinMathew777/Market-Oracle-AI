@@ -275,14 +275,20 @@ class ACLEDService:
             logger.warning("All RSS feeds failed — falling back to demo")
             return self._demo_response()
 
-        seen_countries: set = set()
+        # Allow up to 2 events per country; deduplicate by title not by country
+        country_counts: dict = {}
+        seen_titles: set = set()
         features = []
 
         for art in articles:
             title_lower = art["title"].lower()
+            title_key = title_lower[:60]
+            if title_key in seen_titles:
+                continue
+
             matched = None
             for keywords, country, lat, lng, region, event_type in COUNTRY_MAP:
-                if country in seen_countries:
+                if country_counts.get(country, 0) >= 2:
                     continue
                 if any(kw in title_lower for kw in keywords):
                     matched = (country, lat, lng, region, event_type)
@@ -291,7 +297,8 @@ class ACLEDService:
                 continue
 
             country, lat, lng, region, event_type = matched
-            seen_countries.add(country)
+            seen_titles.add(title_key)
+            country_counts[country] = country_counts.get(country, 0) + 1
             idx = len(features)
             features.append({
                 "type": "Feature",
@@ -311,12 +318,23 @@ class ACLEDService:
                 },
             })
 
-            if len(features) >= 15:
+            if len(features) >= 20:
                 break
 
         if not features:
             logger.warning("No RSS articles matched country map — falling back to demo")
             return self._demo_response()
+
+        # Pad with demo events for countries not covered by RSS, up to 15 total
+        if len(features) < 15:
+            demo = self._demo_response()
+            covered = {f["properties"]["country"] for f in features}
+            for demo_feat in demo["features"]:
+                if len(features) >= 15:
+                    break
+                if demo_feat["properties"]["country"] not in covered:
+                    features.append(demo_feat)
+                    covered.add(demo_feat["properties"]["country"])
 
         logger.info("RSS live events fetched: %d events from feeds", len(features))
         return {

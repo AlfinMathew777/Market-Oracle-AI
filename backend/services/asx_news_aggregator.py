@@ -7,13 +7,189 @@ affecting the Australian stock market.
 
 import asyncio
 import logging
+import re
+import time as _time
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, List, Optional, Set
 from dataclasses import dataclass, field
 from enum import Enum
+from urllib.parse import urlparse
 import aiohttp
+import feedparser
 
 logger = logging.getLogger(__name__)
+
+# ── RSS URL allowlist (SSRF guard) ─────────────────────────────────────────────
+_ALLOWED_RSS_DOMAINS = {
+    "rba.gov.au", "abc.net.au", "mining.com", "oilprice.com",
+    "kitco.com", "caixinglobal.com", "scmp.com", "bbc.co.uk",
+    "investing.com", "afr.com", "theaustralian.com.au",
+    "smh.com.au", "reuters.com", "bloomberg.com", "ft.com",
+}
+_PRIVATE_IP_RE = re.compile(
+    r"(^127\.)|(^10\.)|(^172\.(1[6-9]|2\d|3[01])\.)|(^192\.168\.)|"
+    r"(^169\.254\.)|(^::1$)|(^fc00:)|(^fe80:)|(localhost)",
+    re.IGNORECASE,
+)
+
+
+def _is_allowed_rss_url(url: str) -> bool:
+    """Return True if the URL is on the allowlist and not a private/loopback address."""
+    try:
+        parsed = urlparse(url)
+        host = parsed.netloc.lower().split(":")[0]  # strip port
+        if _PRIVATE_IP_RE.search(host):
+            return False
+        return any(host == d or host.endswith(f".{d}") for d in _ALLOWED_RSS_DOMAINS)
+    except Exception:
+        return False
+
+
+# ── RSS feed sources ───────────────────────────────────────────────────────────
+# Each entry: url, name, category, optional tickers/keywords filter
+
+RSS_SOURCES = [
+    {
+        "id": "rba",
+        "name": "Reserve Bank of Australia",
+        "url": "https://www.rba.gov.au/rss/rss-cb-media-releases.xml",
+        "category": "monetary",
+        "tickers": ["CBA.AX", "WBC.AX", "NAB.AX", "ANZ.AX"],
+        "keywords": [],  # accept all
+    },
+    {
+        "id": "abc_business",
+        "name": "ABC News Business",
+        "url": "https://www.abc.net.au/news/feed/51120/rss.xml",
+        "category": "macro",
+        "tickers": [],
+        "keywords": ["asx", "rba", "rate", "inflation", "china", "iron ore", "coal", "lithium",
+                     "bhp", "rio", "woodside", "cba", "aud", "mining", "energy"],
+    },
+    {
+        "id": "mining_com",
+        "name": "Mining.com",
+        "url": "https://www.mining.com/feed/",
+        "category": "commodity",
+        "tickers": ["BHP.AX", "RIO.AX", "FMG.AX", "MIN.AX", "S32.AX"],
+        "keywords": [],
+    },
+    {
+        "id": "oilprice",
+        "name": "OilPrice.com",
+        "url": "https://oilprice.com/rss/main",
+        "category": "commodity",
+        "tickers": ["WDS.AX", "STO.AX", "BPT.AX"],
+        "keywords": [],
+    },
+    {
+        "id": "kitco_gold",
+        "name": "Kitco Gold News",
+        "url": "https://www.kitco.com/rss/gold.rss",
+        "category": "commodity",
+        "tickers": ["NCM.AX", "NST.AX", "EVN.AX"],
+        "keywords": [],
+    },
+    {
+        "id": "caixin",
+        "name": "Caixin Global",
+        "url": "https://www.caixinglobal.com/rss.html",
+        "category": "geopolitical",
+        "tickers": ["BHP.AX", "RIO.AX", "FMG.AX"],
+        "keywords": ["pmi", "steel", "iron ore", "property", "gdp", "stimulus",
+                     "pboc", "economy", "trade", "manufacturing"],
+    },
+    {
+        "id": "scmp",
+        "name": "SCMP China Economy",
+        "url": "https://www.scmp.com/rss/91/feed",
+        "category": "geopolitical",
+        "tickers": ["BHP.AX", "RIO.AX", "FMG.AX"],
+        "keywords": ["economy", "steel", "iron ore", "property", "gdp", "trade",
+                     "tariff", "pboc", "stimulus", "manufacturing", "exports"],
+    },
+    {
+        "id": "bbc_world",
+        "name": "BBC World News",
+        "url": "http://feeds.bbci.co.uk/news/world/rss.xml",
+        "category": "geopolitical",
+        "tickers": [],
+        "keywords": ["china", "taiwan", "iran", "israel", "russia", "ukraine",
+                     "red sea", "suez", "middle east", "trade", "sanctions"],
+    },
+    {
+        "id": "investing_commodities",
+        "name": "Investing.com Commodities",
+        "url": "https://www.investing.com/rss/news_285.rss",
+        "category": "commodity",
+        "tickers": [],
+        "keywords": [],
+    },
+]
+
+# ── Keyword → ticker mapping for auto-tagging RSS items ───────────────────────
+
+KEYWORD_TICKERS: dict[str, list[str]] = {
+    # China demand
+    "china pmi": ["BHP.AX", "RIO.AX", "FMG.AX"],
+    "china manufacturing": ["BHP.AX", "RIO.AX", "FMG.AX"],
+    "china steel": ["BHP.AX", "RIO.AX", "FMG.AX"],
+    "china property": ["BHP.AX", "RIO.AX", "FMG.AX"],
+    "china stimulus": ["BHP.AX", "RIO.AX", "FMG.AX", "MIN.AX"],
+    "china gdp": ["BHP.AX", "RIO.AX", "FMG.AX"],
+    "evergrande": ["BHP.AX", "RIO.AX", "FMG.AX"],
+    "country garden": ["BHP.AX", "RIO.AX", "FMG.AX"],
+    "pboc": ["BHP.AX", "RIO.AX", "FMG.AX"],
+    # Commodities
+    "iron ore": ["BHP.AX", "RIO.AX", "FMG.AX", "MIN.AX"],
+    "gold price": ["NCM.AX", "NST.AX", "EVN.AX"],
+    "gold hits": ["NCM.AX", "NST.AX", "EVN.AX"],
+    "copper": ["BHP.AX", "RIO.AX", "S32.AX"],
+    "lithium": ["PLS.AX", "MIN.AX", "IGO.AX", "LTR.AX"],
+    "oil price": ["WDS.AX", "STO.AX", "BPT.AX"],
+    "brent crude": ["WDS.AX", "STO.AX", "BPT.AX"],
+    "crude oil": ["WDS.AX", "STO.AX", "BPT.AX"],
+    "lng": ["WDS.AX", "STO.AX"],
+    "natural gas": ["WDS.AX", "STO.AX"],
+    "thermal coal": ["WHC.AX", "NHC.AX", "YAL.AX"],
+    "coal price": ["WHC.AX", "NHC.AX", "YAL.AX"],
+    "uranium": ["PDN.AX", "BOE.AX", "BMN.AX"],
+    "nickel": ["NIC.AX", "IGO.AX", "BHP.AX"],
+    "rare earth": ["LYC.AX", "ILU.AX", "ARU.AX"],
+    # Geopolitical
+    "red sea": ["WDS.AX", "STO.AX", "BHP.AX"],
+    "houthi": ["WDS.AX", "STO.AX"],
+    "suez canal": ["BHP.AX", "RIO.AX", "WDS.AX"],
+    "suez": ["BHP.AX", "RIO.AX", "WDS.AX"],
+    "taiwan strait": ["BHP.AX", "RIO.AX", "FMG.AX"],
+    "taiwan": ["BHP.AX", "RIO.AX", "FMG.AX"],
+    "russia ukraine": ["WDS.AX", "STO.AX", "WHC.AX"],
+    "iran": ["WDS.AX", "STO.AX", "BPT.AX"],
+    "israel": ["WDS.AX", "STO.AX", "BPT.AX"],
+    "us china trade": ["BHP.AX", "RIO.AX", "FMG.AX"],
+    "tariff": ["BHP.AX", "RIO.AX", "FMG.AX"],
+    "sanctions": ["WDS.AX", "STO.AX"],
+    # Central banks
+    "rba": ["CBA.AX", "WBC.AX", "NAB.AX", "ANZ.AX"],
+    "interest rate": ["CBA.AX", "WBC.AX", "NAB.AX", "ANZ.AX"],
+    "rate cut": ["CBA.AX", "WBC.AX", "NAB.AX", "ANZ.AX"],
+    "rate hike": ["CBA.AX", "WBC.AX", "NAB.AX", "ANZ.AX"],
+    "federal reserve": ["BHP.AX", "CBA.AX", "RIO.AX"],
+    # Corporate
+    "bhp": ["BHP.AX"],
+    "rio tinto": ["RIO.AX"],
+    "fortescue": ["FMG.AX"],
+    "woodside": ["WDS.AX"],
+    "santos": ["STO.AX"],
+    "port hedland": ["BHP.AX", "RIO.AX", "FMG.AX"],
+    "pilbara": ["BHP.AX", "RIO.AX", "FMG.AX", "PLS.AX"],
+    "vale": ["BHP.AX", "RIO.AX", "FMG.AX"],
+    # Energy transition
+    "electric vehicle": ["PLS.AX", "MIN.AX", "IGO.AX", "LTR.AX"],
+    "ev sales": ["PLS.AX", "MIN.AX", "IGO.AX"],
+    "battery": ["PLS.AX", "MIN.AX", "IGO.AX"],
+    "nuclear": ["PDN.AX", "BOE.AX", "BMN.AX"],
+}
 
 
 class NewsCategory(str, Enum):
@@ -180,6 +356,10 @@ class ASXNewsAggregator:
             tasks.append(self._fetch_alphavantage(cutoff))
             sources_used.append("AlphaVantage")
 
+        # Always fetch RSS feeds
+        tasks.append(self._fetch_rss_sources(cutoff))
+        sources_used.append("RSS")
+
         # Always add macro themes
         tasks.append(self._fetch_macro_topics(cutoff))
         sources_used.append("MacroTopics")
@@ -340,6 +520,107 @@ class ASXNewsAggregator:
             logger.error(f"AlphaVantage fetch failed: {e}")
 
         return items
+
+    async def _fetch_rss_sources(self, cutoff: datetime) -> List[NewsItem]:
+        """Fetch news from all configured RSS feeds concurrently."""
+        tasks = [self._fetch_single_rss(src, cutoff) for src in RSS_SOURCES]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        items: List[NewsItem] = []
+        for result in results:
+            if isinstance(result, list):
+                items.extend(result)
+
+        return items
+
+    async def _fetch_single_rss(self, source: dict, cutoff: datetime) -> List[NewsItem]:
+        """Fetch and parse one RSS feed, returning NewsItems."""
+        items: List[NewsItem] = []
+
+        url = source["url"]
+        if not _is_allowed_rss_url(url):
+            logger.warning("RSS URL blocked by allowlist: %s (source: %s)", url, source.get("id"))
+            return []
+
+        try:
+            session = await self._get_session()
+            headers = {"User-Agent": "Mozilla/5.0 (compatible; MarketOracleBot/1.0)"}
+
+            async with session.get(
+                url,
+                headers=headers,
+                timeout=aiohttp.ClientTimeout(total=8),
+            ) as resp:
+                if resp.status != 200:
+                    logger.debug(f"RSS {source['id']} returned {resp.status}")
+                    return []
+
+                raw = await resp.read()
+
+        except Exception as e:
+            logger.debug(f"RSS fetch failed {source['id']}: {e}")
+            return []
+
+        try:
+            feed = feedparser.parse(raw)
+        except Exception as e:
+            logger.debug(f"RSS parse failed {source['id']}: {e}")
+            return []
+
+        for entry in feed.entries[:12]:
+            title = entry.get("title", "").strip()
+            summary = entry.get("summary", entry.get("description", "")).strip()[:500]
+
+            if not title:
+                continue
+
+            # Apply keyword filter when source has one
+            if source["keywords"]:
+                combined = f"{title} {summary}".lower()
+                if not any(kw in combined for kw in source["keywords"]):
+                    continue
+
+            # Parse publish time
+            pub_time: datetime
+            try:
+                if entry.get("published_parsed"):
+                    pub_time = datetime.fromtimestamp(
+                        _time.mktime(entry.published_parsed), tz=timezone.utc
+                    )
+                else:
+                    pub_time = datetime.now(timezone.utc)
+            except Exception:
+                pub_time = datetime.now(timezone.utc)
+
+            if pub_time < cutoff:
+                continue
+
+            # Auto-match tickers from headline + summary text
+            matched = self._match_tickers_from_text(f"{title} {summary}")
+            tickers = list(dict.fromkeys(source["tickers"] + matched))[:6]
+
+            items.append(NewsItem(
+                headline=title,
+                summary=summary,
+                source=source["name"],
+                published_at=pub_time,
+                category=self._categorize(title),
+                tickers=tickers,
+                url=entry.get("link"),
+            ))
+
+        return items
+
+    def _match_tickers_from_text(self, text: str) -> List[str]:
+        """Return tickers matched by keywords in text."""
+        text_lower = text.lower()
+        matched: list[str] = []
+        for keyword, tickers in KEYWORD_TICKERS.items():
+            if keyword in text_lower:
+                for t in tickers:
+                    if t not in matched:
+                        matched.append(t)
+        return matched[:5]
 
     async def _fetch_macro_topics(self, cutoff: datetime) -> List[NewsItem]:
         """

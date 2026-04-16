@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import './TrackRecord.css';
+import React, { useState, useEffect } from "react";
+import "./TrackRecord.css";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
+const BACKEND_URL =
+  process.env.REACT_APP_BACKEND_URL || "http://localhost:8000";
 
 function TrackRecord() {
   const [history, setHistory] = useState([]);
@@ -9,7 +10,7 @@ function TrackRecord() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [expandedRow, setExpandedRow] = useState(null);
-  const [tickerFilter, setTickerFilter] = useState('');
+  const [tickerFilter, setTickerFilter] = useState("");
   const [showExcluded, setShowExcluded] = useState(false);
 
   useEffect(() => {
@@ -23,24 +24,31 @@ function TrackRecord() {
     try {
       setLoading(true);
       setError(null);
-      const params = tickerFilter ? `?ticker=${encodeURIComponent(tickerFilter)}&days=365` : '?days=365';
-      const statsParams = tickerFilter ? `?ticker=${encodeURIComponent(tickerFilter)}&days=365` : '?days=365';
+      const params = tickerFilter
+        ? `?ticker=${encodeURIComponent(tickerFilter)}&days=365`
+        : "?days=365";
+      const statsParams = tickerFilter
+        ? `?ticker=${encodeURIComponent(tickerFilter)}&days=365`
+        : "?days=365";
       const [histRes, statsRes] = await Promise.all([
         fetch(`${BACKEND_URL}/api/predictions/history${params}`),
         fetch(`${BACKEND_URL}/api/predictions/accuracy${statsParams}`),
       ]);
-      if (!histRes.ok || !statsRes.ok) throw new Error(`Server error ${histRes.status}`);
-      const histData  = await histRes.json();
+      if (!histRes.ok || !statsRes.ok)
+        throw new Error(`Server error ${histRes.status}`);
+      const histData = await histRes.json();
       const statsData = await statsRes.json();
-      if (histData.status === 'success')  setHistory(histData.data || []);
-      if (statsData.status === 'success') setStats(statsData.data);
+      if (histData.status === "success") setHistory(histData.data || []);
+      if (statsData.status === "success") setStats(statsData.data);
     } catch (err) {
       if (attempt < 3) {
         // Render free tier cold starts take ~15-30s; retry automatically
         setTimeout(() => fetchData(attempt + 1), attempt * 8000);
         setError(`Backend waking up… retrying (${attempt}/3)`);
       } else {
-        setError('Failed to load prediction history. Backend may be offline — try refreshing.');
+        setError(
+          "Failed to load prediction history. Backend may be offline — try refreshing.",
+        );
       }
     } finally {
       setLoading(false);
@@ -48,51 +56,68 @@ function TrackRecord() {
   };
 
   const dirIcon = (dir) => {
-    if (!dir) return '—';
+    if (!dir) return "—";
     const d = dir.toUpperCase();
-    if (d === 'UP' || d === 'BULLISH') return '▲';
-    if (d === 'DOWN' || d === 'BEARISH') return '▼';
-    return '—';
+    if (d === "UP" || d === "BULLISH") return "▲";
+    if (d === "DOWN" || d === "BEARISH") return "▼";
+    return "—";
   };
 
   const dirColor = (dir) => {
-    if (!dir) return '#888';
+    if (!dir) return "#888";
     const d = dir.toUpperCase();
-    if (d === 'UP' || d === 'BULLISH') return '#00ff88';
-    if (d === 'DOWN' || d === 'BEARISH') return '#ff3366';
-    return '#aaa';
+    if (d === "UP" || d === "BULLISH") return "#00ff88";
+    if (d === "DOWN" || d === "BEARISH") return "#ff3366";
+    return "#aaa";
   };
 
   const formatDate = (isoStr) => {
-    if (!isoStr) return '—';
+    if (!isoStr) return "—";
     try {
-      return new Date(isoStr).toLocaleDateString('en-AU', {
-        day: '2-digit', month: 'short', timeZone: 'Australia/Sydney',
+      return new Date(isoStr).toLocaleDateString("en-AU", {
+        day: "2-digit",
+        month: "short",
+        timeZone: "Australia/Sydney",
       });
-    } catch { return isoStr.slice(0, 10); }
+    } catch {
+      return isoStr.slice(0, 10);
+    }
   };
 
   const formatConf = (c) => {
-    if (c == null) return '—';
+    if (c == null) return "—";
     return `${Math.round(c * 100)}%`;
   };
 
   const rowClass = (row) => {
-    if (row.excluded_from_stats) return 'tr-row tr-excluded';
-    if (row.prediction_correct === null || row.prediction_correct === undefined) return 'tr-row tr-pending';
-    return row.prediction_correct ? 'tr-row tr-correct' : 'tr-row tr-wrong';
+    if (row.excluded_from_stats) return "tr-row tr-excluded";
+    if (row.prediction_correct === null || row.prediction_correct === undefined)
+      return "tr-row tr-pending";
+    return row.prediction_correct ? "tr-row tr-correct" : "tr-row tr-wrong";
   };
 
   const resultBadge = (row) => {
     if (row.excluded_from_stats) {
-      return <span className="tr-badge tr-badge-excluded" title={row.exclusion_reason || 'Low confidence — excluded from stats'}>—</span>;
+      return (
+        <span
+          className="tr-badge tr-badge-excluded"
+          title={row.exclusion_reason || "Low confidence — excluded from stats"}
+        >
+          —
+        </span>
+      );
     }
-    if (row.prediction_correct === null || row.prediction_correct === undefined) {
+    if (
+      row.prediction_correct === null ||
+      row.prediction_correct === undefined
+    ) {
       return <span className="tr-badge tr-badge-pending">⏳</span>;
     }
-    return row.prediction_correct
-      ? <span className="tr-badge tr-badge-correct">✅</span>
-      : <span className="tr-badge tr-badge-wrong">❌</span>;
+    return row.prediction_correct ? (
+      <span className="tr-badge tr-badge-correct">✅</span>
+    ) : (
+      <span className="tr-badge tr-badge-wrong">❌</span>
+    );
   };
 
   if (loading && !stats) {
@@ -104,33 +129,39 @@ function TrackRecord() {
     );
   }
 
-  const resolved     = stats?.resolved_predictions || 0;
-  const correct      = stats?.correct_predictions  || 0;
-  const total        = stats?.total_predictions    || 0;
-  const accPct       = stats?.direction_accuracy_pct || 0;
-  const avgConf      = stats?.avg_confidence || 0;
-  const streak       = stats?.streak || {};
-  const confBands    = stats?.accuracy_by_confidence_band || {};
+  const resolved = stats?.resolved_predictions || 0;
+  const correct = stats?.correct_predictions || 0;
+  const total = stats?.total_predictions || 0;
+  const accPct = stats?.direction_accuracy_pct || 0;
+  const avgConf = stats?.avg_confidence || 0;
+  const streak = stats?.streak || {};
+  const confBands = stats?.accuracy_by_confidence_band || {};
   const excludedCount = stats?.excluded_count || 0;
 
   return (
     <div className="tr-page">
-
       {/* ── Section A: Headline Stats ── */}
       <div className="tr-header-section">
         <div className="tr-header-title">
           <span className="tr-logo-dot">◆</span>
           MARKET ORACLE AI — PUBLIC TRACK RECORD
-          <span className="tr-subtitle">Updated daily after ASX close · Quality predictions only</span>
+          <span className="tr-subtitle">
+            Updated daily after ASX close · Quality predictions only
+          </span>
         </div>
 
         <div className="tr-stat-grid">
           <div className="tr-stat-card">
-            <div className="tr-stat-value" style={{ color: accPct >= 50 ? '#00ff88' : '#ff3366' }}>
-              {resolved > 0 ? `${accPct}%` : '—'}
+            <div
+              className="tr-stat-value"
+              style={{ color: accPct >= 50 ? "#00ff88" : "#ff3366" }}
+            >
+              {resolved > 0 ? `${accPct}%` : "—"}
             </div>
             <div className="tr-stat-label">Accuracy</div>
-            <div className="tr-stat-sub">{correct}/{resolved} resolved</div>
+            <div className="tr-stat-sub">
+              {correct}/{resolved} resolved
+            </div>
           </div>
           <div className="tr-stat-card">
             <div className="tr-stat-value">{total}</div>
@@ -138,14 +169,24 @@ function TrackRecord() {
             <div className="tr-stat-sub">{total - resolved} pending</div>
           </div>
           <div className="tr-stat-card">
-            <div className="tr-stat-value" style={{ color: streak.streak_direction === 'correct' ? '#00ff88' : '#ff3366' }}>
+            <div
+              className="tr-stat-value"
+              style={{
+                color:
+                  streak.streak_direction === "correct" ? "#00ff88" : "#ff3366",
+              }}
+            >
               {streak.current_streak || 0}
             </div>
             <div className="tr-stat-label">Current Streak</div>
-            <div className="tr-stat-sub">{streak.streak_direction || '—'} · best: {streak.best_streak || 0}</div>
+            <div className="tr-stat-sub">
+              {streak.streak_direction || "—"} · best: {streak.best_streak || 0}
+            </div>
           </div>
           <div className="tr-stat-card">
-            <div className="tr-stat-value">{avgConf > 0 ? `${avgConf.toFixed(0)}%` : '—'}</div>
+            <div className="tr-stat-value">
+              {avgConf > 0 ? `${avgConf.toFixed(0)}%` : "—"}
+            </div>
             <div className="tr-stat-label">Avg Confidence</div>
             <div className="tr-stat-sub">system-scored</div>
           </div>
@@ -153,7 +194,8 @@ function TrackRecord() {
 
         {excludedCount > 0 && (
           <div className="tr-exclusion-note">
-            ℹ {excludedCount} low-confidence (&lt;5%) predictions excluded from stats
+            ℹ {excludedCount} low-confidence (&lt;5%) predictions excluded from
+            stats
           </div>
         )}
       </div>
@@ -166,19 +208,26 @@ function TrackRecord() {
             {excludedCount > 0 && (
               <button
                 className="tr-toggle-excluded"
-                onClick={() => setShowExcluded(v => !v)}
+                onClick={() => setShowExcluded((v) => !v)}
               >
-                {showExcluded ? `Hide ${excludedCount} low-conf` : `Show ${excludedCount} low-conf`}
+                {showExcluded
+                  ? `Hide ${excludedCount} low-conf`
+                  : `Show ${excludedCount} low-conf`}
               </button>
             )}
             <input
               className="tr-filter-input"
               placeholder="Filter by ticker…"
               value={tickerFilter}
-              onChange={e => setTickerFilter(e.target.value.toUpperCase())}
+              onChange={(e) => setTickerFilter(e.target.value.toUpperCase())}
             />
             {tickerFilter && (
-              <button className="tr-filter-clear" onClick={() => setTickerFilter('')}>✕</button>
+              <button
+                className="tr-filter-clear"
+                onClick={() => setTickerFilter("")}
+              >
+                ✕
+              </button>
             )}
           </div>
         </div>
@@ -186,10 +235,15 @@ function TrackRecord() {
         {error && (
           <div className="tr-error">
             {error}
-            {!error.includes('retrying') && (
+            {!error.includes("retrying") && (
               <button
                 onClick={() => fetchData()}
-                style={{ marginLeft: '12px', padding: '2px 10px', cursor: 'pointer', fontSize: '12px' }}
+                style={{
+                  marginLeft: "12px",
+                  padding: "2px 10px",
+                  cursor: "pointer",
+                  fontSize: "12px",
+                }}
               >
                 Retry
               </button>
@@ -212,72 +266,107 @@ function TrackRecord() {
             </thead>
             <tbody>
               {history.length === 0 && (
-                <tr><td colSpan={7} className="tr-empty">No predictions recorded yet. Run a simulation to start the clock.</td></tr>
+                <tr>
+                  <td colSpan={7} className="tr-empty">
+                    No predictions recorded yet. Run a simulation to start the
+                    clock.
+                  </td>
+                </tr>
               )}
-              {history.filter(row => showExcluded || !row.excluded_from_stats).map((row, i) => (
-                <React.Fragment key={row.id || i}>
-                  <tr
-                    className={rowClass(row)}
-                    onClick={() => setExpandedRow(expandedRow === i ? null : i)}
-                  >
-                    <td>{formatDate(row.predicted_at)}</td>
-                    <td className="tr-ticker">{row.ticker}</td>
-                    <td>
-                      <span style={{ color: dirColor(row.predicted_direction) }}>
-                        {dirIcon(row.predicted_direction)} {(row.predicted_direction || '').toUpperCase()}
-                      </span>
-                    </td>
-                    <td>{formatConf(row.confidence)}</td>
-                    <td>
-                      <span className={`tr-trend-badge tr-trend-${(row.trend_label || 'NEUTRAL').toLowerCase().replace('_', '-')}`}>
-                        {row.trend_label || '—'}
-                      </span>
-                    </td>
-                    <td>
-                      {row.actual_price_change_pct != null
-                        ? <span style={{ color: row.actual_price_change_pct >= 0 ? '#00ff88' : '#ff3366' }}>
-                            {row.actual_price_change_pct >= 0 ? '+' : ''}{row.actual_price_change_pct.toFixed(2)}%
-                          </span>
-                        : <span className="tr-pending-text">pending</span>}
-                    </td>
-                    <td>{resultBadge(row)}</td>
-                  </tr>
-                  {expandedRow === i && (
-                    <tr className="tr-expand-row">
-                      <td colSpan={7}>
-                        <div className="tr-expand-body">
-                          {row.primary_reason && (
-                            <div className="tr-expand-field">
-                              <span className="tr-expand-label">Primary reason:</span>
-                              <span>{row.primary_reason}</span>
-                            </div>
-                          )}
-                          {row.actual_driver && (
-                            <div className="tr-expand-field">
-                              <span className="tr-expand-label">Actual driver:</span>
-                              <span>{row.actual_driver}</span>
-                            </div>
-                          )}
-                          {row.lesson && (
-                            <div className="tr-expand-field tr-lesson">
-                              <span className="tr-expand-label">Lesson learned:</span>
-                              <span>{row.lesson}</span>
-                            </div>
-                          )}
-                          <div className="tr-expand-meta">
-                            {row.agent_bullish != null && (
-                              <span>Votes: {row.agent_bullish}B / {row.agent_bearish}Be / {row.agent_neutral}N</span>
-                            )}
-                            {row.resolved_at && (
-                              <span>Resolved: {formatDate(row.resolved_at)}</span>
-                            )}
-                          </div>
-                        </div>
+              {history
+                .filter((row) => showExcluded || !row.excluded_from_stats)
+                .map((row, i) => (
+                  <React.Fragment key={row.id || i}>
+                    <tr
+                      className={rowClass(row)}
+                      onClick={() =>
+                        setExpandedRow(expandedRow === i ? null : i)
+                      }
+                    >
+                      <td>{formatDate(row.predicted_at)}</td>
+                      <td className="tr-ticker">{row.ticker}</td>
+                      <td>
+                        <span
+                          style={{ color: dirColor(row.predicted_direction) }}
+                        >
+                          {dirIcon(row.predicted_direction)}{" "}
+                          {(row.predicted_direction || "").toUpperCase()}
+                        </span>
                       </td>
+                      <td>{formatConf(row.confidence)}</td>
+                      <td>
+                        <span
+                          className={`tr-trend-badge tr-trend-${(row.trend_label || "NEUTRAL").toLowerCase().replace("_", "-")}`}
+                        >
+                          {row.trend_label || "—"}
+                        </span>
+                      </td>
+                      <td>
+                        {row.actual_price_change_pct != null ? (
+                          <span
+                            style={{
+                              color:
+                                row.actual_price_change_pct >= 0
+                                  ? "#00ff88"
+                                  : "#ff3366",
+                            }}
+                          >
+                            {row.actual_price_change_pct >= 0 ? "+" : ""}
+                            {row.actual_price_change_pct.toFixed(2)}%
+                          </span>
+                        ) : (
+                          <span className="tr-pending-text">pending</span>
+                        )}
+                      </td>
+                      <td>{resultBadge(row)}</td>
                     </tr>
-                  )}
-                </React.Fragment>
-              ))}
+                    {expandedRow === i && (
+                      <tr className="tr-expand-row">
+                        <td colSpan={7}>
+                          <div className="tr-expand-body">
+                            {row.primary_reason && (
+                              <div className="tr-expand-field">
+                                <span className="tr-expand-label">
+                                  Primary reason:
+                                </span>
+                                <span>{row.primary_reason}</span>
+                              </div>
+                            )}
+                            {row.actual_driver && (
+                              <div className="tr-expand-field">
+                                <span className="tr-expand-label">
+                                  Actual driver:
+                                </span>
+                                <span>{row.actual_driver}</span>
+                              </div>
+                            )}
+                            {row.lesson && (
+                              <div className="tr-expand-field tr-lesson">
+                                <span className="tr-expand-label">
+                                  Lesson learned:
+                                </span>
+                                <span>{row.lesson}</span>
+                              </div>
+                            )}
+                            <div className="tr-expand-meta">
+                              {row.agent_bullish != null && (
+                                <span>
+                                  Votes: {row.agent_bullish}B /{" "}
+                                  {row.agent_bearish}Be / {row.agent_neutral}N
+                                </span>
+                              )}
+                              {row.resolved_at && (
+                                <span>
+                                  Resolved: {formatDate(row.resolved_at)}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                ))}
             </tbody>
           </table>
         </div>
@@ -298,18 +387,27 @@ function TrackRecord() {
                     className="tr-band-bar-fill"
                     style={{
                       width: `${barW}%`,
-                      background: pct >= 60 ? '#00ff88' : pct >= 40 ? '#ffaa00' : '#ff3366',
+                      background:
+                        pct >= 60
+                          ? "#00ff88"
+                          : pct >= 40
+                            ? "#ffaa00"
+                            : "#ff3366",
                     }}
                   />
                 </div>
                 <div className="tr-band-stat">
-                  {data.total > 0 ? `${data.correct}/${data.total} = ${pct}%` : 'no data yet'}
+                  {data.total > 0
+                    ? `${data.correct}/${data.total} = ${pct}%`
+                    : "no data yet"}
                 </div>
               </div>
             );
           })}
           {Object.keys(confBands).length === 0 && (
-            <div className="tr-empty">No resolved predictions yet to show confidence calibration.</div>
+            <div className="tr-empty">
+              No resolved predictions yet to show confidence calibration.
+            </div>
           )}
         </div>
       </div>
@@ -318,17 +416,18 @@ function TrackRecord() {
       <div className="tr-disclaimer">
         <div className="tr-disclaimer-header">⚠ IMPORTANT NOTICE</div>
         <p>
-          Market Oracle AI provides directional predictions for <strong>educational and research purposes only</strong>.
-          This is <strong>NOT financial advice</strong>. These predictions should <strong>NOT</strong> be used
-          as the basis for any investment decision.
+          Market Oracle AI provides directional predictions for{" "}
+          <strong>educational and research purposes only</strong>. This is{" "}
+          <strong>NOT financial advice</strong>. These predictions should{" "}
+          <strong>NOT</strong> be used as the basis for any investment decision.
         </p>
         <p>
-          Past prediction accuracy does not guarantee future results. All investment decisions should be made
-          in consultation with a licensed financial adviser.
-          Market Oracle AI does not hold an Australian Financial Services Licence (AFSL).
+          Past prediction accuracy does not guarantee future results. All
+          investment decisions should be made in consultation with a licensed
+          financial adviser. Market Oracle AI does not hold an Australian
+          Financial Services Licence (AFSL).
         </p>
       </div>
-
     </div>
   );
 }

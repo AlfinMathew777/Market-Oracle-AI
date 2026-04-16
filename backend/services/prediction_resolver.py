@@ -166,6 +166,34 @@ async def auto_resolve_pending_predictions(limit: int = 50) -> int:
                     "auto_resolve: [%s] %s predicted=%s actual=%s (%+.2f%%) correct=%s",
                     pred["id"][:16], ticker, predicted_dir, actual_dir, change_pct, correct,
                 )
+
+                # ── ErrorMemory: record wrong (non-neutral) predictions ────────
+                # correct=False means the directional call was wrong.
+                # correct=None (neutral abstain) is excluded.
+                # This feeds anti-patterns back into future agent prompts.
+                if correct is False:
+                    try:
+                        from server import get_error_memory
+                        _em = get_error_memory()
+                        if _em is not None:
+                            _em.record_failure(
+                                ticker=ticker,
+                                predicted_direction=predicted_dir_norm,
+                                actual_direction=actual_dir,
+                                confidence=float(pred.get("confidence") or 0.0),
+                                reasoning_summary=(
+                                    f"{ticker} moved {change_pct:+.2f}% ({actual_dir}) "
+                                    f"but was predicted {predicted_dir_norm} "
+                                    f"at confidence {pred.get('confidence', 0):.0%}"
+                                ),
+                                causal_factors=[predicted_dir_norm, actual_dir],
+                            )
+                            logger.debug(
+                                "auto_resolve: recorded ErrorMemory failure for %s (%s→%s)",
+                                ticker, predicted_dir_norm, actual_dir,
+                            )
+                    except Exception as _em_err:
+                        logger.debug("ErrorMemory write failed (non-fatal): %s", _em_err)
             except Exception as e:
                 logger.error("auto_resolve: write-back failed for %s: %s", pred["id"], e)
 

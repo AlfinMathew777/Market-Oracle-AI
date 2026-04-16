@@ -6,6 +6,8 @@ Receive live price updates and prediction signal broadcasts.
 """
 
 import logging
+import time
+from collections import defaultdict
 from typing import Optional
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
@@ -15,6 +17,24 @@ from services.realtime_stream import stream_manager
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/stream", tags=["stream"])
+
+# WebSocket connection rate limiter — max 5 connections per IP per 60 seconds
+_ws_connections: dict = defaultdict(list)
+_WS_MAX_PER_IP = 5
+_WS_WINDOW_SECS = 60
+
+
+def _ws_rate_check(client_ip: str) -> bool:
+    """Return True if the connection is allowed, False if rate limit exceeded."""
+    now = time.time()
+    _ws_connections[client_ip] = [
+        ts for ts in _ws_connections[client_ip]
+        if now - ts < _WS_WINDOW_SECS
+    ]
+    if len(_ws_connections[client_ip]) >= _WS_MAX_PER_IP:
+        return False
+    _ws_connections[client_ip].append(now)
+    return True
 
 
 @router.websocket("/prices")
@@ -32,6 +52,12 @@ async def price_stream(
     - {"type": "price", "ticker": "BHP.AX", "price": 45.23, "previous": 45.10, "change_pct": 0.29, "timestamp": "..."}
     - {"type": "signal", "ticker": "BHP.AX", "payload": {...}, "timestamp": "..."}
     """
+    client_ip = websocket.client.host if websocket.client else "unknown"
+    if not _ws_rate_check(client_ip):
+        logger.warning("WebSocket rate limit exceeded for %s", client_ip)
+        await websocket.close(code=1008, reason="Rate limit exceeded")
+        return
+
     ticker_list = [t.strip().upper() for t in tickers.split(",") if t.strip()]
     if not ticker_list:
         await websocket.close(code=1008, reason="No tickers specified")

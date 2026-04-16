@@ -12,10 +12,23 @@ import os
 import json
 import asyncio
 import logging
+import sys
 from datetime import date
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 
 from dotenv import load_dotenv
+
+# Add backend root to path so infrastructure imports resolve when llm_router
+# is imported from sub-directories (scripts/, tests/, etc.)
+_BACKEND_ROOT = os.path.dirname(os.path.abspath(__file__))
+if _BACKEND_ROOT not in sys.path:
+    sys.path.insert(0, _BACKEND_ROOT)
+
+try:
+    from infrastructure.circuit_breaker import CircuitBreaker
+    _CIRCUIT_BREAKERS_AVAILABLE = True
+except ImportError:
+    _CIRCUIT_BREAKERS_AVAILABLE = False
 
 load_dotenv()
 
@@ -70,12 +83,22 @@ class LLMRouter:
         if not self._active:
             raise ValueError("No LLM API keys found. Set at least one of: GROQ_API_KEY, GEMINI_API_KEY, OPENROUTER_API_KEY")
 
+        # Per-provider circuit breakers (failure_threshold=3, 60s recovery)
+        if _CIRCUIT_BREAKERS_AVAILABLE:
+            self._breakers: Dict[str, CircuitBreaker] = {
+                p["name"]: CircuitBreaker(p["name"], failure_threshold=3, recovery_timeout=60.0)
+                for p in self._active
+            }
+        else:
+            self._breakers = {}
+
         # Groq allows 30 RPM — run up to 20 concurrent to halve agent phase time
         self._semaphore = asyncio.Semaphore(int(os.getenv("LLM_CONCURRENCY", "20")))
 
         logger.info(
-            "LLM Router initialized — active providers: %s",
+            "LLM Router initialized — active providers: %s (circuit breakers: %s)",
             ", ".join(p["name"] for p in self._active),
+            "enabled" if _CIRCUIT_BREAKERS_AVAILABLE else "disabled",
         )
 
     # ── Public API ────────────────────────────────────────────────────────────
@@ -113,31 +136,49 @@ class LLMRouter:
         ]
         return await asyncio.gather(*tasks)
 
+    def get_circuit_status(self) -> Dict[str, Any]:
+        """Return circuit breaker status for all active providers."""
+        if not self._breakers:
+            return {}
+        return {name: cb.get_status() for name, cb in self._breakers.items()}
+
     # ── Internal ──────────────────────────────────────────────────────────────
 
     async def _call_with_fallback(self, providers: list, system_message: str, user_prompt: str) -> str:
-        """Try each provider in order; advance on 429 / timeout / missing key."""
+        """Try each provider in order; advance on 429 / timeout / missing key / open circuit."""
         last_error = None
         for provider in providers:
             if not provider["key"]:
                 continue
+
+            # Skip provider if its circuit breaker is OPEN
+            breaker: Optional[CircuitBreaker] = self._breakers.get(provider["name"])
+            if breaker and not await breaker.can_proceed():
+                logger.info("Provider %s skipped — circuit OPEN", provider["name"])
+                continue
+
             try:
                 result = await self._call_single(provider, system_message, user_prompt)
                 await self._track_call(provider["name"])
+                if breaker:
+                    await breaker.record_success()
                 return result
             except asyncio.TimeoutError as e:
-                # Per-call timeout — advance to next provider rather than failing completely
-                logger.warning(
-                    "Provider %s timed out — trying next tier", provider["name"]
-                )
+                logger.warning("Provider %s timed out — trying next tier", provider["name"])
+                if breaker:
+                    await breaker.record_failure()
                 last_error = e
                 continue
             except Exception as e:
                 msg = str(e)
                 if any(x in msg for x in ("429", "rate", "quota", "overloaded")):
                     logger.warning("Provider %s rate-limited — trying next tier", provider["name"])
+                    if breaker:
+                        await breaker.record_failure()
                     last_error = e
                     continue
+                if breaker:
+                    await breaker.record_failure()
                 raise   # non-rate-limit / non-timeout errors propagate immediately
         raise Exception(f"All LLM providers exhausted. Last error: {last_error}")
 

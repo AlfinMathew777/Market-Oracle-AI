@@ -173,19 +173,25 @@ async def init_db() -> None:
             await db.commit()
 
         # ── Migrate existing prediction_log tables (add new columns if missing) ──
-        new_cols = [
-            ("agent_bullish",        "INTEGER"),
-            ("agent_bearish",        "INTEGER"),
-            ("agent_neutral",        "INTEGER"),
-            ("trend_label",          "TEXT"),
-            ("actual_close_price",   "REAL"),
-            ("resolved_at",          "TEXT"),
-            ("resolution_notes",     "TEXT"),
-            ("excluded_from_stats",  "INTEGER DEFAULT 0"),
-            ("exclusion_reason",     "TEXT"),
-        ]
+        # Column names and types are defined here (never user-supplied) so the
+        # f-string is safe. The allowlist check below guards against future drift.
+        _ALLOWED_MIGRATION_COLS: dict = {
+            "agent_bullish":       "INTEGER",
+            "agent_bearish":       "INTEGER",
+            "agent_neutral":       "INTEGER",
+            "trend_label":         "TEXT",
+            "actual_close_price":  "REAL",
+            "resolved_at":         "TEXT",
+            "resolution_notes":    "TEXT",
+            "excluded_from_stats": "INTEGER DEFAULT 0",
+            "exclusion_reason":    "TEXT",
+        }
+        new_cols = list(_ALLOWED_MIGRATION_COLS.items())
         async with aiosqlite.connect(DB_PATH) as db:
             for col, col_type in new_cols:
+                if col not in _ALLOWED_MIGRATION_COLS or _ALLOWED_MIGRATION_COLS[col] != col_type:
+                    logger.error("Migration skipped: column '%s' not in allowlist", col)
+                    continue
                 try:
                     await db.execute(f"ALTER TABLE prediction_log ADD COLUMN {col} {col_type}")
                     await db.commit()

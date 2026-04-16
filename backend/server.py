@@ -17,6 +17,7 @@ if hasattr(sys.stderr, 'buffer'):
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -30,6 +31,28 @@ from datetime import datetime, timezone
 from dotenv import load_dotenv
 import logging
 from pathlib import Path
+
+# ── Infrastructure singletons (initialized in lifespan, shared across requests) ─
+# These must be module-level so circuit breakers accumulate state across calls.
+_llm_router = None        # LLMRouter — circuit breakers only work if reused
+_health_monitor = None    # HealthMonitor — tracks stuck/error-loop agents
+_error_memory = None      # ErrorMemory — anti-pattern injection
+
+
+def get_llm_router():
+    """Return the shared LLMRouter instance (created at startup)."""
+    return _llm_router
+
+
+def get_health_monitor():
+    """Return the shared HealthMonitor instance."""
+    return _health_monitor
+
+
+def get_error_memory():
+    """Return the shared ErrorMemory instance."""
+    return _error_memory
+
 
 # Import routes
 from routes.data import router as data_router
@@ -209,6 +232,7 @@ async def _news_refresh_loop():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manage application startup and shutdown."""
+    global _llm_router, _health_monitor, _error_memory
     logger.info("AussieIntel starting...")
 
     # Initialise SQLite persistence
@@ -217,6 +241,30 @@ async def lifespan(app: FastAPI):
         await init_db()
     except Exception as e:
         logger.warning("DB init failed (non-critical): %s", e)
+
+    # ── Infrastructure singletons ─────────────────────────────────────────────
+    # LLMRouter must be a singleton so circuit breakers persist across requests.
+    # Creating a new LLMRouter per simulation resets all circuit state.
+    try:
+        from llm_router import LLMRouter
+        _llm_router = LLMRouter()
+        logger.info("LLMRouter singleton initialised (circuit breakers active)")
+    except Exception as e:
+        logger.warning("LLMRouter init failed (non-critical): %s", e)
+
+    try:
+        from infrastructure.health_monitor import HealthMonitor
+        _health_monitor = HealthMonitor(stuck_threshold=60, error_loop_threshold=3)
+        logger.info("HealthMonitor initialised")
+    except Exception as e:
+        logger.warning("HealthMonitor init failed (non-critical): %s", e)
+
+    try:
+        from infrastructure.error_memory import ErrorMemory
+        _error_memory = ErrorMemory(max_per_ticker=10)
+        logger.info("ErrorMemory initialised")
+    except Exception as e:
+        logger.warning("ErrorMemory init failed (non-critical): %s", e)
 
     # Start AIS WebSocket stream (fallback for when relay isn't up yet)
     start_ais_background_stream()
@@ -270,8 +318,13 @@ _LOCAL_ORIGINS = [
 _PROD_ORIGINS = ["https://asx.marketoracle.ai"]
 
 if _FRONTEND_URL == "*":
-    _ALLOWED_ORIGINS = ["*"]
-    _ALLOW_CREDENTIALS = False  # credentials not allowed with wildcard
+    if os.environ.get("RAILWAY_ENVIRONMENT") == "production":
+        logger.error("CRITICAL: CORS wildcard blocked in production — falling back to safe origin list")
+        _ALLOWED_ORIGINS = _PROD_ORIGINS
+        _ALLOW_CREDENTIALS = True
+    else:
+        _ALLOWED_ORIGINS = ["*"]
+        _ALLOW_CREDENTIALS = False  # credentials not allowed with wildcard
 elif _FRONTEND_URL:
     # Support comma-separated list of allowed origins
     _ALLOWED_ORIGINS = [o.strip() for o in _FRONTEND_URL.split(",") if o.strip()] + _LOCAL_ORIGINS + _PROD_ORIGINS
@@ -289,6 +342,20 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        return response
+
+
+app.add_middleware(SecurityHeadersMiddleware)
 
 # Include routers
 app.include_router(data_router)
@@ -376,6 +443,14 @@ async def health_check(request: Request):
     data_sources = {name: result for name, result in results}
     live_count = sum(1 for s in data_sources.values() if s.get("status") == "OK")
 
+    # Circuit breaker status — open circuits mean a provider is actively failing
+    circuit_status = {}
+    if _llm_router is not None:
+        try:
+            circuit_status = _llm_router.get_circuit_status()
+        except Exception:
+            pass
+
     return {
         "status": "operational",
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -383,6 +458,51 @@ async def health_check(request: Request):
         "live_data_sources": f"{live_count}/{len(data_sources)}",
         "demo_ready": live_count >= 3,
         "response_time_ms": round((time.time() - t_start) * 1000, 2),
+        "llm_circuits": circuit_status,
+    }
+
+
+@app.get("/api/health/infrastructure")
+async def infrastructure_health():
+    """Detailed infrastructure status — circuit breakers, agent health, error memory."""
+    circuits = {}
+    if _llm_router is not None:
+        try:
+            circuits = _llm_router.get_circuit_status()
+        except Exception as e:
+            circuits = {"error": str(e)}
+
+    agents = {}
+    if _health_monitor is not None:
+        try:
+            report = _health_monitor.get_health_report()
+            agents = {
+                aid: {
+                    "status": h.status,
+                    "recommendation": h.recommendation,
+                    "error_count": h.error_count,
+                }
+                for aid, h in report.items()
+            }
+        except Exception as e:
+            agents = {"error": str(e)}
+
+    memory_summary = {}
+    if _error_memory is not None:
+        try:
+            memory_summary = {
+                "tickers_tracked": len(_error_memory._failures),
+                "common_mistakes": _error_memory.get_common_mistakes(),
+            }
+        except Exception as e:
+            memory_summary = {"error": str(e)}
+
+    return {
+        "status": "ok",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "llm_circuits": circuits,
+        "agent_health": agents,
+        "error_memory": memory_summary,
     }
 
 

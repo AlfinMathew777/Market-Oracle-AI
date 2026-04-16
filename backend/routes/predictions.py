@@ -1,9 +1,11 @@
 """Prediction log API routes — public track record endpoints."""
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query, Request
 from typing import Optional
 import logging
 import asyncio
+
+from middleware.auth import verify_api_key
 
 logger = logging.getLogger(__name__)
 
@@ -34,8 +36,8 @@ async def get_accuracy_stats(
 
 
 @router.post("/log")
-async def log_prediction(body: dict):
-    """POST /api/predictions/log — manually log a prediction (used internally)."""
+async def log_prediction(body: dict, api_key: str = Depends(verify_api_key)):
+    """POST /api/predictions/log — manually log a prediction (internal use, requires API key)."""
     from database import save_prediction_log
     try:
         await save_prediction_log(
@@ -58,7 +60,7 @@ async def log_prediction(body: dict):
         return {"status": "success"}
     except Exception as e:
         logger.error("Manual log_prediction failed: %s", e)
-        return {"status": "error", "detail": str(e)}
+        return {"status": "error", "detail": "Failed to log prediction"}
 
 
 @router.get("/backtest")
@@ -85,11 +87,11 @@ async def run_backtest(
         return {"status": "error", "detail": "Backtest timed out — try a shorter days window"}
     except Exception as e:
         logger.error("Backtest failed: %s", e)
-        return {"status": "error", "detail": str(e)}
+        return {"status": "error", "detail": "Backtest failed — please try again"}
 
 
-@router.get("/admin/fix-data")
-async def fix_prediction_data():
+@router.post("/admin/fix-data")
+async def fix_prediction_data(api_key: str = Depends(verify_api_key)):
     """POST /api/predictions/admin/fix-data — backfill excluded_from_stats on garbage predictions.
 
     Safe to call multiple times. Marks low-confidence predictions as excluded,
@@ -113,7 +115,7 @@ async def fix_prediction_data():
         return {"status": "partial", "detail": "Resolution timed out — garbage marking may still have applied"}
     except Exception as e:
         logger.error("fix-data failed: %s", e)
-        return {"status": "error", "detail": str(e)}
+        return {"status": "error", "detail": "Admin operation failed"}
 
 
 @router.get("/calibration")
@@ -131,4 +133,4 @@ async def get_calibration(
         return {"status": "success", "data": stats}
     except Exception as e:
         logger.error("Calibration stats failed: %s", e)
-        return {"status": "error", "detail": str(e)}
+        return {"status": "error", "detail": "Calibration stats unavailable"}

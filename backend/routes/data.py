@@ -96,8 +96,8 @@ async def get_asx_prices():
     except HTTPException:
         raise
     except Exception as e:
-        logger.error("ASX prices live fetch failed: %s", e)
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("ASX prices live fetch failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Unable to fetch ASX prices")
 
 
 # ── Port Hedland (AIS) ────────────────────────────────────────────────────────
@@ -131,8 +131,8 @@ async def get_macro_context():
         await cache_set("macro:context:v1", context, ttl=3600)
         return {"status": "success", "data": context, "source": "live"}
     except Exception as e:
-        logger.error("Macro context live fetch failed: %s", e)
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Macro context live fetch failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Unable to fetch macro context")
 
 
 # ── Australian Macro (FRED / ABS) ─────────────────────────────────────────────
@@ -150,8 +150,8 @@ async def get_australian_macro():
         await cache_set("macro:fred:v1", macro_data, ttl=3600)
         return {"status": "success", "data": macro_data, "source": "live"}
     except Exception as e:
-        logger.error("Australian macro live fetch failed: %s", e)
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Australian macro live fetch failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Unable to fetch Australian macro data")
 
 
 # ── GDELT Sentiment ───────────────────────────────────────────────────────────
@@ -170,8 +170,8 @@ async def get_gdelt_sentiment(topic: str):
         await cache_set(cache_key, sentiment_data, ttl=3600)
         return {"status": "success", "data": sentiment_data, "source": "live"}
     except Exception as e:
-        logger.error("GDELT sentiment failed: %s", e)
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("GDELT sentiment failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Unable to fetch sentiment data")
 
 
 # ── News ──────────────────────────────────────────────────────────────────────
@@ -272,7 +272,8 @@ async def get_geo_mineral_deposits(mineral: str = "Lithium"):
         await cache_set(cache_key, data, ttl=86400)
         return {"status": "success", "data": data, "source": "live"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Mineral deposits fetch failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Unable to fetch mineral deposit data")
 
 
 # ── Chokepoints ───────────────────────────────────────────────────────────────
@@ -290,8 +291,8 @@ async def get_chokepoints(enriched: bool = True):
         await cache_set(cache_key, data, ttl=3600)
         return {"status": "success", "data": data, "source": "live"}
     except Exception as e:
-        logger.error("Chokepoints failed: %s", e)
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Chokepoints failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Unable to fetch chokepoint data")
 
 
 @router.get("/chokepoint-impact")
@@ -303,7 +304,8 @@ async def get_chokepoint_impact(chokepoints: str, duration_days: int = 7):
         oil_risk = get_asx_oil_risk_prediction(cp_list)
         return {"status": "success", "data": {**impact, "oil_risk": oil_risk}}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Chokepoint impact failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Unable to calculate chokepoint impact")
 
 
 # ── Pre-simulation sentiment ──────────────────────────────────────────────────
@@ -317,8 +319,8 @@ async def get_pre_simulation_sentiment(tickers: str, topic: str):
         context = get_pre_simulation_context(ticker_list, topic)
         return {"status": "success", "data": context}
     except Exception as e:
-        logger.error("Pre-simulation sentiment failed: %s", e)
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Pre-simulation sentiment failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Unable to fetch pre-simulation sentiment")
 
 
 # ── RBA ───────────────────────────────────────────────────────────────────────

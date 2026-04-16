@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { TrendingUp, TrendingDown, AlertCircle, Activity, Newspaper } from 'lucide-react';
 import './EventSidebar.css';
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
 
 function EventSidebar({ events, onEventSelect, isSimulating, selectedEvent }) {
   const [preSimContext, setPreSimContext] = useState(null);

@@ -16,8 +16,42 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["simulation"])
 
+
+class _BoundedSimulationCache(dict):
+    """Dict with max-size cap and TTL eviction to prevent memory exhaustion."""
+
+    def __init__(self, max_size: int = 1000, ttl_seconds: int = 3600):
+        super().__init__()
+        self._max_size = max_size
+        self._ttl = ttl_seconds
+        self._insertion_order: list = []
+
+    def __setitem__(self, key, value):
+        self._evict_expired()
+        if key not in self:
+            # Evict oldest entry if at capacity
+            while len(self) >= self._max_size:
+                oldest = self._insertion_order.pop(0)
+                super().pop(oldest, None)
+            self._insertion_order.append(key)
+        value["_cached_at"] = datetime.now().timestamp()
+        super().__setitem__(key, value)
+
+    def _evict_expired(self):
+        now = datetime.now().timestamp()
+        expired = [
+            k for k, v in list(self.items())
+            if now - v.get("_cached_at", now) > self._ttl
+        ]
+        for k in expired:
+            super().pop(k, None)
+            if k in self._insertion_order:
+                self._insertion_order.remove(k)
+
+
 # In-memory store: simulation_id → {status, prediction, error, started_at, ...}
-active_simulations = {}
+# Bounded to 1000 entries with 1-hour TTL to prevent memory exhaustion attacks.
+active_simulations = _BoundedSimulationCache(max_size=1000, ttl_seconds=3600)
 
 # ── Pre-flight commentary filter ──────────────────────────────────────────────
 # These patterns in the trigger indicate a stock commentary / opinion article,
@@ -131,7 +165,7 @@ async def run_simulation(request: Request, body: SimulationRequest, background_t
     from server import require_api_key
     require_api_key(request)
 
-    simulation_id = f"sim_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
+    simulation_id = f"sim_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:12]}"
 
     event_data = {
         'country': body.country,
@@ -252,12 +286,29 @@ async def _run_simulation_background(simulation_id: str, body: SimulationRequest
 
         from scripts.test_core import Simulation
         from llm_router import LLMRouter
+        from server import get_llm_router
 
-        llm_router = LLMRouter()
+        # Prefer the startup singleton (circuit breakers persist across requests).
+        # Fall back to a fresh instance only if the singleton wasn't initialised
+        # (e.g., during tests or direct script execution).
+        llm_router = get_llm_router() or LLMRouter()
         simulation = Simulation(llm_router)
 
         # Store ticker so the status endpoint can return it early
         active_simulations[simulation_id]['ticker'] = ticker
+
+        # ── Anti-pattern injection (ErrorMemory) ─────────────────────────────
+        # Inject previously-failed reasoning patterns so agents can avoid them.
+        try:
+            from server import get_error_memory
+            _em = get_error_memory()
+            if _em:
+                anti_patterns = _em.get_prompt_injection(ticker)
+                if anti_patterns:
+                    event_data["anti_patterns"] = anti_patterns
+                    logger.debug("Anti-patterns injected for %s: %d chars", ticker, len(anti_patterns))
+        except Exception as _em_err:
+            logger.debug("Anti-pattern injection failed (non-fatal): %s", _em_err)
 
         # Run simulation — internal timeouts guarantee completion:
         #   180s agent budget → partial results if slow
@@ -455,8 +506,10 @@ async def get_simulation_status(simulation_id: str):
 
 
 @router.get("/simulate/active")
-async def list_active_simulations():
-    """List all active simulations."""
+async def list_active_simulations(request: Request):
+    """List all active simulations — requires API key."""
+    from server import require_api_key
+    require_api_key(request)
     return {
         "active_count": sum(1 for s in active_simulations.values() if s['status'] == 'running'),
         "simulations": {k: {kk: vv for kk, vv in v.items() if kk != 'prediction'}
@@ -504,8 +557,8 @@ async def simulate_chokepoint_disruption(chokepoint_id: str, duration_days: int 
             "impact": impact,
         }
     except Exception as e:
-        logger.error("Chokepoint simulation error: %s", e)
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Chokepoint simulation error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Simulation failed. Please try again.")
 
 
 @router.get("/predict/history")

@@ -3,7 +3,7 @@ import { TrendingUp, TrendingDown, Minus, Info } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from './ui/tooltip';
 import './AustralianEconomicContext.css';
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
 
 const AustralianEconomicContext = () => {
   const [australianData, setAustralianData] = useState(null);

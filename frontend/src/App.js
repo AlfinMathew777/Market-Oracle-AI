@@ -17,7 +17,8 @@ import MonteCarloEngine from "./components/MonteCarlo/MonteCarloEngine";
 import { Globe as GlobeIcon, Map as MapIcon } from "lucide-react";
 import "./App.css";
 
-const BACKEND_URL = "http://localhost:8000";
+const BACKEND_URL =
+  process.env.REACT_APP_BACKEND_URL || "http://localhost:8000";
 const API_KEY = process.env.REACT_APP_API_KEY || "";
 console.log("[app] BACKEND_URL =", BACKEND_URL);
 

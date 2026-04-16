@@ -31,12 +31,24 @@ def get_api_keys() -> set:
     if keys_str:
         return {k.strip() for k in keys_str.split(",") if k.strip()}
 
-    # Auto-generate in dev mode — logs key so developer can use it
+    # Auto-generate in dev mode — write key to a local file instead of logging it
     auto_key = os.environ.get("MARKET_ORACLE_AUTO_KEY")
     if not auto_key:
         auto_key = secrets.token_urlsafe(32)
-        logger.warning("No API keys configured. Auto-generated key: %s", auto_key)
-        logger.warning("Set MARKET_ORACLE_API_KEYS in production!")
+        _key_file = os.path.join(os.path.dirname(__file__), "..", ".dev_api_key")
+        try:
+            with open(_key_file, "w") as f:
+                f.write(auto_key)
+            logger.warning(
+                "No API keys configured. Dev key written to %s — "
+                "set MARKET_ORACLE_API_KEYS in production!",
+                os.path.abspath(_key_file),
+            )
+        except OSError:
+            logger.warning(
+                "No API keys configured. Set MARKET_ORACLE_API_KEYS in production! "
+                "(Could not write dev key file)"
+            )
 
     return {auto_key}
 

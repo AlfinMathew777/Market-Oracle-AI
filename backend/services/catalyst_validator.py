@@ -31,6 +31,9 @@ _NO_CATALYST_PATTERNS: list[re.Pattern] = [
     re.compile(r"insufficient\s+data", re.I),
     re.compile(r"^unclear\s*$", re.I),
     re.compile(r"^unknown\s*$", re.I),
+    re.compile(r"likely\s+macro.{0,5}technical.{0,5}driven\s+session", re.I),
+    re.compile(r"^no\s+data\s*[—-]", re.I),
+    re.compile(r"assumed\s+neutral\s+impact", re.I),
 ]
 
 # ── Keywords that suggest a REAL catalyst ─────────────────────────────────────
@@ -52,7 +55,21 @@ _VALID_CATALYST_KEYWORDS: list[str] = [
     "downgrade", "upgrade", "rating", "analyst",
     # Geopolitical
     "war", "conflict", "sanction", "blockade", "disaster", "earthquake",
+    # Market / share language (news headlines commonly use these)
+    "share", "shares", "stock", "stocks", "price", "investor", "investors",
+    "sector", "material", "materials", "resource", "resources",
+    "market", "asx", "equity", "equities", "fund", "funds",
+    "profit", "loss", "revenue", "production", "output", "demand",
+    "growth", "outlook", "result", "results", "quarter", "annual",
+    # Directional / trend signals — accepted when ticker-specific and specific enough
+    # (generic trend strings like "trend confirms bullish" are still blocked by the
+    # _NO_CATALYST_PATTERNS rule that matches strings starting with "trend/technical/momentum")
+    "uptrend", "downtrend", "trend", "bullish", "bearish", "news",
+    "momentum", "breakout", "support", "resistance", "volume",
 ]
+
+# ── News source attribution — any trigger from a real feed is inherently valid ──
+_NEWS_SOURCE_PATTERN: re.Pattern = re.compile(r"\(source\s*:", re.I)
 
 # ── Specificity patterns — at least one needed ────────────────────────────────
 _SPECIFICITY_PATTERNS: list[re.Pattern] = [
@@ -84,6 +101,11 @@ def validate_catalyst(trigger_event: str) -> Tuple[bool, str]:
     for pattern in _NO_CATALYST_PATTERNS:
         if pattern.search(text):
             return False, f"Trigger indicates no catalyst: '{text[:60]}'"
+
+    # News-source attribution means the trigger came from a real feed — always valid
+    if _NEWS_SOURCE_PATTERN.search(text):
+        logger.debug("Valid catalyst (news source attribution): '%s'", text[:80])
+        return True, "Valid catalyst identified (news source)"
 
     text_lower = text.lower()
 

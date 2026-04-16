@@ -8,7 +8,7 @@
  * - All calls wrapped in try/catch
  */
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
+const BACKEND_URL = "http://localhost:8000";
 
 /**
  * Full quantitative analysis for a ticker.
@@ -18,15 +18,19 @@ const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
  */
 export async function fetchQuantAnalysis(ticker) {
   try {
-    const res = await fetch(`${BACKEND_URL}/api/quant/analyse/${encodeURIComponent(ticker)}`);
+    const res = await fetch(
+      `${BACKEND_URL}/api/quant/analyse/${encodeURIComponent(ticker)}`,
+    );
     if (!res.ok) {
-      let detail = 'Quant analysis failed';
-      try { detail = (await res.json()).detail || detail; } catch (_) {}
-      return { status: 'error', detail };
+      let detail = "Quant analysis failed";
+      try {
+        detail = (await res.json()).detail || detail;
+      } catch (_) {}
+      return { status: "error", detail };
     }
     return await res.json();
   } catch (err) {
-    return { status: 'error', detail: err.message || 'Network error' };
+    return { status: "error", detail: err.message || "Network error" };
   }
 }
 
@@ -38,23 +42,29 @@ export async function fetchQuantAnalysis(ticker) {
  * @param {number} nSimulations  1000–10000 (default 5000)
  * @returns {Promise<{status: string, data?: object, detail?: string}>}
  */
-export async function fetchMonteCarlo(ticker, horizonDays = 30, nSimulations = 5000) {
+export async function fetchMonteCarlo(
+  ticker,
+  horizonDays = 30,
+  nSimulations = 5000,
+) {
   try {
     const params = new URLSearchParams({
       horizon_days: horizonDays,
       n_simulations: nSimulations,
     });
     const res = await fetch(
-      `${BACKEND_URL}/api/quant/monte-carlo/${encodeURIComponent(ticker)}?${params}`
+      `${BACKEND_URL}/api/quant/monte-carlo/${encodeURIComponent(ticker)}?${params}`,
     );
     if (!res.ok) {
-      let detail = 'Monte Carlo fetch failed';
-      try { detail = (await res.json()).detail || detail; } catch (_) {}
-      return { status: 'error', detail };
+      let detail = "Monte Carlo fetch failed";
+      try {
+        detail = (await res.json()).detail || detail;
+      } catch (_) {}
+      return { status: "error", detail };
     }
     return await res.json();
   } catch (err) {
-    return { status: 'error', detail: err.message || 'Network error' };
+    return { status: "error", detail: err.message || "Network error" };
   }
 }
 
@@ -67,15 +77,17 @@ export async function fetchMonteCarlo(ticker, horizonDays = 30, nSimulations = 5
 export async function fetchPrediction(ticker) {
   try {
     const res = await fetch(
-      `${BACKEND_URL}/api/quant/prediction/${encodeURIComponent(ticker)}`
+      `${BACKEND_URL}/api/quant/prediction/${encodeURIComponent(ticker)}`,
     );
     if (!res.ok) {
-      let detail = 'Quant prediction failed';
-      try { detail = (await res.json()).detail || detail; } catch (_) {}
-      return { status: 'error', detail };
+      let detail = "Quant prediction failed";
+      try {
+        detail = (await res.json()).detail || detail;
+      } catch (_) {}
+      return { status: "error", detail };
     }
     return await res.json();
   } catch (err) {
-    return { status: 'error', detail: err.message || 'Network error' };
+    return { status: "error", detail: err.message || "Network error" };
   }
 }

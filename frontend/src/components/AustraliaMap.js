@@ -152,7 +152,7 @@ const LOCATIONS = [
   }
 ];
 
-const BACKEND_URL_MAP = process.env.REACT_APP_BACKEND_URL || '';
+const BACKEND_URL_MAP = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
 
 // State abbreviation to full name mapping
 const STATE_NAME_MAP = {
@@ -174,7 +174,7 @@ const AustraliaMap = ({ portHedlandData, selectedEvent, onEventClick, prediction
   const [macroData, setMacroData] = useState(null);
   const [sentimentArrow, setSentimentArrow] = useState(null); // { fromLat, fromLon, direction }
 
-  const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
+  const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
 
   // Load macro context data
   useEffect(() => {
