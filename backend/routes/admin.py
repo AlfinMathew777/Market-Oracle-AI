@@ -145,3 +145,41 @@ async def data_feed_health():
     from monitoring.data_health import check_feeds
     report = await check_feeds(timeout=12.0)
     return report
+
+
+@router.post("/api/admin/validate-predictions")
+async def trigger_validation(request: Request):
+    """
+    POST /api/admin/validate-predictions
+
+    Manually trigger the 24-hour outcome validation job. Validates all
+    prediction_log entries that are older than 24h and not yet resolved.
+
+    Returns a summary of how many were validated and the resulting hit rate.
+    Requires: X-API-Key header
+    """
+    from server import require_api_key
+    require_api_key(request)
+
+    from validation.outcome_checker import run_validation_job
+    result = await run_validation_job()
+    result["triggered_at"] = datetime.now(timezone.utc).isoformat()
+    return result
+
+
+@router.get("/api/metrics/validation-summary")
+async def validation_summary(days: int = 30):
+    """
+    GET /api/metrics/validation-summary?days=30
+
+    Accuracy breakdown for predictions resolved in the last N days.
+    Includes overall hit rate, breakdown by direction (BUY/SELL), and
+    breakdown by confidence band (55-65%, 65-75%, 75-85%, 85%+).
+
+    No authentication required.
+    """
+    if days < 1 or days > 365:
+        raise HTTPException(status_code=400, detail="days must be between 1 and 365")
+
+    from validation.outcome_checker import get_validation_summary
+    return await get_validation_summary(days=days)
