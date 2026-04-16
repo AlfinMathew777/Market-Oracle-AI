@@ -165,6 +165,15 @@ async def run_simulation(request: Request, body: SimulationRequest, background_t
     from server import require_api_key
     require_api_key(request)
 
+    # ── Kill switch check ────────────────────────────────────────────────────
+    from system_state import is_signals_enabled, get_system_state
+    if not is_signals_enabled():
+        state = get_system_state()
+        raise HTTPException(
+            status_code=503,
+            detail={"error": "System paused", "reason": state["kill_switch_reason"]},
+        )
+
     simulation_id = f"sim_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:12]}"
 
     event_data = {
