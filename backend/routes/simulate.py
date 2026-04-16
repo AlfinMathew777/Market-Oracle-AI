@@ -427,11 +427,22 @@ async def _run_simulation_background(simulation_id: str, body: SimulationRequest
                 except Exception as _cvar_err:
                     logger.warning("CVaR injection failed: %s", _cvar_err)
 
+        # ── Paper mode logging ────────────────────────────────────────────────
+        from system_state import PAPER_MODE
+        if PAPER_MODE and isinstance(prediction_json, dict):
+            _dir = prediction_json.get("direction", "UNKNOWN")
+            _conf = prediction_json.get("confidence", 0)
+            logger.info(
+                "[PAPER] Would have signaled: %s %s @ %.0f%% confidence",
+                _dir, ticker, _conf * 100,
+            )
+
         active_simulations[simulation_id].update({
             'status': 'completed',
             'prediction': prediction_json,
             'completed_at': datetime.now().isoformat(),
             'execution_time': execution_time,
+            'paper_mode': PAPER_MODE,
         })
         logger.info("Simulation %s completed in %.1fs", simulation_id, execution_time)
 
