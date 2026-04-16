@@ -496,6 +496,15 @@ async def health_check(request: Request):
         except Exception:
             pass
 
+    # Queue stats — only populated when USE_SIMULATION_QUEUE=true
+    queue_stats: dict = {}
+    try:
+        from queue.simulation_queue import QUEUE_ENABLED, queue as sim_queue
+        if QUEUE_ENABLED:
+            queue_stats = await sim_queue.get_stats()
+    except Exception:
+        pass
+
     return {
         "status": "operational",
         "environment": ENV,
@@ -505,6 +514,7 @@ async def health_check(request: Request):
         "demo_ready": live_count >= 3,
         "response_time_ms": round((time.time() - t_start) * 1000, 2),
         "llm_circuits": circuit_status,
+        "queue": queue_stats or {"enabled": False},
     }
 
 
