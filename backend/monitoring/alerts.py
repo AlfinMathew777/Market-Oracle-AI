@@ -391,6 +391,7 @@ async def check_all_alerts() -> list[dict]:
         check_high_signal_volume(),
         check_low_confidence_cluster(),
         check_monte_carlo_instability(),
+        check_ml_anomaly_alert(),
         return_exceptions=True,
     )
 
