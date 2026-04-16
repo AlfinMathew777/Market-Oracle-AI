@@ -614,6 +614,12 @@ function App() {
           >
             Simulation
           </button>
+          <button
+            className={`app-tab-btn${activeTab === "accuracy" ? " active" : ""}`}
+            onClick={() => navigateTo("accuracy")}
+          >
+            Accuracy
+          </button>
         </nav>
         {portHedlandData && (
           <div className="port-hedland-badge">
