@@ -81,10 +81,11 @@ ROOT_DIR = Path(__file__).parent
 from config.environment import ENV, log_environment_banner
 load_dotenv(ROOT_DIR / '.env')  # base .env still loaded as lowest-priority fallback
 
-# Configure logging with UTF-8 handler so unicode in LLM responses never crashes
-_log_handler = logging.StreamHandler(sys.stderr)
-_log_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
-logging.basicConfig(level=logging.INFO, handlers=[_log_handler])
+# Configure structured logging via Loguru.
+# This intercepts ALL stdlib logging.getLogger() calls across every module —
+# no per-file changes needed. JSON in production, colorized in dev/staging.
+from config.logging_setup import setup_logging
+setup_logging(env=ENV)
 
 logger = logging.getLogger(__name__)
 
