@@ -1,13 +1,18 @@
 """Admin endpoints for Market Oracle AI.
 
-All mutation endpoints (kill-switch, resume) require API key authentication.
+All mutation endpoints (kill-switch, resume, acknowledge) require API key auth.
 Read-only status/health endpoints are unauthenticated for monitoring dashboards.
 
 Endpoints:
-    POST /api/admin/kill-switch     — disable all signal generation
-    POST /api/admin/resume          — re-enable signal generation
-    GET  /api/admin/status          — current system state
-    GET  /api/health/data-feeds     — live data feed health + signal-block status
+    POST /api/admin/kill-switch           — disable all signal generation
+    POST /api/admin/resume                — re-enable signal generation
+    GET  /api/admin/status                — current system state
+    GET  /api/health/data-feeds           — live data feed health + signal-block status
+    POST /api/admin/validate-predictions  — manually trigger 24h outcome validation
+    POST /api/admin/check-alerts          — manually trigger all alert checks
+    GET  /api/metrics/validation-summary  — accuracy breakdown by band / direction
+    GET  /api/alerts                      — alert history (active or all)
+    POST /api/alerts/{id}/acknowledge     — mark an alert as acknowledged
 """
 
 import logging
