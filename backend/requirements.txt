@@ -1,3 +1,6 @@
+# ── Test infrastructure ────────────────────────────────────────────────────
+pytest-asyncio>=0.21.0
+pytest-cov>=4.0.0
 # ── Quant Engine additions (Phase 1 — do not remove) ──────────────────────
 scipy>=1.13.0
 statsmodels>=0.14.2
