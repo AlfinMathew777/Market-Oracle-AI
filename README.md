@@ -148,6 +148,36 @@ REACT_APP_SENTRY_DSN=           # Optional: Sentry frontend DSN
 
 ## Deployment
 
+### Backend → Fly.io (recommended — multi-region)
+
+Fly.io deploys to Sydney (primary) and Singapore (failover) with automatic
+health-check-based failover and ~50 ms lower latency for SE Asia users.
+
+**One-time setup:**
+```bash
+# Install flyctl
+curl -L https://fly.io/install.sh | sh
+
+# Create the app (first time only)
+fly launch --no-deploy        # uses fly.toml automatically
+fly secrets set ANTHROPIC_API_KEY=... ACLED_API_KEY=... REDIS_URL=...
+
+# Add Singapore region
+fly regions add sin
+
+# Deploy
+fly deploy
+```
+
+**Subsequent deploys** happen automatically via GitHub Actions on every push
+to `main` — set `FLY_API_TOKEN` in your GitHub repository secrets.
+
+**Region health check:** `GET /api/admin/regions` — returns latency and
+status for each region, plus which region the current request is being
+served from.
+
+---
+
 ### Backend → Render.com (free tier)
 
 1. Push repo to GitHub
