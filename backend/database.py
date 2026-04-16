@@ -50,6 +50,14 @@ def get_db():
     return aiosqlite.connect(DB_PATH)
 
 
+async def _init_postgres() -> None:
+    """Run PostgreSQL migrations via the migration runner."""
+    from migrations.run_migrations import run_migrations
+    from db.connection import init_pg_pool
+    await init_pg_pool(DATABASE_URL)
+    await run_migrations(DATABASE_URL)
+
+
 async def init_db() -> None:
     """Create all tables if they don't exist. Safe to call multiple times."""
     global _initialized
