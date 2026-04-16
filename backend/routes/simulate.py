@@ -544,18 +544,56 @@ async def get_simulation_status(simulation_id: str):
     """
     Poll this endpoint after POST /api/simulate.
     Returns status + prediction when ready.
-    Status values: 'running' | 'completed' | 'failed'
+    Status values: 'queued' | 'processing' | 'running' | 'completed' | 'failed'
 
-    On 404 (server restarted, in-memory store wiped): attempts DB recovery.
+    Checks in order:
+      1. In-process active_simulations dict (in-process path)
+      2. Redis queue result store (worker path, when QUEUE_ENABLED=True)
+      3. SQLite DB (recovery after server restart)
     """
     if simulation_id not in active_simulations:
-        # Attempt to recover completed simulation from SQLite (survives server restart)
+        # ── Check Redis queue result store (worker-executed jobs) ────────────
+        from queue.simulation_queue import QUEUE_ENABLED, queue as sim_queue
+        if QUEUE_ENABLED:
+            try:
+                queue_entry = await sim_queue.get_result(simulation_id)
+                if queue_entry:
+                    status = queue_entry.get("status")
+                    if status == "completed":
+                        result = queue_entry.get("result", {})
+                        return {
+                            "status": "completed",
+                            "simulation_id": simulation_id,
+                            "prediction": result.get("prediction"),
+                            "execution_time": result.get("execution_time"),
+                            "paper_mode": result.get("paper_mode", False),
+                            "completed_at": result.get("completed_at") or queue_entry.get("completed_at"),
+                            "worker_id": result.get("worker_id"),
+                        }
+                    elif status == "failed":
+                        return {
+                            "status": "failed",
+                            "simulation_id": simulation_id,
+                            "error": queue_entry.get("error", "Worker reported failure"),
+                            "failed_at": queue_entry.get("failed_at"),
+                        }
+                    else:
+                        # "processing" state — job is running on a worker
+                        return {
+                            "status": "processing",
+                            "simulation_id": simulation_id,
+                            "started_at": queue_entry.get("started_at"),
+                            "worker_id": queue_entry.get("worker_id"),
+                        }
+            except Exception as _q_err:
+                logger.warning("Redis status lookup failed for %s: %s", simulation_id, _q_err)
+
+        # ── Attempt to recover from SQLite (survives server restart) ─────────
         try:
             from database import get_simulation_full_json
             recovered = await get_simulation_full_json(simulation_id)
             if recovered:
                 logger.info("Recovered simulation %s from DB after restart", simulation_id)
-                # Re-hydrate into active_simulations so subsequent polls are fast
                 active_simulations[simulation_id] = {
                     "status": "completed",
                     "prediction": recovered,
