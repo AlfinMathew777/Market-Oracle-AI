@@ -398,6 +398,7 @@ app.include_router(accuracy_router)    # Accuracy tracking — /api/accuracy/*
 app.include_router(stream_router)      # Real-time streaming — /api/stream/*
 app.include_router(news_router)        # ASX news aggregator — /api/news/*
 app.include_router(admin_router)       # Admin: kill switch, status, data-feeds
+app.include_router(backtest_router)    # Historical backtesting — /api/backtest/*
 
 FRONTEND_BUILD = ROOT_DIR.parent / "frontend" / "build"
 
