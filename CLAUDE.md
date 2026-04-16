@@ -181,3 +181,57 @@ After fixing bugs that required meaningful debugging effort — append to `proje
 
 ### Focus Changes
 When priorities shift to new features or modules — update `project_current_focus.md` to reflect current work.
+
+## Deployment Workflow
+
+### Environments
+
+| Environment | Branch | Railway Service | PAPER_MODE | Config |
+|-------------|--------|-----------------|------------|--------|
+| development | any | local only | true | `.env.development` |
+| staging | `staging` | staging service | true (forced) | `.env.staging` + `railway.staging.toml` |
+| production | `main` | production service | false | `.env.production` + `railway.toml` |
+
+### Promoting a Change
+
+```
+# 1. Develop on a feature branch
+git checkout -b feat/my-feature
+
+# 2. Merge to staging for pre-prod validation
+git checkout staging && git merge feat/my-feature
+git push origin staging
+# Railway auto-deploys the staging service
+
+# 3. Smoke test staging — check the yellow STAGING badge in the header
+curl https://staging-backend.railway.app/api/health | jq .environment
+
+# 4. Promote to production only after staging passes
+git checkout main && git merge staging
+git push origin main
+```
+
+### Railway Staging Service Setup (one-time)
+
+1. In the Railway project, create a new service named **staging**
+2. Set **Config Path** → `railway.staging.toml`
+3. Set **Watch Paths** → `backend/**` (deploy only on backend changes)
+4. Add environment variables: `ENVIRONMENT=staging`, `PAPER_MODE=true`, plus all API keys
+
+### Environment Badge
+
+The frontend header shows a coloured badge when connected to a non-production backend:
+- Yellow `STAGING` — connected to staging Railway service
+- Blue `DEVELOPMENT` — connected to local dev server
+- No badge — production (intentional, no visual noise for end users)
+
+### Key Files
+
+| File | Purpose |
+|------|---------|
+| `backend/config/environment.py` | Loads `ENVIRONMENT` var, imports env-specific `.env.*`, exposes `ENV`, `is_staging()`, etc. |
+| `backend/.env.development` | Dev template — placeholders only, committed to repo |
+| `backend/.env.staging` | Staging template — real values set in Railway dashboard |
+| `backend/.env.production` | Prod template — real values set in Railway dashboard |
+| `railway.staging.toml` | Railway config for staging service (no cron jobs) |
+| `railway.toml` | Railway config for production service (includes cron jobs) |

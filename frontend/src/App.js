@@ -639,7 +639,10 @@ function App() {
           <div
             className="env-badge"
             style={{
-              background: serverEnvironment === "staging" ? "rgba(255,193,7,0.15)" : "rgba(51,102,255,0.15)",
+              background:
+                serverEnvironment === "staging"
+                  ? "rgba(255,193,7,0.15)"
+                  : "rgba(51,102,255,0.15)",
               border: `1px solid ${serverEnvironment === "staging" ? "#d29922" : "#3366ff"}`,
               color: serverEnvironment === "staging" ? "#d29922" : "#3366ff",
               padding: "3px 10px",
