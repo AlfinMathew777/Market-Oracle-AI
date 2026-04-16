@@ -446,6 +446,13 @@ async def _run_simulation_background(simulation_id: str, body: SimulationRequest
         })
         logger.info("Simulation %s completed in %.1fs", simulation_id, execution_time)
 
+        # ── Post-simulation alert check (fire-and-forget) ─────────────────
+        try:
+            from monitoring.alerts import check_all_alerts
+            asyncio.create_task(check_all_alerts())
+        except Exception as _alert_err:
+            logger.debug("Alert check scheduling failed (non-fatal): %s", _alert_err)
+
     except asyncio.TimeoutError:
         # Ticker mapping timed out — nothing to show
         active_simulations[simulation_id].update({
