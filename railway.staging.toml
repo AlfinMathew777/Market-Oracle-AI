@@ -1,0 +1,28 @@
+# Market Oracle AI — Staging Environment
+# Used by the Railway staging service.
+#
+# Railway dashboard setup:
+#   staging service → Settings → Config Path → railway.staging.toml
+#
+# Required environment variables (set in Railway staging service dashboard):
+#   ENVIRONMENT             = staging
+#   PAPER_MODE              = true
+#   ANTHROPIC_API_KEY       = <same as prod or a separate key>
+#   ACLED_API_KEY           = <staging key>
+#   ACLED_EMAIL             = <staging email>
+#   FRED_API_KEY            = <same as prod>
+#   MARKET_ORACLE_API_KEYS  = <staging API key>
+#   REDIS_URL               = <Railway Redis add-on URL>
+#   FRONTEND_URL            = https://staging.asx.marketoracle.ai
+
+[build]
+builder = "nixpacks"
+
+[deploy]
+startCommand = "cd backend && uvicorn server:app --host 0.0.0.0 --port $PORT"
+healthcheckPath = "/api/health"
+healthcheckTimeout = 30
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
+
+# No cron jobs on staging — morning predictions only run in production
