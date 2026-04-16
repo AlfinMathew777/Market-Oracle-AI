@@ -31,6 +31,7 @@ DATA_FEED_STALE         = "DATA_FEED_STALE"
 HIGH_SIGNAL_VOLUME      = "HIGH_SIGNAL_VOLUME"
 LOW_CONFIDENCE_CLUSTER  = "LOW_CONFIDENCE_CLUSTER"
 MONTE_CARLO_INSTABILITY = "MONTE_CARLO_INSTABILITY"
+ML_ANOMALY              = "ML_ANOMALY"
 
 # Cooldown minutes per alert type — a new alert won't fire if an identical
 # unacknowledged one already exists within this window.
@@ -40,6 +41,7 @@ _COOLDOWNS: dict[str, int] = {
     HIGH_SIGNAL_VOLUME:      60,
     LOW_CONFIDENCE_CLUSTER:  120,
     MONTE_CARLO_INSTABILITY: 60,
+    ML_ANOMALY:              120,   # re-check every 2h to avoid alert fatigue
 }
 
 
