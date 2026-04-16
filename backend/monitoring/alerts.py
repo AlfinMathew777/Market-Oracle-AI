@@ -286,6 +286,36 @@ async def check_low_confidence_cluster() -> Optional[dict]:
         return None
 
 
+async def check_ml_anomaly_alert() -> Optional[dict]:
+    """
+    ML_ANOMALY — fires when the IsolationForest detects an unusual signal pattern.
+
+    Pulls from monitoring.anomaly_detector.check_ml_anomaly() which trains and
+    predicts in a single call, re-training every 6 hours automatically.
+    """
+    try:
+        from monitoring.anomaly_detector import check_ml_anomaly
+        result = await check_ml_anomaly()
+        if result is None or not result.get("anomaly"):
+            return None
+
+        score = result.get("score", 0)
+        reason = result.get("reason", "ML anomaly detected")
+        features = result.get("features", {})
+
+        ctx = {
+            "score": score,
+            "reason": reason,
+            "features": features,
+            "trained_at": result.get("trained_at"),
+        }
+        message = f"{reason} (isolation score {score:.3f})"
+        return await _fire_alert(ML_ANOMALY, "warning", message, ctx)
+    except Exception as e:
+        logger.warning("check_ml_anomaly_alert failed (non-fatal): %s", e)
+        return None
+
+
 async def check_monte_carlo_instability() -> Optional[dict]:
     """
     MONTE_CARLO_INSTABILITY — fires when the average MC price_stability_score
