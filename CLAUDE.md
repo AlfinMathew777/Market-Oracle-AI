@@ -235,3 +235,43 @@ The frontend header shows a coloured badge when connected to a non-production ba
 | `backend/.env.production` | Prod template — real values set in Railway dashboard |
 | `railway.staging.toml` | Railway config for staging service (no cron jobs) |
 | `railway.toml` | Railway config for production service (includes cron jobs) |
+
+## Claude Code Configuration
+
+### Directory Structure
+```
+.claude/
+├── agents/        — Specialized subagents (simulation, validation, backtest, debug, deploy)
+├── commands/      — Slash commands (/simulate, /validate, /backtest, /health-check, /daily-report, /deploy-*)
+├── skills/        — Domain knowledge (market-data-fetcher, agent-consensus, monte-carlo, signal-validator, asx-knowledge, fastapi-patterns)
+├── rules/         — Project rules (signal-quality, code-style, testing, security, documentation)
+│                    + existing: backend.md, frontend.md, simulation.md
+└── hooks/         — Automation (file-protection, auto-commit, simulation-logger, sound-complete, pre-deploy-check)
+```
+
+### Key Commands
+| Command | What It Does |
+|---------|-------------|
+| `/simulate BHP.AX` | Run full 45-agent prediction simulation |
+| `/validate` | Validate pending predictions against actual prices |
+| `/backtest BHP.AX 2025-01-01 2025-12-31` | Historical accuracy backtest |
+| `/health-check` | Quick system status (kill switch, feeds, alerts, accuracy) |
+| `/daily-report` | Comprehensive daily accuracy + health report |
+| `/deploy-staging` | Deploy to Railway staging with pre-checks |
+| `/deploy-prod` | Promote staging → production (requires confirmation) |
+
+### Agent Selection
+| Agent | Model | Use For |
+|-------|-------|---------|
+| `simulation-agent` | Opus | Generating predictions — high reasoning |
+| `validation-agent` | Sonnet | Outcome checking — faster |
+| `backtest-agent` | Sonnet | Historical analysis |
+| `debug-agent` | Opus | Investigation — max effort, never guesses |
+| `deploy-agent` | Sonnet | Safe deployments — plan mode |
+
+### Skill Auto-Loading
+Skills trigger based on file globs:
+- `backend/**/*.py` → `fastapi-patterns`, `market-data-fetcher`
+- `backend/agents/**/*.py` → `agent-consensus`
+- `backend/validation/**/*.py` → `signal-validator`
+- `**/*.py` → `asx-knowledge` (geographic facts always relevant)
