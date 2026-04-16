@@ -12,6 +12,7 @@ import MacroContext from "./components/MacroContext";
 import AustralianEconomicContext from "./components/AustralianEconomicContext";
 import ChokepointRiskPanel from "./components/ChokepointRiskPanel";
 import TrackRecord from "./components/TrackRecord";
+import AccuracyDashboard from "./components/AccuracyDashboard";
 import ErrorBoundary from "./components/ErrorBoundary";
 import MonteCarloEngine from "./components/MonteCarlo/MonteCarloEngine";
 import { Globe as GlobeIcon, Map as MapIcon } from "lucide-react";
