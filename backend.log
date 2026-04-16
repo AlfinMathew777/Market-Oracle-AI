@@ -1529,3 +1529,14 @@ INFO:httpx:HTTP Request: GET https://stockhead.com.au/feed/ "HTTP/1.1 200 OK"
 INFO:server:News cache refreshed: 30 articles
 INFO:     127.0.0.1:50173 - "GET /api/quant/monte-carlo/BHP.AX?horizon_days=30&n_simulations=5000 HTTP/1.1" 200 OK
 INFO:     127.0.0.1:50173 - "GET /api/quant/monte-carlo/BHP.AX?horizon_days=30&n_simulations=5000 HTTP/1.1" 200 OK
+INFO:httpx:HTTP Request: GET https://www.smh.com.au/rss/business.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.afr.com/rss "HTTP/1.1 404 Not Found"
+INFO:httpx:HTTP Request: GET https://www.theaustralian.com.au/feed "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://www.miningweekly.com/rss "HTTP/1.1 403 Forbidden"
+INFO:httpx:HTTP Request: GET https://stockhead.com.au/feed/ "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://feeds.bbci.co.uk/news/world/rss.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.abc.net.au/news/feed/2942460/rss.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.rba.gov.au/rss/rss-cb-media-releases.xml "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://www.mining.com/feed/ "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://oilprice.com/rss/main "HTTP/1.1 200 OK"
+INFO:server:News cache refreshed: 30 articles
