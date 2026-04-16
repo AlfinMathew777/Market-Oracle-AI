@@ -635,6 +635,25 @@ function App() {
             Accuracy
           </button>
         </nav>
+        {serverEnvironment && (
+          <div
+            className="env-badge"
+            style={{
+              background: serverEnvironment === "staging" ? "rgba(255,193,7,0.15)" : "rgba(51,102,255,0.15)",
+              border: `1px solid ${serverEnvironment === "staging" ? "#d29922" : "#3366ff"}`,
+              color: serverEnvironment === "staging" ? "#d29922" : "#3366ff",
+              padding: "3px 10px",
+              borderRadius: "4px",
+              fontSize: "11px",
+              fontWeight: 700,
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+              marginRight: "12px",
+            }}
+          >
+            {serverEnvironment}
+          </div>
+        )}
         {portHedlandData && (
           <div className="port-hedland-badge">
             <span className="port-label">Port Hedland</span>
