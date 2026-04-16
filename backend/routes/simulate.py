@@ -233,6 +233,22 @@ async def _run_simulation_background(simulation_id: str, body: SimulationRequest
     """
     start_time = datetime.now()
 
+    # ── Data feed health gate ─────────────────────────────────────────────────
+    # Block simulation if ASX price feed (yfinance) is unavailable.
+    # We check only the critical feed here to keep startup latency low.
+    try:
+        from monitoring.data_health import should_block_signals
+        _blocked, _block_reason = await should_block_signals()
+        if _blocked:
+            logger.warning("Simulation %s blocked — data feed unhealthy: %s", simulation_id, _block_reason)
+            active_simulations[simulation_id].update({
+                "status": "failed",
+                "error": f"Data feed unavailable: {_block_reason}",
+            })
+            return
+    except Exception as _dh_err:
+        logger.debug("Data health check failed (non-fatal): %s", _dh_err)
+
     # ── Accuracy gate: mark low-accuracy mode if system is underperforming ──────
     # When we have ≥10 resolved predictions AND accuracy < 40%, the system is not
     # reliable enough to output actionable signals.  We don't abort the simulation;
