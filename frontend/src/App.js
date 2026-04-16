@@ -95,6 +95,7 @@ function App() {
       const h = window.location.hash;
       if (h === "#/track-record") setActiveTab("track-record");
       else if (h === "#/simulation") setActiveTab("simulation");
+      else if (h === "#/accuracy") setActiveTab("accuracy");
       else setActiveTab("main");
     };
     handleHashChange();
