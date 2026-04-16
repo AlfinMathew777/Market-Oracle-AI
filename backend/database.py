@@ -60,6 +60,7 @@ async def init_db() -> None:
         if _USE_POSTGRES:
             await _init_postgres()
             _initialized = True
+            logger.info("PostgreSQL database initialised (DATABASE_URL set)")
             return
 
         import aiosqlite
