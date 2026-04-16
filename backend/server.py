@@ -289,6 +289,7 @@ async def lifespan(app: FastAPI):
     asyncio.create_task(_prewarm_caches())
     asyncio.create_task(_hourly_tasks())
     asyncio.create_task(_news_refresh_loop())
+    asyncio.create_task(_alert_check_loop())
 
     # Mark existing garbage predictions and resolve pending ones at boot
     async def _boot_cleanup():
