@@ -653,11 +653,21 @@ function App() {
         </ErrorBoundary>
       )}
 
+      {activeTab === "accuracy" && (
+        <div style={{ flex: 1, overflowY: "auto", background: "#05050f" }}>
+          <ErrorBoundary>
+            <AccuracyDashboard />
+          </ErrorBoundary>
+        </div>
+      )}
+
       <div
         className="main-container"
         style={{
           display:
-            activeTab === "track-record" || activeTab === "simulation"
+            activeTab === "track-record" ||
+            activeTab === "simulation" ||
+            activeTab === "accuracy"
               ? "none"
               : undefined,
         }}
