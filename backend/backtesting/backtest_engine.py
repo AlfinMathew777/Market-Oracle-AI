@@ -493,7 +493,15 @@ async def get_run_predictions(
 
 # ── Main backtest loop ─────────────────────────────────────────────────────────
 
-async def run_backtest(config: BacktestConfig) -> BacktestResult:
+def generate_run_id() -> str:
+    """Generate a unique backtest run ID."""
+    return f"bt_{uuid.uuid4().hex[:12]}"
+
+
+async def run_backtest(
+    config: BacktestConfig,
+    run_id: Optional[str] = None,
+) -> BacktestResult:
     """
     Run a full backtest and persist results to the database.
 
@@ -509,12 +517,16 @@ async def run_backtest(config: BacktestConfig) -> BacktestResult:
       4. Calculate aggregate metrics.
       5. Bulk-persist predictions and mark run as completed.
 
+    If *run_id* is supplied the caller has already created the DB row via
+    _create_run(); otherwise a new row is created here.
+
     Progress is written to the DB every 50 steps for polling by the status
     endpoint. Yields to the event loop on every batch so the server stays
     responsive during long backtests.
     """
-    run_id = f"bt_{uuid.uuid4().hex[:12]}"
-    await init_backtest_tables()
+    if run_id is None:
+        run_id = generate_run_id()
+        await init_backtest_tables()
 
     start_dt = datetime.strptime(config.start_date, "%Y-%m-%d")
     end_dt = datetime.strptime(config.end_date, "%Y-%m-%d")
