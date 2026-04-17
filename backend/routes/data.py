@@ -382,3 +382,41 @@ async def data_health_check():
 
     overall = "healthy" if all(r["status"] == "OK" for r in results.values()) else "degraded"
     return {"status": overall, "caches": results}
+
+
+# ── Alternative data sources ───────────────────────────────────────────────────
+
+@router.get("/alt-data/health")
+async def alt_data_health():
+    """GET /api/data/alt-data/health — ping each alternative data source."""
+    from data_sources.aggregator import data_aggregator
+    return await data_aggregator.health_check_all()
+
+
+@router.get("/alt-data/sample/{ticker}")
+async def alt_data_sample(ticker: str):
+    """
+    GET /api/data/alt-data/sample/BHP.AX — fetch all sources for a ticker.
+
+    Debug endpoint: shows what signals each source is producing right now.
+    Not rate-limited beyond the global 120/min — internal use only.
+    """
+    from data_sources.aggregator import data_aggregator
+    from utils.sector_classifier import get_sector
+
+    ticker = ticker.upper()
+    sector = get_sector(ticker)
+
+    all_data = await data_aggregator.gather_all(ticker, sector=sector)
+    composite = data_aggregator.aggregate_signal(all_data)
+
+    return {
+        "status": "success",
+        "ticker": ticker,
+        "sector": sector,
+        "composite": composite,
+        "per_source": {
+            name: [p.to_dict() for p in points]
+            for name, points in all_data.items()
+        },
+    }
