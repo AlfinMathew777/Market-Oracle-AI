@@ -371,6 +371,38 @@ async def _run_simulation_background(simulation_id: str, body: SimulationRequest
         except Exception as _em_err:
             logger.debug("Anti-pattern injection failed (non-fatal): %s", _em_err)
 
+        # ── Alternative data injection (non-blocking) ─────────────────────────
+        # Fetch all 5 alt-data sources in parallel and inject a composite signal
+        # + source summaries into event_data so agents have richer context.
+        # Capped at 15s — never delays or blocks the simulation on a cold cache.
+        try:
+            from data_sources.aggregator import data_aggregator
+            from utils.sector_classifier import get_sector
+            _sector = get_sector(ticker)
+            _alt_data = await asyncio.wait_for(
+                data_aggregator.gather_all(ticker, sector=_sector),
+                timeout=15.0,
+            )
+            _composite = data_aggregator.aggregate_signal(_alt_data)
+            event_data["alt_data"] = {
+                "composite_signal":     _composite["signal"],
+                "composite_confidence": _composite["confidence"],
+                "source_count":         _composite["source_count"],
+                "summaries":            _composite.get("summaries", [])[:20],
+                "per_source":           _composite.get("per_source", {}),
+            }
+            logger.info(
+                "Alt-data injected for %s: signal=%.3f conf=%.2f points=%d",
+                ticker,
+                _composite["signal"],
+                _composite["confidence"],
+                _composite["source_count"],
+            )
+        except asyncio.TimeoutError:
+            logger.warning("Alt-data fetch timed out for %s — proceeding without", ticker)
+        except Exception as _alt_err:
+            logger.debug("Alt-data injection failed (non-fatal): %s", _alt_err)
+
         # Run simulation — internal timeouts guarantee completion:
         #   180s agent budget → partial results if slow
         #   60s Phase-7 judge → fallback verdict if slow
