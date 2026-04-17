@@ -499,7 +499,7 @@ async def health_check(request: Request):
     # Queue stats — only populated when USE_SIMULATION_QUEUE=true
     queue_stats: dict = {}
     try:
-        from queue.simulation_queue import QUEUE_ENABLED, queue as sim_queue
+        from job_queue.simulation_queue import QUEUE_ENABLED, queue as sim_queue
         if QUEUE_ENABLED:
             queue_stats = await sim_queue.get_stats()
     except Exception:

@@ -215,7 +215,7 @@ async def run_simulation(request: Request, body: SimulationRequest, background_t
         }
 
     # ── Queue path (optional — only when Redis queue is enabled) ─────────────
-    from queue.simulation_queue import QUEUE_ENABLED, queue as sim_queue
+    from job_queue.simulation_queue import QUEUE_ENABLED, queue as sim_queue
     if QUEUE_ENABLED:
         try:
             # Resolve ticker for priority routing before enqueuing
@@ -553,7 +553,7 @@ async def get_simulation_status(simulation_id: str):
     """
     if simulation_id not in active_simulations:
         # ── Check Redis queue result store (worker-executed jobs) ────────────
-        from queue.simulation_queue import QUEUE_ENABLED, queue as sim_queue
+        from job_queue.simulation_queue import QUEUE_ENABLED, queue as sim_queue
         if QUEUE_ENABLED:
             try:
                 queue_entry = await sim_queue.get_result(simulation_id)

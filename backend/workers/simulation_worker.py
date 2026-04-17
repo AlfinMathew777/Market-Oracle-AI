@@ -61,7 +61,7 @@ class SimulationWorker:
         self.running   = False
 
     async def start(self) -> None:
-        from queue.simulation_queue import queue
+        from job_queue.simulation_queue import queue
 
         connected = await queue.connect()
         if not connected:
@@ -91,7 +91,7 @@ class SimulationWorker:
 
         logger.info("%s processing %s (ticker=%s)", self.worker_id, simulation_id, ticker)
 
-        from queue.simulation_queue import queue
+        from job_queue.simulation_queue import queue
 
         try:
             # Reconstruct a minimal body-like object so _run_simulation_background
@@ -160,7 +160,7 @@ class SimulationWorker:
                 exc_info=True,
             )
             try:
-                from queue.simulation_queue import queue as _q
+                from job_queue.simulation_queue import queue as _q
                 await _q.fail(simulation_id, str(exc))
             except Exception:
                 pass

@@ -17,7 +17,7 @@ import asyncio
 
 import pytest
 
-from queue.simulation_queue import SimulationQueue
+from job_queue.simulation_queue import SimulationQueue
 
 
 def _skip_if_no_redis(exc: Exception) -> None:

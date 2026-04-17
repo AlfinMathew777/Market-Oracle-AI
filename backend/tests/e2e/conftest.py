@@ -32,7 +32,7 @@ async def api_client(isolated_db):
     # Minimal /api/health stub so contract tests don't need the full server
     @app.get("/api/health")
     async def _health():
-        from queue.simulation_queue import QUEUE_ENABLED, queue as sim_queue
+        from job_queue.simulation_queue import QUEUE_ENABLED, queue as sim_queue
 
         queue_stats: dict = {}
         if QUEUE_ENABLED:
