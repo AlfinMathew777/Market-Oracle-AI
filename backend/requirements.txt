@@ -9,6 +9,7 @@ pytest-cov>=4.0.0
 # locust>=2.24.0   # uncomment locally: pip install locust
 # ── PostgreSQL (optional — required only when DATABASE_URL is set) ─────────
 asyncpg>=0.29.0
+asyncpraw>=7.7.0
 # ── Quant Engine additions (Phase 1 — do not remove) ──────────────────────
 scipy>=1.13.0
 statsmodels>=0.14.2

@@ -26,6 +26,26 @@ os.environ.setdefault("ENVIRONMENT", "development")
 os.environ.setdefault("PAPER_MODE", "true")
 
 
+# ── Loguru sink isolation ──────────────────────────────────────────────────────
+
+@pytest.fixture(autouse=True, scope="session")
+def disable_loguru_sinks():
+    """
+    Remove all loguru sinks before the test session starts.
+
+    Loguru's stderr sink keeps a reference to sys.stderr. When pytest swaps
+    sys.stderr for a temp-file capture object and then closes it at teardown,
+    loguru tries to flush to the closed file and raises ValueError.
+    Removing sinks once at session start prevents this entirely.
+    """
+    try:
+        from loguru import logger as _loguru_logger
+        _loguru_logger.remove()
+    except Exception:
+        pass
+    yield
+
+
 # ── DB isolation ───────────────────────────────────────────────────────────────
 
 @pytest_asyncio.fixture
