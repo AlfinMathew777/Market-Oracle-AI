@@ -143,12 +143,12 @@ CATEGORY_KEYWORDS: Dict[NewsCategory, List[str]] = {
         "sell rating", "hold rating", "analyst", "outperform", "underperform",
     ],
     NewsCategory.COMMODITY_PRICE: [
-        "iron ore", "oil price", "gold price", "copper", "commodity",
+        "iron ore", "oil price", "gold price", "gold", "copper", "commodity",
         "spot price", "futures", "$/t", "$/barrel", "lithium price",
     ],
     NewsCategory.REGULATORY: [
         "regulation", "government", "policy", "legislation", "approval",
-        "ban", "tariff", "sanction", "compliance", "epa", "asic", "rba",
+        "ban", "tariff", "compliance", "epa", "asic", "rba",
     ],
     NewsCategory.MANAGEMENT: [
         "ceo", "cfo", "appoint", "resign", "retire", "executive",

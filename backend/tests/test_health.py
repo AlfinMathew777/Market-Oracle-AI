@@ -212,13 +212,12 @@ class TestDataHealth:
         from unittest.mock import AsyncMock
         import monitoring.data_health as dh
 
-        mock_report = {
-            "overall": "degraded",
-            "signals_blocked": True,
-            "block_reason": "asx_prices unavailable",
-            "feeds": {},
-        }
-        monkeypatch.setattr(dh, "check_feeds", AsyncMock(return_value=mock_report))
+        # should_block_signals calls _check_yfinance directly — patch that, not check_feeds
+        monkeypatch.setattr(
+            dh,
+            "_check_yfinance",
+            AsyncMock(return_value={"status": "error", "error": "asx_prices unavailable"}),
+        )
 
         blocked, reason = await dh.should_block_signals()
         assert blocked is True

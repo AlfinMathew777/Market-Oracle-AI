@@ -1,6 +1,6 @@
 """API route for running market simulations."""
 
-from fastapi import APIRouter, HTTPException, Request, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, Request, BackgroundTasks
 from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List
 import asyncio
@@ -15,6 +15,21 @@ from event_ticker_mapping import map_event_to_ticker, get_ticker_info
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["simulation"])
+
+
+def _require_signals_enabled():
+    """Dependency: raise 503 immediately if the kill switch is active.
+
+    Using a Depends ensures FastAPI checks this before even attempting body
+    parsing, so a kill-switch 503 is always returned rather than 422.
+    """
+    from system_state import is_signals_enabled, get_system_state
+    if not is_signals_enabled():
+        state = get_system_state()
+        raise HTTPException(
+            status_code=503,
+            detail={"error": "System paused", "reason": state["kill_switch_reason"]},
+        )
 
 
 class _BoundedSimulationCache(dict):
@@ -154,7 +169,7 @@ class SimulationRequest(BaseModel):
         return v
 
 
-@router.post("/simulate")
+@router.post("/simulate", dependencies=[Depends(_require_signals_enabled)])
 async def run_simulation(request: Request, body: SimulationRequest, background_tasks: BackgroundTasks):
     """
     POST /api/simulate — starts a background simulation, returns simulation_id immediately.
@@ -168,15 +183,6 @@ async def run_simulation(request: Request, body: SimulationRequest, background_t
     """
     from server import require_api_key
     require_api_key(request)
-
-    # ── Kill switch check ────────────────────────────────────────────────────
-    from system_state import is_signals_enabled, get_system_state
-    if not is_signals_enabled():
-        state = get_system_state()
-        raise HTTPException(
-            status_code=503,
-            detail={"error": "System paused", "reason": state["kill_switch_reason"]},
-        )
 
     simulation_id = f"sim_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:12]}"
 

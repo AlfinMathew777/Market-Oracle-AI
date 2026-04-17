@@ -390,6 +390,29 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(SecurityHeadersMiddleware)
 
+
+# ── Kill switch middleware ─────────────────────────────────────────────────────
+# Intercepts simulation POST requests BEFORE body parsing so that a 503 is
+# always returned when the kill switch is active, even for malformed payloads.
+
+_KILL_SWITCH_PATHS = {"/api/simulate", "/api/simulate/chokepoint"}
+
+
+class KillSwitchMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        if request.method == "POST" and request.url.path in _KILL_SWITCH_PATHS:
+            from system_state import is_signals_enabled, get_system_state
+            if not is_signals_enabled():
+                state = get_system_state()
+                return JSONResponse(
+                    status_code=503,
+                    content={"detail": {"error": "System paused", "reason": state.get("kill_switch_reason")}},
+                )
+        return await call_next(request)
+
+
+app.add_middleware(KillSwitchMiddleware)
+
 # Include routers
 app.include_router(data_router)
 app.include_router(simulate_router)
