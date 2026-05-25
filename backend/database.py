@@ -262,6 +262,10 @@ async def init_db() -> None:
             "resolution_notes":    "TEXT",
             "excluded_from_stats": "INTEGER DEFAULT 0",
             "exclusion_reason":    "TEXT",
+            # Migration 002: dream-cycle experiment instrumentation
+            "experiment_arm":      "TEXT",
+            "model_used":          "TEXT",
+            "raw_prompt_hash":     "TEXT",
         }
         new_cols = list(_ALLOWED_MIGRATION_COLS.items())
         async with aiosqlite.connect(DB_PATH) as db:
