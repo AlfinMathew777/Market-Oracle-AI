@@ -745,6 +745,7 @@ async def _persist_simulation(simulation_id, ticker, prediction, event_data, exe
 
     try:
         from database import save_prediction_log
+        from experiment.arm_assignment import assign_arm, prompt_hash
         p = prediction if isinstance(prediction, dict) else prediction.model_dump()
         causal = p.get("causal_chain") or []
         primary_reason = (
@@ -765,6 +766,15 @@ async def _persist_simulation(simulation_id, ticker, prediction, event_data, exe
         raw_dir = p.get("direction", "NEUTRAL")
         direction_str = raw_dir.value if hasattr(raw_dir, "value") else str(raw_dir)
 
+        # Experiment instrumentation — see docs/analysis_plan.md.
+        # Arm is recorded for every row but no lesson injection is wired yet,
+        # so Treatment and Control are operationally identical until the dream
+        # cycle ships.
+        arm = assign_arm(ticker)
+        # model_used captures the configured primary model. Threading the
+        # actually-used model out of LLMRouter's cascade is a follow-up.
+        configured_model = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
+
         await save_prediction_log(
             simulation_id=simulation_id,
             ticker=ticker,
@@ -781,7 +791,10 @@ async def _persist_simulation(simulation_id, ticker, prediction, event_data, exe
             agent_bearish=bear,
             agent_neutral=neut,
             trend_label=p.get("trend_label"),
+            experiment_arm=arm,
+            model_used=configured_model,
+            raw_prompt_hash=prompt_hash(event_data),
         )
-        logger.info("Saved prediction_log for %s (%s)", simulation_id, ticker)
+        logger.info("Saved prediction_log for %s (%s) [arm=%s]", simulation_id, ticker, arm)
     except Exception as e:
         logger.error("save_prediction_log failed for %s: %s", simulation_id, e, exc_info=True)
