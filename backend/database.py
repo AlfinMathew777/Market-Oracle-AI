@@ -222,6 +222,30 @@ async def init_db() -> None:
                 CREATE INDEX IF NOT EXISTS idx_alerts_created_at ON alerts(created_at DESC);
                 CREATE INDEX IF NOT EXISTS idx_alerts_unacked     ON alerts(acknowledged_at)
                     WHERE acknowledged_at IS NULL;
+
+                -- ── Migration 002: dream-cycle experiment scaffolding ────────
+                -- See docs/analysis_plan.md for the experiment design.
+                CREATE TABLE IF NOT EXISTS agent_lessons (
+                    id                    TEXT PRIMARY KEY,
+                    lesson_text           TEXT NOT NULL,
+                    cluster_id            TEXT,
+                    sector                TEXT,
+                    priority              INTEGER DEFAULT 0,
+                    status                TEXT NOT NULL DEFAULT 'pending_approval',
+                    effective_from        TEXT,
+                    approved_by           TEXT,
+                    approved_at           TEXT,
+                    deactivated_at        TEXT,
+                    deactivation_reason   TEXT,
+                    source_prediction_ids TEXT,
+                    raw_llm_reasoning     TEXT,
+                    created_at            TEXT NOT NULL DEFAULT (datetime('now'))
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_lessons_status_eff
+                    ON agent_lessons(status, effective_from);
+                CREATE INDEX IF NOT EXISTS idx_lessons_sector  ON agent_lessons(sector);
+                CREATE INDEX IF NOT EXISTS idx_lessons_cluster ON agent_lessons(cluster_id);
             """)
             await db.commit()
 
