@@ -651,8 +651,9 @@ async def save_prediction_log(
                     iron_ore_at_prediction, audusd_at_prediction,
                     brent_at_prediction, bhp_price_at_prediction,
                     agent_bullish, agent_bearish, agent_neutral, trend_label,
-                    excluded_from_stats, exclusion_reason)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    excluded_from_stats, exclusion_reason,
+                    experiment_arm, model_used, raw_prompt_hash)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (
                     simulation_id, ticker, pred_dir, confidence,
                     datetime.now(timezone.utc).isoformat(),
@@ -665,6 +666,9 @@ async def save_prediction_log(
                     trend_label,
                     excluded,
                     exclusion_reason,
+                    experiment_arm,
+                    model_used,
+                    raw_prompt_hash,
                 )
             )
             await db.commit()
