@@ -51,7 +51,7 @@ class AnalystRecommendations(DataSource):
 
         # ── Current consensus ─────────────────────────────────────────────────
         summary = data.get("summary")
-        if summary:
+        if summary is not None and not getattr(summary, "empty", True):
             point = self._build_consensus(ticker, summary)
             if point:
                 points.append(point)

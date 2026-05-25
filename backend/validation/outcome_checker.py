@@ -28,6 +28,8 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 from zoneinfo import ZoneInfo
 
+from validation.direction_normalizer import normalize_direction, is_actionable
+
 logger = logging.getLogger(__name__)
 
 # ── Constants ──────────────────────────────────────────────────────────────────
@@ -178,34 +180,35 @@ def _determine_outcome(
     Compare entry vs exit price against the predicted direction.
 
     Args:
-        predicted_direction: 'bullish', 'bearish', or 'neutral' (case-insensitive)
+        predicted_direction: any direction token — normalised via direction_normalizer
         entry_price:         Price at signal time
         exit_price:          Price at validation time
 
     Returns:
-        (outcome, change_pct) where outcome is 'CORRECT', 'INCORRECT', or 'NEUTRAL'
+        (outcome, change_pct) where outcome is one of:
+          'CORRECT'       — direction matched price movement
+          'INCORRECT'     — direction contradicted price movement
+          'NEUTRAL'       — known neutral token OR price moved < threshold (no signal)
+          'UNVALIDATABLE' — token was not recognised by normalize_direction()
     """
     change_pct = (exit_price - entry_price) / entry_price * 100
-    direction = predicted_direction.lower()
+    norm = normalize_direction(predicted_direction)
 
-    # Neutral predictions abstain — never counted as correct or incorrect
-    if direction in ("neutral",):
+    # Non-actionable directions abstain — never CORRECT or INCORRECT
+    if not is_actionable(norm):
+        if norm == "unvalidatable":
+            return "UNVALIDATABLE", change_pct
         return "NEUTRAL", change_pct
 
     moved_up = change_pct > _MIN_MOVE_PCT
     moved_down = change_pct < -_MIN_MOVE_PCT
-    moved_significantly = moved_up or moved_down
 
-    if not moved_significantly:
+    if not (moved_up or moved_down):
         return "NEUTRAL", change_pct
 
-    # Normalize "up"/"down"/"buy"/"sell" aliases
-    is_bullish = direction in ("bullish", "up", "buy")
-    is_bearish = direction in ("bearish", "down", "sell")
-
-    if is_bullish and moved_up:
+    if norm == "bullish" and moved_up:
         return "CORRECT", change_pct
-    if is_bearish and moved_down:
+    if norm == "bearish" and moved_down:
         return "CORRECT", change_pct
     return "INCORRECT", change_pct
 
@@ -262,7 +265,7 @@ async def validate_prediction(prediction: dict) -> str:
     writes the result back to prediction_log, and returns the outcome string.
 
     Returns:
-        'CORRECT', 'INCORRECT', 'NEUTRAL', or 'SKIPPED' (on price fetch failure)
+        'CORRECT', 'INCORRECT', 'NEUTRAL', 'UNVALIDATABLE', or 'SKIPPED' (on price fetch failure)
     """
     from database import update_prediction_resolution
 
@@ -300,7 +303,7 @@ async def validate_prediction(prediction: dict) -> str:
     elif outcome == "INCORRECT":
         correct_flag = False
     else:
-        correct_flag = None  # NEUTRAL abstains — stored as NULL
+        correct_flag = None  # NEUTRAL / UNVALIDATABLE — stored as NULL, not counted
 
     lesson = (
         f"{ticker} moved {change_pct:+.2f}% over 24h ({outcome.lower()}). "
@@ -446,9 +449,45 @@ async def get_validation_summary(days: int = 30) -> dict:
           AND predicted_direction NOT IN ('neutral')
     """
 
+    # All known tokens from direction_normalizer (used to find unvalidatable rows)
+    from validation.direction_normalizer import BULLISH_TOKENS, BEARISH_TOKENS, NEUTRAL_TOKENS
+    _all_known = BULLISH_TOKENS | BEARISH_TOKENS | NEUTRAL_TOKENS
+    _known_placeholders = ",".join("?" * len(_all_known))
+    _known_list = list(_all_known)
+
     try:
         async with get_db() as db:
             db.row_factory = lambda c, r: dict(zip([col[0] for col in c.description], r))
+
+            # Raw resolved count before any filtering — exposes true total
+            async with db.execute(
+                "SELECT COUNT(*) as n FROM prediction_log "
+                "WHERE prediction_correct IS NOT NULL AND resolved_at >= ?",
+                (since,),
+            ) as cur:
+                raw_row = await cur.fetchone()
+            raw_resolved = raw_row["n"] if raw_row else 0
+
+            # Rows dropped by excluded_from_stats gate
+            async with db.execute(
+                "SELECT COUNT(*) as n FROM prediction_log "
+                "WHERE prediction_correct IS NOT NULL AND resolved_at >= ? "
+                "AND excluded_from_stats = 1",
+                (since,),
+            ) as cur:
+                excl_row = await cur.fetchone()
+            excluded_count = excl_row["n"] if excl_row else 0
+
+            # Rows with unrecognised direction tokens (not in any known set)
+            async with db.execute(
+                f"SELECT COUNT(*) as n FROM prediction_log "
+                f"WHERE prediction_correct IS NOT NULL AND resolved_at >= ? "
+                f"AND (excluded_from_stats IS NULL OR excluded_from_stats = 0) "
+                f"AND LOWER(predicted_direction) NOT IN ({_known_placeholders})",
+                [since] + _known_list,
+            ) as cur:
+                unval_row = await cur.fetchone()
+            unvalidatable_count = unval_row["n"] if unval_row else 0
 
             # Overall totals
             async with db.execute(
@@ -461,17 +500,6 @@ async def get_validation_summary(days: int = 30) -> dict:
             total_validated = overall["total"] if overall else 0
             correct = int(overall["correct"] or 0) if overall else 0
             incorrect = total_validated - correct
-            # Count neutral outcomes separately (they don't appear in prediction_correct)
-            async with db.execute(
-                f"""SELECT COUNT(*) as n FROM prediction_log
-                    WHERE resolved_at >= ?
-                      AND (excluded_from_stats IS NULL OR excluded_from_stats = 0)
-                      AND actual_direction = 'neutral'
-                      AND prediction_correct IS NULL""",
-                (since,),
-            ) as cur:
-                neut_row = await cur.fetchone()
-            neutral = neut_row["n"] if neut_row else 0
 
             # By predicted direction
             async with db.execute(
@@ -486,13 +514,24 @@ async def get_validation_summary(days: int = 30) -> dict:
                 d = row["predicted_direction"]
                 t = row["total"]
                 c = int(row["correct"] or 0)
-                # Normalise display key: bullish→BUY, bearish→SELL
-                display = {"bullish": "BUY", "bearish": "SELL"}.get(d, d.upper())
-                by_direction[display] = {
-                    "total": t,
-                    "correct": c,
-                    "hit_rate": round(c / t, 3) if t > 0 else 0.0,
-                }
+                # Normalise display key: bullish/up→BUY, bearish/down→SELL
+                from validation.direction_normalizer import normalize_direction
+                norm = normalize_direction(d)
+                display = {"bullish": "BUY", "bearish": "SELL"}.get(norm, d.upper())
+                key = display
+                if key in by_direction:
+                    # Merge legacy tokens (up→BUY, down→SELL) with canonical key
+                    by_direction[key]["total"] += t
+                    by_direction[key]["correct"] += c
+                    by_direction[key]["hit_rate"] = round(
+                        by_direction[key]["correct"] / by_direction[key]["total"], 3
+                    )
+                else:
+                    by_direction[key] = {
+                        "total": t,
+                        "correct": c,
+                        "hit_rate": round(c / t, 3) if t > 0 else 0.0,
+                    }
 
             # By confidence band (55%+ bands matching the minimum signal threshold)
             confidence_bands = [
@@ -518,18 +557,16 @@ async def get_validation_summary(days: int = 30) -> dict:
 
         directional = correct + incorrect
         hit_rate = round(correct / directional, 3) if directional > 0 else 0.0
-        # Excluding neutral: same as hit_rate when neutrals aren't in the denominator
-        # (they're tracked separately, not in prediction_correct)
-        hit_rate_excl_neutral = hit_rate
 
         return {
             "period_days": days,
+            "raw_resolved": raw_resolved,
+            "excluded_count": excluded_count,
+            "unvalidatable_count": unvalidatable_count,
             "total_validated": total_validated,
             "correct": correct,
             "incorrect": incorrect,
-            "neutral": neutral,
             "hit_rate": hit_rate,
-            "hit_rate_excluding_neutral": hit_rate_excl_neutral,
             "by_direction": by_direction,
             "by_confidence_band": by_confidence_band,
         }
@@ -538,9 +575,12 @@ async def get_validation_summary(days: int = 30) -> dict:
         logger.error("get_validation_summary failed: %s", e)
         return {
             "period_days": days,
+            "raw_resolved": 0,
+            "excluded_count": 0,
+            "unvalidatable_count": 0,
             "total_validated": 0,
-            "correct": 0, "incorrect": 0, "neutral": 0,
-            "hit_rate": 0.0, "hit_rate_excluding_neutral": 0.0,
+            "correct": 0, "incorrect": 0,
+            "hit_rate": 0.0,
             "by_direction": {}, "by_confidence_band": {},
             "error": str(e),
         }

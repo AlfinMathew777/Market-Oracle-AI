@@ -57,10 +57,8 @@ def test_mem_cache_set_and_get():
 
 
 def test_mem_cache_expires():
-    import time
-    _mem_set("_expire_key", "gone", ttl_seconds=0)
-    # TTL=0 means it expires immediately on next monotonic check
-    time.sleep(0.01)
+    # ttl_seconds=-1 → already expired at set time
+    _mem_set("_expire_key", "gone", ttl_seconds=-1)
     assert _mem_get("_expire_key") is None
 
 

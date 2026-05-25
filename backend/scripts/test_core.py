@@ -770,7 +770,13 @@ def determine_direction(
     """
     total        = bullish + bearish + neutral
     neutral_ratio = neutral / total if total > 0 else 0
-    no_catalyst  = trigger_event.startswith("No major catalyst")
+    # Match both the generic "No major catalyst" prefix AND the sector-specific
+    # fallback format "No {Sector}-specific catalyst identified for {TICKER}…"
+    # so that CBA.AX and other tickers with no sector catalyst take the neutral
+    # path instead of falling through to a default-bullish return.
+    no_catalyst = trigger_event.startswith("No major catalyst") or (
+        trigger_event.startswith("No ") and "catalyst identified" in trigger_event
+    )
 
     # Clear majority (margin >= 5)
     if bullish > bearish and (bullish - bearish) >= 5:
@@ -1329,6 +1335,22 @@ class Simulation:
             f"Description: {event_data.get('notes', event_data.get('location', 'No description'))}"
         )
 
+        # Append alternative data signals so agents and the reconciler can cite
+        # specific ASX announcements, insider activity, and analyst consensus in
+        # the causal chain slots (revenue / demand / sentiment / cost).
+        _alt = event_data.get("alt_data")
+        if _alt and _alt.get("source_count", 0) > 0:
+            _composite_sig = _alt.get("composite_signal", 0.0)
+            _composite_dir = "bullish" if _composite_sig > 0.05 else ("bearish" if _composite_sig < -0.05 else "neutral")
+            _summaries = _alt.get("summaries", [])
+            _alt_lines = [
+                f"\n=== ALT DATA SIGNALS (composite: {_composite_dir}, signal={_composite_sig:+.2f}) ===",
+            ]
+            for _s in _summaries[:10]:  # cap at 10 summaries to avoid prompt bloat
+                _alt_lines.append(f"  - {_s}")
+            _alt_lines.append("=== END ALT DATA ===")
+            event_context += "\n" + "\n".join(_alt_lines)
+
         # ── STEP 4: Run agents with per-agent and total-simulation timeouts ────
         logger.info("Running %d adversarial agents in parallel ...", len(self.agents))
         _elapsed_before_agents = asyncio.get_event_loop().time() - _sim_loop_start
@@ -1722,6 +1744,22 @@ class Simulation:
                     "MC confidence stable (stability=%.1f%%, conviction=%s)",
                     mc_confidence.direction_stability_pct, mc_confidence.conviction_label,
                 )
+
+            # Extra calibration: penalise when MC reports 'stable' but agent
+            # consensus is weak (<55%) or causal chain is empty — bootstrap
+            # amplifies noise in both cases and inflates apparent stability.
+            from quant.calibration import calibrate_monte_carlo_confidence
+            _chain_qual = confidence_audit.get("causal_chain_quality", "ADEQUATE")
+            final_confidence, _calib_penalties = calibrate_monte_carlo_confidence(
+                final_confidence=final_confidence,
+                mc_confidence_obj=mc_confidence,
+                n_bull=n_bull,
+                n_bear=n_bear,
+                n_neut=n_neut,
+                chain_quality=_chain_qual,
+            )
+            confidence_audit["penalties_applied"].extend(_calib_penalties)
+
         except Exception as _mc_err:
             logger.warning("Monte Carlo failed: %s", _mc_err)
             mc_confidence = None
