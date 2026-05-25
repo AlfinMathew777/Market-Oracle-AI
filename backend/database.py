@@ -619,6 +619,9 @@ async def save_prediction_log(
     agent_bearish: int = 0,
     agent_neutral: int = 0,
     trend_label: Optional[str] = None,
+    experiment_arm: Optional[str] = None,
+    model_used: Optional[str] = None,
+    raw_prompt_hash: Optional[str] = None,
 ) -> None:
     """Save a full prediction to prediction_log. Called non-blocking after every simulation.
 
