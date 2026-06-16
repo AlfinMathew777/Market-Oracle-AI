@@ -24,6 +24,7 @@ from models.reasoning_output import ReasoningOutput
 from models.trade_execution import TradeExecution, TradeExecutionRequest
 from services.accuracy_tracker import store_prediction
 from services.realtime_stream import stream_manager
+from trust.integration import certify_reasoning
 
 logger = logging.getLogger(__name__)
 
@@ -98,6 +99,10 @@ class ReasoningResponse(BaseModel):
     # Broadcast
     signal_broadcast: bool = False
 
+    # Trust certificate — the 5-layer verdict + tamper-evident ledger reference.
+    # Present on every response; `actionable=False` means a layer vetoed the signal.
+    trust: Optional[Dict[str, Any]] = None
+
     processing_time_ms: float
 
 
@@ -149,10 +154,28 @@ async def synthesize_reasoning(
     if memory_applied and memory_ctx:
         memory_summary = memory_ctx.get("memory_prompt", "")[:200] or None
 
-    # ── Step 3: trade execution ───────────────────────────────────────────────
+    # ── Step 2b: TRUST GATEWAY — 5-layer verdict before anything acts on this ──
+    # Evidence → Validation → Risk → Audit. Fail-closed: a gateway error blocks.
+    trust_cert = None
+    actionable = True
+    try:
+        cert = await certify_reasoning(result, news_headline=request.news_headline)
+        trust_cert = cert.to_dict()
+        trust_cert["actionable"] = cert.is_actionable
+        actionable = cert.is_actionable
+        if not actionable:
+            logger.info("Trust gateway blocked %s: %s", request.stock_ticker, cert.explain)
+    except Exception as exc:
+        # The gateway itself failing is treated as a block (no green light = red light).
+        logger.error("Trust gateway error for %s — treating as non-actionable: %s",
+                     request.stock_ticker, exc)
+        actionable = False
+
+    # ── Step 3: trade execution (only for trust-approved actionable signals) ──
     trade_execution: Optional[TradeExecution] = None
     if (
-        request.generate_trade_execution
+        actionable
+        and request.generate_trade_execution
         and result.final_decision.recommendation.value in ("BUY", "SELL")
         and request.market_signals.get("current_price")
     ):
@@ -193,9 +216,9 @@ async def synthesize_reasoning(
     except Exception as exc:
         logger.error("Failed to store prediction for %s: %s", request.stock_ticker, exc)
 
-    # ── Step 5: broadcast ─────────────────────────────────────────────────────
+    # ── Step 5: broadcast (suppressed when the trust gateway blocked the signal) ──
     signal_broadcast = False
-    if request.broadcast_signal:
+    if request.broadcast_signal and actionable:
         try:
             await stream_manager.broadcast_signal(
                 ticker=request.stock_ticker,
@@ -227,6 +250,7 @@ async def synthesize_reasoning(
         memory_applied=memory_applied,
         memory_summary=memory_summary,
         signal_broadcast=signal_broadcast,
+        trust=trust_cert,
         processing_time_ms=round(elapsed_ms, 2),
     )
 

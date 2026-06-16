@@ -2,7 +2,7 @@
 
 ## What This Is
 Real-time geopolitical-to-ASX market intelligence platform.
-50-agent AI swarm simulates market participant reactions to global events.
+AI agent swarm (default 30 agents, configurable up to ~50) simulates market participant reactions to global events.
 Predicts ASX stock movements from conflict events and maritime chokepoint disruptions.
 
 ## Stack
@@ -10,8 +10,8 @@ Predicts ASX stock movements from conflict events and maritime chokepoint disrup
 - **Frontend:** React 19 (Create React App + CRACO) on Vercel — `frontend/`
 - **Database:** SQLite (`backend/aussieintel.db`) for prediction history
 - **Cache:** Redis (Railway) via `backend/cache.py`
-- **AI:** Claude claude-sonnet-4-6 via `backend/llm_router.py` + `LLMRouter`
-- **Simulation:** 50 agents in `backend/scripts/test_core.py`
+- **AI:** Multi-provider LLM fallback chain via `backend/llm_router.py` + `LLMRouter` — Groq `llama-3.3-70b` → Groq `llama-3.1-8b-instant` → OpenRouter (auto) → Gemini `gemini-2.0-flash`. Routing modes: `call_boost()` (70b-first, agents), `call_fast()` (8b-first, pattern matching), `call_primary()` (Gemini-first, reports).
+- **Simulation:** agent swarm in `backend/scripts/test_core.py` — `NUM_AGENTS` env var (default 30; 25 in tests; up to ~50 for full demo)
 - **Maps:** globe.gl (3D WebGL globe) + react-simple-maps (Australia SVG)
 
 ## Dev Commands

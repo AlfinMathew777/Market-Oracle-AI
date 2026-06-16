@@ -101,9 +101,7 @@ class TradeExecutor:
             risk_percent=round((risk_amount / entry_price) * 100, 2),
         )
 
-        position_size_pct = self._position_size(
-            risk_reward.risk_percent, request.confidence_score, risk_params["position_pct"]
-        )
+        position_size_pct, sizing_note = self._size_position(request, risk_reward, risk_params)
         timeframe = self._timeframe(request.confidence_score)
         setup_quality = self._grade(
             risk_reward.risk_reward_ratio,
@@ -151,9 +149,41 @@ class TradeExecutor:
             invalidation_conditions=self._invalidation_conditions(action, stop_loss),
             setup_quality=setup_quality,
             confidence_score=request.confidence_score,
+            notes=sizing_note,
         )
 
     # ── helpers ────────────────────────────────────────────────────────────────
+
+    def _size_position(
+        self,
+        request: TradeExecutionRequest,
+        risk_reward: RiskRewardProfile,
+        risk_params: dict,
+    ) -> tuple[float, Optional[str]]:
+        """
+        Choose the position size.
+
+        When a historical win-rate is supplied, size with fractional Kelly (sizes
+        up on a proven edge, down to the floor on an unproven/losing one) and
+        return its audit rationale. Otherwise fall back to the legacy linear
+        confidence scaling, leaving existing behaviour unchanged.
+        """
+        if request.historical_win_rate is not None:
+            from services.position_sizer import compute_kelly_position
+
+            kelly = compute_kelly_position(
+                win_rate_pct=request.historical_win_rate,
+                sample_size=request.historical_sample_size,
+                payoff_ratio=risk_reward.risk_reward_ratio,
+                stop_risk_percent=risk_reward.risk_percent,
+                max_position_pct=risk_params["position_pct"],
+            )
+            return kelly.position_size_percent, f"Sizing — {kelly.rationale}"
+
+        legacy = self._position_size(
+            risk_reward.risk_percent, request.confidence_score, risk_params["position_pct"]
+        )
+        return legacy, None
 
     def _bullish_targets(
         self,

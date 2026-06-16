@@ -17,6 +17,15 @@ repos:
         args: ['--maxkb=500']
       - id: detect-private-key
 
+  # API-key / token scanner — detect-private-key only catches PEM/SSH keys.
+  # The baseline records known placeholders so only NEW secrets block a commit.
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        args: ['--baseline', '.secrets.baseline']
+        exclude: 'package-lock\.json|.*\.lock$|backend\.log|.*\.pack$'
+
   - repo: local
     hooks:
       - id: pytest-quick
