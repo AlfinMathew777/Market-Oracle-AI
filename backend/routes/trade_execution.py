@@ -32,6 +32,7 @@ async def generate_trade_execution(
     Returns actionable entry, exit, and risk parameters.
     Returns 422 if the signal is not actionable (HOLD/WAIT/NEUTRAL).
     """
+    request = await _enrich_with_track_record(request)
     result = _executor.generate_execution_plan(request)
 
     if result is None:
@@ -41,6 +42,37 @@ async def generate_trade_execution(
         )
 
     return result
+
+
+async def _enrich_with_track_record(
+    request: TradeExecutionRequest,
+) -> TradeExecutionRequest:
+    """
+    Attach the ticker's historical win-rate so the executor can size with Kelly.
+
+    Skipped when the caller already supplied a win-rate. Any failure (or no
+    resolved history) leaves the request untouched → executor uses legacy sizing.
+    """
+    if request.historical_win_rate is not None:
+        return request
+
+    try:
+        from services.accuracy_tracker import get_accuracy_summary
+
+        stats = await get_accuracy_summary(ticker=request.stock_ticker, days=180)
+        resolved = stats.get("resolved_predictions", 0)
+        if not resolved:
+            return request
+
+        return request.model_copy(
+            update={
+                "historical_win_rate": stats.get("accuracy_pct", 0.0),
+                "historical_sample_size": resolved,
+            }
+        )
+    except Exception as exc:  # noqa: BLE001 — sizing must never break execution
+        logger.warning("Track-record enrichment failed for %s: %s", request.stock_ticker, exc)
+        return request
 
 
 @router.get("/health")

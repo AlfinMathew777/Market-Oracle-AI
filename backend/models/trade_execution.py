@@ -106,6 +106,15 @@ class TradeExecutionRequest(BaseModel):
     risk_tolerance: Literal["conservative", "moderate", "aggressive"] = "moderate"
     account_size: Optional[float] = None
 
+    # Historical track record for Kelly position sizing (optional — when omitted,
+    # the executor falls back to legacy linear confidence scaling).
+    historical_win_rate: Optional[float] = Field(
+        None, ge=0.0, le=100.0, description="Hit-rate % of comparable predictions"
+    )
+    historical_sample_size: int = Field(
+        0, ge=0, description="Number of resolved predictions behind the win-rate"
+    )
+
     # Technical context
     atr_14: Optional[float] = Field(None, description="14-period ATR")
     support_levels: list[float] = Field(default_factory=list)
