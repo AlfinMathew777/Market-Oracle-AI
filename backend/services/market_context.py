@@ -1553,8 +1553,17 @@ async def fetch_market_context(ticker: str, event_keywords: Optional[List[str]] 
         if item not in all_news:
             all_news.append(item)
 
+    # Context engineering (retrieval): drop off-topic headlines before they reach the
+    # ~30 agent prompts. Disabled by default (ENABLE_NEWS_RELEVANCE_FILTER); fails open
+    # to the full list on any error, so it can never starve agents of news.
+    from services.news_relevance import filter_relevant_news
+    all_news = await filter_relevant_news(ticker, all_news)
+
+    # Context engineering (reduction): cap each headline so a single pathologically long
+    # item can't inflate every agent prompt at once. truncate_text tolerates None/empty.
+    from services.context_budget import truncate_text
     news_block = "\n".join(
-        f"[{n.get('signal_strength', 'MEDIUM')}] {n['title']} ({n.get('hours_old', '?')}h ago)"
+        f"[{n.get('signal_strength', 'MEDIUM')}] {truncate_text(n.get('title', ''))} ({n.get('hours_old', '?')}h ago)"
         for n in all_news
     ) if all_news else "No recent news within 24h threshold."
 
