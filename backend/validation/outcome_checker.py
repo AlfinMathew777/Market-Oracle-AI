@@ -34,9 +34,10 @@ logger = logging.getLogger(__name__)
 
 # ── Constants ──────────────────────────────────────────────────────────────────
 
+from validation.constants import MIN_MOVE_PCT as _MIN_MOVE_PCT  # shared band — single source
+
 _SYDNEY_TZ = ZoneInfo("Australia/Sydney")
 _VALIDATION_HORIZON_HOURS = 24       # How long after signal to check price
-_MIN_MOVE_PCT = 0.5                  # Threshold to call CORRECT/INCORRECT (%)
 _YFINANCE_RETRY_DELAY = 2.0          # Seconds between retries on rate-limit
 _YFINANCE_MAX_RETRIES = 3
 
@@ -171,6 +172,39 @@ async def fetch_price_at_time(ticker: str, target_time: datetime) -> Optional[fl
 
 # ── Core validation logic ──────────────────────────────────────────────────────
 
+def classify_outcome(predicted_direction: str, change_pct: float) -> str:
+    """
+    Single source of truth for the ±_MIN_MOVE_PCT deadband label.
+
+    Given a predicted direction token and a percent move, return one of:
+      'CORRECT'       — direction matched a move that cleared the deadband
+      'INCORRECT'     — direction contradicted a move that cleared the deadband
+      'NEUTRAL'       — known neutral token OR |move| within the deadband (no signal)
+      'UNVALIDATABLE' — token was not recognised by normalize_direction()
+
+    The reputation loop re-derives labels from the persisted change_pct through
+    THIS function, so every resolver — 24h or 7-day — feeds the loop the same
+    deadband semantics. A flat move abstains; it is never scored INCORRECT.
+    """
+    norm = normalize_direction(predicted_direction)
+
+    # Non-actionable directions abstain — never CORRECT or INCORRECT
+    if not is_actionable(norm):
+        return "UNVALIDATABLE" if norm == "unvalidatable" else "NEUTRAL"
+
+    moved_up = change_pct > _MIN_MOVE_PCT
+    moved_down = change_pct < -_MIN_MOVE_PCT
+
+    if not (moved_up or moved_down):
+        return "NEUTRAL"
+
+    if norm == "bullish" and moved_up:
+        return "CORRECT"
+    if norm == "bearish" and moved_down:
+        return "CORRECT"
+    return "INCORRECT"
+
+
 def _determine_outcome(
     predicted_direction: str,
     entry_price: float,
@@ -179,38 +213,10 @@ def _determine_outcome(
     """
     Compare entry vs exit price against the predicted direction.
 
-    Args:
-        predicted_direction: any direction token — normalised via direction_normalizer
-        entry_price:         Price at signal time
-        exit_price:          Price at validation time
-
-    Returns:
-        (outcome, change_pct) where outcome is one of:
-          'CORRECT'       — direction matched price movement
-          'INCORRECT'     — direction contradicted price movement
-          'NEUTRAL'       — known neutral token OR price moved < threshold (no signal)
-          'UNVALIDATABLE' — token was not recognised by normalize_direction()
+    Returns (outcome, change_pct) — outcome from classify_outcome(); see its docstring.
     """
     change_pct = (exit_price - entry_price) / entry_price * 100
-    norm = normalize_direction(predicted_direction)
-
-    # Non-actionable directions abstain — never CORRECT or INCORRECT
-    if not is_actionable(norm):
-        if norm == "unvalidatable":
-            return "UNVALIDATABLE", change_pct
-        return "NEUTRAL", change_pct
-
-    moved_up = change_pct > _MIN_MOVE_PCT
-    moved_down = change_pct < -_MIN_MOVE_PCT
-
-    if not (moved_up or moved_down):
-        return "NEUTRAL", change_pct
-
-    if norm == "bullish" and moved_up:
-        return "CORRECT", change_pct
-    if norm == "bearish" and moved_down:
-        return "CORRECT", change_pct
-    return "INCORRECT", change_pct
+    return classify_outcome(predicted_direction, change_pct), change_pct
 
 
 # ── Database helpers ───────────────────────────────────────────────────────────
@@ -236,7 +242,7 @@ async def get_pending_validations(limit: int = 200) -> list[dict]:
         async with get_db() as db:
             db.row_factory = lambda c, r: dict(zip([col[0] for col in c.description], r))
             async with db.execute(
-                """SELECT id, ticker, predicted_direction, confidence,
+                """SELECT id, id AS simulation_id, ticker, predicted_direction, confidence,
                           predicted_at, bhp_price_at_prediction,
                           primary_reason
                    FROM prediction_log
@@ -342,6 +348,16 @@ async def validate_prediction(prediction: dict) -> str:
     except Exception as e:
         logger.error("validate_prediction: write-back failed for %s: %s", pred_id, e)
         return "SKIPPED"
+
+    # provisional reputation update — superseded later if the 7-day label lands.
+    if outcome in ("CORRECT", "INCORRECT"):
+        from trust.reputation import STAGE_PROVISIONAL
+        from trust.reputation_update import update_from_resolution
+        await update_from_resolution(
+            simulation_id=prediction.get("simulation_id") or "",
+            prediction_id=pred_id, outcome=outcome, change_pct=change_pct,
+            stage=STAGE_PROVISIONAL,
+        )
 
     return outcome
 

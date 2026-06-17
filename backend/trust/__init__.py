@@ -41,12 +41,14 @@ from trust.contracts import (
 )
 from trust.gateway import TrustGateway
 from trust.ledger import TrustLedger
+from trust.reputation import ReputationStore
 
 logger = logging.getLogger(__name__)
 
 __all__ = [
     "TrustGateway",
     "TrustLedger",
+    "ReputationStore",
     "TrustContext",
     "TrustCertificate",
     "Decision",
@@ -56,10 +58,14 @@ __all__ = [
     "CONSTITUTION_VERSION",
     "build_context",
     "get_gateway",
+    "get_ledger",
+    "get_reputation_store",
     "reset_gateway",
 ]
 
 _gateway: TrustGateway | None = None
+_ledger: TrustLedger | None = None
+_reputation: ReputationStore | None = None
 _init_lock = asyncio.Lock()
 
 
@@ -75,22 +81,54 @@ def _default_db_path() -> str:
     return os.environ.get("TRUST_LEDGER_DB", "trust_ledger.db")
 
 
+async def get_ledger(db_path: str | None = None) -> TrustLedger:
+    """Return the process-wide hash-chained ledger, initialising its schema once.
+
+    Shared by the gateway (certificates) and the attribution loop so both write
+    to one tamper-evident chain.
+    """
+    global _ledger
+    async with _init_lock:
+        if _ledger is None:
+            _ledger = TrustLedger(db_path or _default_db_path())
+            await _ledger.init()
+        return _ledger
+
+
+async def get_reputation_store(db_path: str | None = None) -> ReputationStore:
+    """Return the process-wide canonical reputation store, schema-initialised once.
+
+    Empty in Piece 1 — reads only (source + (archetype, regime) records, prior,
+    gate, fallback). Piece 2 layers the outcome-fed update rule on top; the single
+    store keeps the future I4 input-trust layer reading one keyspace, not a fork.
+    Lives in the project DB beside prediction history (same path as the ledger).
+    """
+    global _reputation
+    async with _init_lock:
+        if _reputation is None:
+            _reputation = ReputationStore(db_path or _default_db_path())
+            await _reputation.init()
+        return _reputation
+
+
 async def get_gateway(db_path: str | None = None) -> TrustGateway:
     """Return the process-wide gateway, initialising the ledger schema once."""
     global _gateway
-    async with _init_lock:
-        if _gateway is None:
-            ledger = TrustLedger(db_path or _default_db_path())
-            await ledger.init()
-            _gateway = TrustGateway(ledger)
-            logger.info("Trust gateway initialised (constitution %s)", CONSTITUTION_VERSION)
-        return _gateway
+    if _gateway is None:
+        ledger = await get_ledger(db_path)
+        async with _init_lock:
+            if _gateway is None:
+                _gateway = TrustGateway(ledger)
+                logger.info("Trust gateway initialised (constitution %s)", CONSTITUTION_VERSION)
+    return _gateway
 
 
 def reset_gateway() -> None:
-    """Drop the singleton — used by tests to bind a fresh ledger path."""
-    global _gateway
+    """Drop the singletons — used by tests to bind a fresh ledger path."""
+    global _gateway, _ledger, _reputation
     _gateway = None
+    _ledger = None
+    _reputation = None
 
 
 def _f(value, default: float = 0.0) -> float:

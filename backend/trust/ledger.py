@@ -158,3 +158,25 @@ class TrustLedger:
         if not row:
             return None
         return LedgerEntry(seq=row["seq"], prev_hash=row["prev_hash"], entry_hash=row["entry_hash"])
+
+    async def find_attribution(self, simulation_id: str) -> dict | None:
+        """Return the attribution payload for a simulation_id, or None.
+
+        Reads the hash-chained log — no separate table, no migration. Used by the
+        reputation loop to join an attribution record to its resolved outcome.
+        """
+        return await asyncio.to_thread(self._find_attribution_sync, simulation_id)
+
+    def _find_attribution_sync(self, simulation_id: str) -> dict | None:
+        conn = self._connect()
+        try:
+            row = conn.execute(
+                "SELECT payload FROM trust_ledger "
+                "WHERE decision = 'ATTRIBUTION' "
+                "AND json_extract(payload, '$.simulation_id') = ? "
+                "ORDER BY seq DESC LIMIT 1",
+                (simulation_id,),
+            ).fetchone()
+        finally:
+            conn.close()
+        return json.loads(row["payload"]) if row else None
