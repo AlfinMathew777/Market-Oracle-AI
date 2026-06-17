@@ -34,6 +34,7 @@ from trust.constitution import CONSTITUTION_VERSION
 from trust.contracts import (
     Decision,
     Finding,
+    InputProvenance,
     LayerVerdict,
     Severity,
     TrustCertificate,
@@ -51,6 +52,7 @@ __all__ = [
     "ReputationStore",
     "TrustContext",
     "TrustCertificate",
+    "InputProvenance",
     "Decision",
     "Severity",
     "Finding",
@@ -138,6 +140,27 @@ def _f(value, default: float = 0.0) -> float:
         return default
 
 
+def _to_input_provenance(value) -> InputProvenance | None:
+    """Coerce a prediction's input_provenance (dict or record) into the typed form.
+
+    None ⇒ no record ⇒ the InputLayer fails closed.
+    """
+    if value is None or isinstance(value, InputProvenance):
+        return value
+    if isinstance(value, dict):
+        return InputProvenance(
+            sanitized=bool(value.get("sanitized", False)),
+            wrapped=bool(value.get("wrapped", False)),
+            evasion_flags=tuple(value.get("evasion_flags", []) or []),
+            instructions_neutralized=int(value.get("instructions_neutralized", 0) or 0),
+            model_generated_cited=bool(value.get("model_generated_cited", False)),
+            independent_origins=int(value.get("independent_origins", 0) or 0),
+            single_source=bool(value.get("single_source", False)),
+            low_rep_cluster=bool(value.get("low_rep_cluster", False)),
+        )
+    return None
+
+
 def build_context(prediction: dict) -> TrustContext:
     """Normalise a raw prediction dict into a TrustContext the layers can read.
 
@@ -159,6 +182,7 @@ def build_context(prediction: dict) -> TrustContext:
         or ""
     )
     return TrustContext(
+        input_provenance=_to_input_provenance(prediction.get("input_provenance")),
         ticker=str(prediction.get("ticker") or prediction.get("symbol") or "UNKNOWN"),
         direction=str(prediction.get("direction") or "NEUTRAL").upper(),
         confidence=_f(prediction.get("confidence"), 0.0),

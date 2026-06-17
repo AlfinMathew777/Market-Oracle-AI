@@ -44,6 +44,11 @@ def _clean_swarm_prediction():
         "agent_consensus": {"up": 38, "down": 5, "neutral": 2},
         "quality_assessment": {"mc_stability_pct": 82.0, "historical_accuracy_pct": 61.0},
         "causal_chain": [{"consequence": "higher realised volume"}],
+        "input_provenance": {
+            "sanitized": True, "wrapped": True, "evasion_flags": [],
+            "instructions_neutralized": 0, "model_generated_cited": False,
+            "independent_origins": 2, "single_source": False, "low_rep_cluster": False,
+        },
     }
 
 

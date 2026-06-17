@@ -25,7 +25,7 @@ class Severity(IntEnum):
     BLOCK = 2  # Veto — the prediction must NOT become an actionable signal.
 
 
-class Decision(str, Enum):
+class Decision(str, Enum):  # noqa: UP042 — matches the project's str-enum convention
     """The gateway's final verdict on a prediction."""
 
     APPROVE = "APPROVE"                     # Trustworthy — publish as-is.
@@ -36,6 +36,7 @@ class Decision(str, Enum):
 # The five layers, in evaluation order. Layer 1 (agents) runs BEFORE the gateway;
 # the gateway orchestrates layers 2-5 over the agents' output.
 LAYER_AGENTS = "agents"
+LAYER_INPUT = "input"
 LAYER_EVIDENCE = "evidence"
 LAYER_VALIDATION = "validation"
 LAYER_RISK = "risk"
@@ -87,6 +88,24 @@ class LayerVerdict:
 
 
 @dataclass(frozen=True)
+class InputProvenance:
+    """What the I1-I4 input-trust pipeline recorded at ingestion.
+
+    The InputLayer ENFORCES over this; a missing record (None on the context)
+    fails closed — raw, unsanitised input must never reach a published signal.
+    """
+
+    sanitized: bool = False                 # I1 — normalization ran before any scan.
+    wrapped: bool = False                   # I3 — untrusted text wrapped as data.
+    evasion_flags: tuple[str, ...] = field(default_factory=tuple)  # I1 WARN flags.
+    instructions_neutralized: int = 0       # I3 telemetry.
+    model_generated_cited: bool = False     # I2 veto — own output cited as authority.
+    independent_origins: int = 0            # I4 — distinct primary origins.
+    single_source: bool = False             # I4 — uncorroborated → confidence cap.
+    low_rep_cluster: bool = False           # I4 veto — low-rep/new-source cluster.
+
+
+@dataclass(frozen=True)
 class TrustContext:
     """Normalised, layer-readable view of one prediction.
 
@@ -108,6 +127,8 @@ class TrustContext:
     data_feeds: dict = field(default_factory=dict)    # {feed: age_seconds}.
     paper_mode: bool = True
     raw: dict = field(default_factory=dict)
+    # I1-I4 record from ingestion. None ⇒ sanitization not proven ⇒ fail closed.
+    input_provenance: InputProvenance | None = None
 
 
 @dataclass(frozen=True)

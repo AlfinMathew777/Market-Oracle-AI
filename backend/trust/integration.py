@@ -57,6 +57,42 @@ def reasoning_to_prediction(result: Any, *, news_headline: str = "") -> dict:
         "data_feeds": _provenance_ages(result.data_provenance),
         "market_context": result.market_context.commodity_signals
         if result.market_context else {},
+        # one news trigger ⇒ sanitized + single-source (capped, labeled uncorroborated).
+        "input_provenance": _input_provenance(
+            [news_headline or cc.summary], [{"source_id": "news_trigger"}],
+        ),
+    }
+
+
+def _input_provenance(text_blocks: list[str], sources: list[dict]) -> dict:
+    """Build an input-trust record by sanitizing untrusted text + assessing sources.
+
+    The gateway's InputLayer enforces this. A directional prediction with no record
+    fails closed, so every certified path must produce one.
+    """
+    from trust.constitution import THRESHOLDS
+    from trust.input import assess_corroboration, sanitize_external_text
+
+    flags: set = set()
+    neutralized = 0
+    blocks = [t for t in text_blocks if t]
+    for t in blocks:
+        s = sanitize_external_text(t)
+        flags.update(s.normalization_flags)
+        neutralized += s.instructions_neutralized
+    corr = assess_corroboration(
+        sources or [], min_reputation=THRESHOLDS.min_source_reputation,
+        low_rep_cluster_min=THRESHOLDS.low_rep_cluster_min,
+    )
+    return {
+        "sanitized": True,
+        "wrapped": bool(blocks),
+        "evasion_flags": sorted(flags),
+        "instructions_neutralized": neutralized,
+        "model_generated_cited": False,
+        "independent_origins": corr.independent_origins,
+        "single_source": corr.single_source,
+        "low_rep_cluster": corr.low_rep_cluster,
     }
 
 
@@ -100,6 +136,8 @@ def simulation_to_prediction(pred: dict) -> dict:
         "mc_stability": (mc_pct / 100.0) if mc_pct is not None else 1.0,
         "historical_accuracy": (hist_pct / 100.0) if hist_pct is not None else 1.0,
         "judge_result": judge,
+        # recorded by the swarm at ingestion; None ⇒ fail closed at the gateway.
+        "input_provenance": pred.get("input_provenance"),
     }
 
 

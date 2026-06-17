@@ -34,6 +34,7 @@ from trust.contracts import (
 )
 from trust.layers.audit import AuditLayer
 from trust.layers.evidence import EvidenceLayer
+from trust.layers.input import InputLayer
 from trust.layers.risk import RiskLayer
 from trust.layers.validation import ValidationLayer
 from trust.ledger import TrustLedger
@@ -48,7 +49,7 @@ class TrustGateway:
         self._ledger = ledger
         # Order matters for the audit narrative, not for correctness — layers are
         # independent. Evidence (truth) → Validation (quality) → Risk (action).
-        self._layers = (EvidenceLayer(), ValidationLayer(), RiskLayer())
+        self._layers = (InputLayer(), EvidenceLayer(), ValidationLayer(), RiskLayer())
         self._audit = AuditLayer(ledger)
 
     async def evaluate(self, ctx: TrustContext) -> TrustCertificate:

@@ -62,6 +62,12 @@ def _good_prediction():
         },
         "data_feeds": {"yfinance": 60, "news": 120},
         "paper_mode": True,
+        # clean, corroborated input-trust record so the InputLayer passes.
+        "input_provenance": {
+            "sanitized": True, "wrapped": True, "evasion_flags": [],
+            "instructions_neutralized": 0, "model_generated_cited": False,
+            "independent_origins": 2, "single_source": False, "low_rep_cluster": False,
+        },
     }
 
 

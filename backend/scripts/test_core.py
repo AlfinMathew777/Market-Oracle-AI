@@ -1845,6 +1845,35 @@ class Simulation:
                 except Exception as _snap_err:  # noqa: BLE001
                     logger.debug("reputation snapshot skipped: %s", _snap_err)
 
+                # input-trust provenance for the gateway (I1-I4). sanitize the
+                # untrusted description, fold in alt-data flags, assess corroboration.
+                try:
+                    from trust.constitution import THRESHOLDS as _TH
+                    from trust.input import assess_corroboration, sanitize_external_text
+                    _it = event_data.get("_input_trust") or {}
+                    _desc = sanitize_external_text(
+                        str(event_data.get("notes") or event_data.get("location") or "")
+                    )
+                    _flags = sorted(set(_it.get("flags", [])) | set(_desc.normalization_flags))
+                    _corr = assess_corroboration(
+                        _attr_payload.get("sources", []),
+                        min_reputation=_TH.min_source_reputation,
+                        low_rep_cluster_min=_TH.low_rep_cluster_min,
+                    )
+                    event_data["_input_provenance"] = {
+                        "sanitized": True,
+                        "wrapped": True,
+                        "evasion_flags": _flags,
+                        "instructions_neutralized": int(_it.get("neutralized", 0))
+                        + _desc.instructions_neutralized,
+                        "model_generated_cited": False,
+                        "independent_origins": _corr.independent_origins,
+                        "single_source": _corr.single_source,
+                        "low_rep_cluster": _corr.low_rep_cluster,
+                    }
+                except Exception as _ipe:  # noqa: BLE001
+                    logger.debug("input provenance build skipped: %s", _ipe)
+
                 _attr_ledger = await get_ledger()
                 await append_attribution(
                     _attr_ledger, _attr_payload,

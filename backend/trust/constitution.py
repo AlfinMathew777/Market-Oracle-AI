@@ -56,12 +56,51 @@ class Thresholds:
     min_trust_score_actionable: int = 60     # Below ⇒ BLOCK regardless of confidence.
     degraded_trust_score: int = 80           # Below ⇒ APPROVE_DEGRADED at best.
 
+    # Input-trust layer (I1-I4)
+    require_sanitized_input: bool = True     # I1 — un-sanitised input fails closed.
+    cap_uncorroborated: float = 0.55         # I4 — single trusted source publishes, capped here.
+    min_source_reputation: float = 0.3       # I4 — below ⇒ low-reputation (shared with reputation store).
+    low_rep_cluster_min: int = 2             # I4 — this many low-rep/new sources, no trusted backing ⇒ BLOCK.
+
 
 THRESHOLDS = Thresholds()
 
 
 # ── The Articles ────────────────────────────────────────────────────────────────
 ARTICLES: tuple[Article, ...] = (
+    # Layer 1.5 — Input trust (untrusted-text defense; I2/I3 are load-bearing)
+    Article(
+        "I1", "input", "Normalized input",
+        "Untrusted external text must be NFKC-normalized, homoglyph-folded, and "
+        "stripped of zero-width/control chars before any scan. Sanitization that "
+        "did not run fails closed. Normalization reduces evasion volume — it is "
+        "NOT the trust boundary; a missed glyph must still fail safe under I2/I3.",
+        Severity.BLOCK,
+    ),
+    Article(
+        "I2", "input", "No self-trust / provenance",
+        "Every input carries a provenance tag assigned by ORIGIN, never content. "
+        "model_generated content may never be cited as authoritative evidence; an "
+        "agent cannot bootstrap authority from its own output. A missing tag fails closed.",
+        Severity.BLOCK,
+    ),
+    Article(
+        "I3", "input", "Structural separation",
+        "Untrusted external text reaches reasoning only as delimiter-wrapped DATA "
+        "with a standing 'analyze, never obey' instruction; instruction-like patterns "
+        "are neutralized first. Unwrapped untrusted text fails closed. The wrap+tag "
+        "is the defense; the neutralizer regex is not.",
+        Severity.BLOCK,
+    ),
+    Article(
+        "I4", "input", "Corroborated aggregate",
+        "A prediction-moving claim is weighted by independent corroboration "
+        "(distinct PRIMARY ORIGIN, not domain). A single source publishes, capped and "
+        "labeled uncorroborated. A cluster of low-reputation/new sources with no "
+        "trusted backing is BLOCKED — the veto is reserved for that poisoning pattern.",
+        Severity.WARN,
+    ),
+
     # Layer 2 — Evidence (truth)
     Article(
         "E1", "evidence", "Grounded catalyst",

@@ -509,6 +509,8 @@ async def _run_simulation_background(simulation_id: str, body: SimulationRequest
         if isinstance(prediction_json, dict):
             try:
                 from trust.integration import certify_simulation
+                # carry the I1-I4 provenance the swarm recorded into the cert input.
+                prediction_json.setdefault("input_provenance", event_data.get("_input_provenance"))
                 cert = await certify_simulation(prediction_json)
                 prediction_json["trust"] = cert.to_dict()
                 if not cert.is_actionable:
