@@ -1346,10 +1346,27 @@ class Simulation:
             _alt_lines = [
                 f"\n=== ALT DATA SIGNALS (composite: {_composite_dir}, signal={_composite_sig:+.2f}) ===",
             ]
+            # input-trust (I1+I3): normalize + neutralize untrusted alt-data before
+            # it reaches agents. fail-open to the raw summary, never break a sim.
+            _it_neutralized = 0
+            _it_flags: set = set()
             for _s in _summaries[:10]:  # cap at 10 summaries to avoid prompt bloat
-                _alt_lines.append(f"  - {_s}")
+                try:
+                    from trust.input import normalize_text
+                    from trust.input.separation import neutralize_instructions
+                    _clean, _f = normalize_text(str(_s))
+                    _clean, _n = neutralize_instructions(_clean)
+                    _it_neutralized += _n
+                    _it_flags.update(_f)
+                except Exception:  # noqa: BLE001
+                    _clean = str(_s)
+                _alt_lines.append(f"  - {_clean}")
             _alt_lines.append("=== END ALT DATA ===")
             event_context += "\n" + "\n".join(_alt_lines)
+            event_data["_input_trust"] = {"neutralized": _it_neutralized, "flags": sorted(_it_flags)}
+            if _it_neutralized or _it_flags:
+                logger.info("input-trust: alt-data neutralized=%d flags=%s",
+                            _it_neutralized, sorted(_it_flags))
 
         # ── STEP 4: Run agents with per-agent and total-simulation timeouts ────
         logger.info("Running %d adversarial agents in parallel ...", len(self.agents))

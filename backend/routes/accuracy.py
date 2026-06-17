@@ -76,6 +76,23 @@ async def get_failure_analysis(
     return {"success": True, "analysis": analysis}
 
 
+@router.get("/track-record")
+async def track_record(
+    http_request: Request,
+    api_key: Optional[str] = Depends(optional_api_key),
+):
+    """Calibrated swarm track record — THE GATE (Stage 6).
+
+    Read-only. On Railway this reads the production prediction_log. Reports
+    survivorship hit-rate, calibration curve, naive baseline, and 24h/7-day
+    horizons separately, with sample-size honesty. Measures the swarm's real
+    predictions, not the backtest TA rule.
+    """
+    rate_limiter.check(http_request, endpoint_type="default", api_key=api_key)
+    from trust.track_record import get_track_record
+    return await get_track_record()
+
+
 @router.get("/health")
 async def health_check():
     return {"status": "ok", "service": "accuracy_tracker"}
