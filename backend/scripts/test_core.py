@@ -1793,6 +1793,39 @@ class Simulation:
         confidence_audit["after_mc_penalty"] = round(final_confidence * 100, 1)
         confidence_audit["final_confidence"]  = round(final_confidence * 100, 1)
 
+        # ── Attribution: record what drove this call (reputation loop) ─────────
+        # keyed by the route's simulation_id so it joins the prediction_log row
+        # outcome_checker later resolves. fail-closed: never breaks a sim.
+        try:
+            from datetime import timezone as _attr_tz
+
+            from trust import get_ledger
+            from trust.attribution import append_attribution, build_attribution
+
+            _attr_sid = event_data.get("simulation_id")
+            if _attr_sid:
+                _attr_payload = build_attribution(
+                    simulation_id=_attr_sid,
+                    ticker=ticker,
+                    direction=direction,
+                    confidence=final_confidence,
+                    all_votes=all_votes,
+                    judge_result=judge_result,
+                    news_items=news_items,
+                    alt_data=event_data.get("alt_data"),
+                    chain_override=chain_override_active,
+                    trend_label=trend_label,
+                )
+                _attr_ledger = await get_ledger()
+                await append_attribution(
+                    _attr_ledger, _attr_payload,
+                    issued_at=datetime.now(_attr_tz.utc).isoformat(),
+                )
+            else:
+                logger.warning("attribution skipped — no route simulation_id in event_data")
+        except Exception as _attr_err:  # noqa: BLE001 — attribution never breaks a sim
+            logger.warning("attribution recording failed: %s", _attr_err)
+
         # ── Signal quality filter (final gate before returning) ──────────────
         from services.signal_filter import filter_signal, grade_label
         from services.catalyst_validator import validate_catalyst

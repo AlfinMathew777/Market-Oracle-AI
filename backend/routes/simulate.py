@@ -197,6 +197,8 @@ async def run_simulation(request: Request, body: SimulationRequest, background_t
         'longitude': body.lon,
         'event_id_cnty': body.event_id or f"evt_{simulation_id}"
     }
+    # carry the route key into the pipeline so attribution joins prediction_log.
+    event_data['simulation_id'] = simulation_id
 
     # ── Pre-flight check (< 1ms, no LLM) ────────────────────────────────────
     _skip, _skip_reason = pre_flight_trigger_check(body.event_description, body.event_type)
