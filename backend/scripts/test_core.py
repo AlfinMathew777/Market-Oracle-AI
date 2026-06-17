@@ -1816,6 +1816,18 @@ class Simulation:
                     chain_override=chain_override_active,
                     trend_label=trend_label,
                 )
+                # snapshot source reputation at decision time for the evidence trail.
+                try:
+                    from trust import get_reputation_store
+                    from trust.reputation import SOURCE as _SRC
+                    _rep_store = await get_reputation_store()
+                    for _s in _attr_payload.get("sources", []):
+                        _rv, _rt = await _rep_store.effective_with_tier(_s["source_id"], _SRC)
+                        _s["reputation_at_decision"] = round(_rv, 4)
+                        _s["reputation_tier"] = _rt
+                except Exception as _snap_err:  # noqa: BLE001
+                    logger.debug("reputation snapshot skipped: %s", _snap_err)
+
                 _attr_ledger = await get_ledger()
                 await append_attribution(
                     _attr_ledger, _attr_payload,

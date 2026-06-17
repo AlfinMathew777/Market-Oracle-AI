@@ -503,6 +503,27 @@ async def _run_simulation_background(simulation_id: str, body: SimulationRequest
                 except Exception as _cvar_err:
                     logger.warning("CVaR injection failed: %s", _cvar_err)
 
+        # ── Trust gateway — certify before publish (fail closed) ──────────────
+        # the swarm path was previously ungated; route it through the same gateway
+        # as reasoning. a prediction that cannot be certified is forced NEUTRAL.
+        if isinstance(prediction_json, dict):
+            try:
+                from trust.integration import certify_simulation
+                cert = await certify_simulation(prediction_json)
+                prediction_json["trust"] = cert.to_dict()
+                if not cert.is_actionable:
+                    prediction_json["direction"] = "NEUTRAL"
+                    prediction_json["confidence"] = cert.confidence_out
+                    prediction_json["trust_blocked"] = True
+                    logger.info("Trust gateway blocked %s: %s", ticker, cert.explain)
+            except Exception as _trust_err:
+                # cannot certify → do not publish a directional signal.
+                logger.error("Trust certification failed for %s — forcing NEUTRAL: %s",
+                             ticker, _trust_err, exc_info=True)
+                prediction_json["direction"] = "NEUTRAL"
+                prediction_json["trust_blocked"] = True
+                prediction_json["trust_error"] = "certification_failed"
+
         # ── Paper mode logging ────────────────────────────────────────────────
         from system_state import PAPER_MODE
         if PAPER_MODE and isinstance(prediction_json, dict):

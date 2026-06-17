@@ -160,6 +160,54 @@ async def test_authoritative_supersedes_provisional_one_sample(store_path):
     assert rec.reputation == pytest.approx(expected, abs=1e-9)
 
 
+async def test_supersede_under_interleaving_keeps_one_sample(store_path):
+    """Other predictions update the same cell between provisional and authoritative."""
+    store = await _store(store_path)
+    # p1 provisional, then p2 + p3 hit the SAME cell, then p1 authoritative supersedes.
+    await store.apply_step(prediction_id="p1", identity="reuters", kind=SOURCE,
+                           target=0.0, weight=BASE_ALPHA, outcome="INCORRECT",
+                           stage=STAGE_PROVISIONAL, updated_at=_TS)
+    await store.apply_step(prediction_id="p2", identity="reuters", kind=SOURCE,
+                           target=1.0, weight=BASE_ALPHA, outcome="CORRECT",
+                           stage=STAGE_PROVISIONAL, updated_at=_TS)
+    await store.apply_step(prediction_id="p3", identity="reuters", kind=SOURCE,
+                           target=0.0, weight=BASE_ALPHA, outcome="INCORRECT",
+                           stage=STAGE_PROVISIONAL, updated_at=_TS)
+    assert (await store.record("reuters", SOURCE)).sample_count == 3
+    action = await store.apply_step(prediction_id="p1", identity="reuters", kind=SOURCE,
+                                    target=1.0, weight=BASE_ALPHA, outcome="CORRECT",
+                                    stage=STAGE_AUTHORITATIVE, updated_at=_TS)
+    rec = await store.record("reuters", SOURCE)
+    assert action == "superseded"
+    assert rec.sample_count == 3  # 3 predictions → 3 samples, never 4. no double-weight.
+    assert REPUTATION_FLOOR <= rec.reputation <= REPUTATION_CEILING
+
+
+async def test_supersede_back_out_approximates_no_provisional(store_path):
+    """Under interleaving the back-out tracks the as-if-no-provisional value tightly."""
+    # A: p1 provisional INCORRECT, p2 CORRECT (intervening), p1 authoritative CORRECT.
+    a = await _store(store_path)
+    await a.apply_step(prediction_id="p1", identity="reuters", kind=SOURCE, target=0.0,
+                       weight=BASE_ALPHA, outcome="INCORRECT", stage=STAGE_PROVISIONAL, updated_at=_TS)
+    await a.apply_step(prediction_id="p2", identity="reuters", kind=SOURCE, target=1.0,
+                       weight=BASE_ALPHA, outcome="CORRECT", stage=STAGE_PROVISIONAL, updated_at=_TS)
+    await a.apply_step(prediction_id="p1", identity="reuters", kind=SOURCE, target=1.0,
+                       weight=BASE_ALPHA, outcome="CORRECT", stage=STAGE_AUTHORITATIVE, updated_at=_TS)
+    rep_a = (await a.record("reuters", SOURCE)).reputation
+
+    # C: the as-if world — p1 was only ever CORRECT, no provisional. same two predictions.
+    c = await _store(store_path + "C")
+    await c.apply_step(prediction_id="p2", identity="reuters", kind=SOURCE, target=1.0,
+                       weight=BASE_ALPHA, outcome="CORRECT", stage=STAGE_PROVISIONAL, updated_at=_TS)
+    await c.apply_step(prediction_id="p1", identity="reuters", kind=SOURCE, target=1.0,
+                       weight=BASE_ALPHA, outcome="CORRECT", stage=STAGE_AUTHORITATIVE, updated_at=_TS)
+    rep_c = (await c.record("reuters", SOURCE)).reputation
+    os.remove(store_path + "C")
+
+    # second-order EMA path error only — well within a hundredth of the range.
+    assert abs(rep_a - rep_c) < 0.01
+
+
 async def test_authoritative_then_provisional_is_skipped(store_path):
     store = await _store(store_path)
     await store.apply_step(prediction_id="p1", identity="reuters", kind=SOURCE,

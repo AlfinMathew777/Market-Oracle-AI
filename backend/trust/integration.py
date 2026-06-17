@@ -66,3 +66,45 @@ async def certify_reasoning(result: Any, *, news_headline: str = "") -> TrustCer
     prediction = reasoning_to_prediction(result, news_headline=news_headline)
     ctx = build_context(prediction)
     return await gateway.evaluate(ctx)
+
+
+# swarm directions use UP/DOWN; the gateway speaks BULLISH/BEARISH.
+_SWARM_DIRECTION = {"UP": "BULLISH", "DOWN": "BEARISH", "NEUTRAL": "NEUTRAL"}
+
+
+def simulation_to_prediction(pred: dict) -> dict:
+    """Flatten a swarm prediction dict into the shape build_context understands.
+
+    Tolerant of both the full report and the partial-fallback shape — pulls fields
+    by their swarm names and maps UP/DOWN to the gateway's direction vocabulary.
+    """
+    raw_dir = str(pred.get("direction") or "NEUTRAL").upper()
+    consensus = pred.get("agent_consensus") or {}
+    qa = pred.get("quality_assessment") or {}
+    causal = pred.get("causal_chain")
+    # swarm causal_chain is a list of steps; the gateway wants a dict it can scan.
+    judge = causal if isinstance(causal, dict) else {"trigger_event": pred.get("trigger_event", "")}
+    mc_pct = qa.get("mc_stability_pct")
+    hist_pct = qa.get("historical_accuracy_pct")
+    return {
+        "ticker": pred.get("ticker") or "UNKNOWN",
+        "direction": _SWARM_DIRECTION.get(raw_dir, raw_dir),
+        "confidence": pred.get("confidence", 0.0),
+        "signal_order": pred.get("signal_order") or "primary",
+        "catalyst": pred.get("trigger_event") or "",
+        "agent_votes": {
+            "bull": consensus.get("up", 0),
+            "bear": consensus.get("down", 0),
+            "neut": consensus.get("neutral", 0),
+        },
+        "mc_stability": (mc_pct / 100.0) if mc_pct is not None else 1.0,
+        "historical_accuracy": (hist_pct / 100.0) if hist_pct is not None else 1.0,
+        "judge_result": judge,
+    }
+
+
+async def certify_simulation(pred: dict) -> TrustCertificate:
+    """Run a swarm prediction dict through the same 5-layer trust gateway."""
+    gateway = await get_gateway()
+    ctx = build_context(simulation_to_prediction(pred))
+    return await gateway.evaluate(ctx)

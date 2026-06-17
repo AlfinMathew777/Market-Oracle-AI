@@ -301,7 +301,11 @@ class ReputationStore:
                          target: float, weight: float, outcome: str, stage: str,
                          regime: str, updated_at: str) -> str:
         conn = self._connect()
+        conn.isolation_level = None
         try:
+            # write lock BEFORE the read — read-modify-write is atomic even when the
+            # 24h and 7-day resolvers run in separate processes (no lost update).
+            conn.execute("BEGIN IMMEDIATE")
             prior = conn.execute(
                 "SELECT applied_delta, stage FROM reputation_contribution "
                 "WHERE prediction_id=? AND identity=? AND kind=? AND regime=?",
@@ -312,7 +316,7 @@ class ReputationStore:
             if prior is not None and (
                 prior["stage"] == STAGE_AUTHORITATIVE or prior["stage"] == stage
             ):
-                conn.commit()
+                conn.execute("COMMIT")
                 return "skipped"
 
             rep, count = self._read_cell(conn, identity, kind, regime)
@@ -336,8 +340,14 @@ class ReputationStore:
                 "outcome=excluded.outcome, updated_at=excluded.updated_at",
                 (prediction_id, identity, kind, regime, new - old, stage, outcome, updated_at),
             )
-            conn.commit()
+            conn.execute("COMMIT")
             return action
+        except Exception:
+            try:
+                conn.execute("ROLLBACK")
+            except Exception:  # noqa: BLE001, S110 — best-effort rollback while already erroring
+                pass
+            raise
         finally:
             conn.close()
 
