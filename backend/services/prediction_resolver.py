@@ -67,7 +67,7 @@ async def auto_resolve_pending_predictions(limit: int = 50) -> int:
         async with get_db() as db:
             db.row_factory = lambda c, r: dict(zip([col[0] for col in c.description], r))
             async with db.execute(
-                """SELECT id, ticker, predicted_direction, confidence, predicted_at
+                """SELECT id, id AS simulation_id, ticker, predicted_direction, confidence, predicted_at
                    FROM prediction_log
                    WHERE prediction_correct IS NULL
                      AND predicted_at <= ?
@@ -166,6 +166,20 @@ async def auto_resolve_pending_predictions(limit: int = 50) -> int:
                     "auto_resolve: [%s] %s predicted=%s actual=%s (%+.2f%%) correct=%s",
                     pred["id"][:16], ticker, predicted_dir, actual_dir, change_pct, correct,
                 )
+
+                # authoritative reputation update — supersedes any 24h provisional.
+                # re-derive the label through the shared deadband (NOT the no-band
+                # `correct` flag) so a flat move abstains instead of scoring INCORRECT.
+                from validation.outcome_checker import classify_outcome
+                _rep_outcome = classify_outcome(predicted_dir, change_pct)
+                if _rep_outcome in ("CORRECT", "INCORRECT"):
+                    from trust.reputation import STAGE_AUTHORITATIVE
+                    from trust.reputation_update import update_from_resolution
+                    await update_from_resolution(
+                        simulation_id=pred.get("simulation_id") or "",
+                        prediction_id=pred["id"], outcome=_rep_outcome,
+                        change_pct=change_pct, stage=STAGE_AUTHORITATIVE,
+                    )
 
                 # ── ErrorMemory: record wrong (non-neutral) predictions ────────
                 # correct=False means the directional call was wrong.
