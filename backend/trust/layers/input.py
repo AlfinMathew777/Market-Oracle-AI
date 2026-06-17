@@ -12,7 +12,7 @@ single source; it vetoes only the low-reputation cluster.
 from __future__ import annotations
 
 from trust.constitution import THRESHOLDS
-from trust.contracts import Finding, Severity, TrustContext
+from trust.contracts import WRAP_NONE, WRAP_PARTIAL, Finding, Severity, TrustContext
 from trust.layers.base import TrustLayer
 
 
@@ -39,9 +39,15 @@ class InputLayer(TrustLayer):
             findings.append(Finding("INPUT.SELF_TRUST", Severity.BLOCK,
                             "model_generated content cited as authoritative evidence (I2).",
                             self.name, 1.0, "I2"))
-        if not ip.wrapped:
+        # I3 wrap coverage: NONE → veto; PARTIAL → a raw field may have reached
+        # agents, degrade + cap; FULL → clean.
+        if ip.wrapped_status == WRAP_NONE:
             findings.append(Finding("INPUT.UNWRAPPED", Severity.BLOCK,
-                            "Untrusted external text not wrapped as data (I3).", self.name, 1.0, "I3"))
+                            "No untrusted external text wrapped as data (I3).", self.name, 1.0, "I3"))
+        elif ip.wrapped_status == WRAP_PARTIAL:
+            findings.append(Finding("INPUT.PARTIAL_WRAP", Severity.WARN,
+                            "Only partial wrap coverage — a raw untrusted field may have "
+                            "reached agents; capping (I3).", self.name, 2.0, "I3"))
 
         # I4 — low-rep cluster is the ONLY veto; an honest single source is capped.
         if ip.low_rep_cluster:
@@ -62,7 +68,13 @@ class InputLayer(TrustLayer):
 
     def _confidence_cap(self, ctx: TrustContext, findings: list[Finding]) -> float:
         ip = ctx.input_provenance
+        if ip is None:
+            return 1.0
+        cap = 1.0
         # uncorroborated single source still publishes, but capped (I4).
-        if ip is not None and ip.single_source and not ip.low_rep_cluster:
-            return THRESHOLDS.cap_uncorroborated
-        return 1.0
+        if ip.single_source and not ip.low_rep_cluster:
+            cap = min(cap, THRESHOLDS.cap_uncorroborated)
+        # partial wrap coverage also caps — never let partial input look full-trust.
+        if ip.wrapped_status == WRAP_PARTIAL:
+            cap = min(cap, THRESHOLDS.cap_uncorroborated)
+        return cap

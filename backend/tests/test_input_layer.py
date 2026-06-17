@@ -36,7 +36,7 @@ async def gateway(ledger_path, monkeypatch):
 
 def _clean_provenance(**over):
     p = {
-        "sanitized": True, "wrapped": True, "evasion_flags": [],
+        "sanitized": True, "wrapped_status": "full", "evasion_flags": [],
         "instructions_neutralized": 0, "model_generated_cited": False,
         "independent_origins": 2, "single_source": False, "low_rep_cluster": False,
     }
@@ -54,7 +54,13 @@ def _prediction(provenance):
         "agent_votes": {"bull": 38, "bear": 5, "neut": 2},
         "mc_stability": 0.82,
         "historical_accuracy": 0.61,
-        "judge_result": {"trigger_event": "Record Q3 shipments", "revenue_impact": "volumes up"},
+        "judge_result": {
+            "trigger_event": "Record Q3 iron ore shipments reported",
+            "cost_impact": "Stable Pilbara unit costs",
+            "revenue_impact": "Higher volumes lift revenue",
+            "demand_signal": "China restocking supports demand",
+            "sentiment_signal": "Analyst upgrades post-result",
+        },
     }
     if provenance is not None:
         p["input_provenance"] = provenance
@@ -80,10 +86,18 @@ async def test_unsanitized_blocks(gateway):
     assert any(f.code == "INPUT.RAW_UNSANITIZED" for f in cert.findings)
 
 
-async def test_unwrapped_blocks(gateway):
-    cert = await _cert(_clean_provenance(wrapped=False))
+async def test_no_wrap_blocks(gateway):
+    cert = await _cert(_clean_provenance(wrapped_status="none"))
     assert cert.decision == Decision.BLOCK
-    assert any(f.article == "I3" for f in cert.findings)
+    assert any(f.code == "INPUT.UNWRAPPED" for f in cert.findings)
+
+
+async def test_partial_wrap_caps_not_blocks(gateway):
+    # a raw untrusted field may have reached agents → publish but capped, flagged.
+    cert = await _cert(_clean_provenance(wrapped_status="partial"))
+    assert cert.is_actionable                       # not a hard block
+    assert cert.confidence_out <= THRESHOLDS.cap_uncorroborated + 1e-9
+    assert any(f.code == "INPUT.PARTIAL_WRAP" for f in cert.findings)
 
 
 async def test_model_self_trust_blocks(gateway):

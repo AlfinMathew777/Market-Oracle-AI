@@ -1326,47 +1326,53 @@ class Simulation:
         # ── STEP 2: Set agent prompts (with trend-aware neutral bias) ─────────
         self._set_agent_prompts(ticker, lessons_str, trend_label)
 
-        # ── STEP 3: Build event context string ────────────────────────────────
+        # ── STEP 3: Build event context — every untrusted free-text field is
+        # sanitized + delimiter-wrapped (I1+I3) so no raw untrusted text reaches an
+        # agent. structured metadata (fatalities/date) is numeric, not free-text.
+        _alt = event_data.get("alt_data")
+        _alt_summaries = (
+            list(_alt.get("summaries", []) or [])[:10]
+            if (_alt and _alt.get("source_count", 0) > 0) else []
+        )
+        _untrusted_fields = {
+            "description": event_data.get("notes", event_data.get("location", "No description")),
+        }
+        for _i, _s in enumerate(_alt_summaries):
+            _untrusted_fields[f"alt_{_i}"] = _s
+
+        try:
+            from trust.input import sanitize_fields
+            _field_san = sanitize_fields(_untrusted_fields)
+            _w = _field_san.wrapped
+            event_data["_input_trust"] = {
+                "flags": list(_field_san.evasion_flags),
+                "neutralized": _field_san.instructions_neutralized,
+                "fields_covered": _field_san.fields_covered,
+            }
+        except Exception as _fs_err:  # noqa: BLE001 — fail-open, never break a sim.
+            logger.warning("input-trust field sanitization failed: %s", _fs_err)
+            _w = {}
+
+        def _wf(_name: str) -> str:  # wrapped field, else raw fallback.
+            return _w.get(_name, str(_untrusted_fields.get(_name, "")))
+
         event_context = (
             f"Country: {event_data.get('country', 'Unknown')}\n"
             f"Event Type: {event_data.get('event_type', 'Unknown')}\n"
             f"Fatalities: {event_data.get('fatalities', 0)}\n"
             f"Date: {event_data.get('event_date', 'Unknown')}\n"
-            f"Description: {event_data.get('notes', event_data.get('location', 'No description'))}"
+            f"Description (untrusted external data):\n{_wf('description')}"
         )
-
-        # Append alternative data signals so agents and the reconciler can cite
-        # specific ASX announcements, insider activity, and analyst consensus in
-        # the causal chain slots (revenue / demand / sentiment / cost).
-        _alt = event_data.get("alt_data")
-        if _alt and _alt.get("source_count", 0) > 0:
+        if _alt_summaries:
             _composite_sig = _alt.get("composite_signal", 0.0)
             _composite_dir = "bullish" if _composite_sig > 0.05 else ("bearish" if _composite_sig < -0.05 else "neutral")
-            _summaries = _alt.get("summaries", [])
             _alt_lines = [
-                f"\n=== ALT DATA SIGNALS (composite: {_composite_dir}, signal={_composite_sig:+.2f}) ===",
+                f"\n=== ALT DATA SIGNALS (composite: {_composite_dir}, signal={_composite_sig:+.2f}) ==="
             ]
-            # input-trust (I1+I3): normalize + neutralize untrusted alt-data before
-            # it reaches agents. fail-open to the raw summary, never break a sim.
-            _it_neutralized = 0
-            _it_flags: set = set()
-            for _s in _summaries[:10]:  # cap at 10 summaries to avoid prompt bloat
-                try:
-                    from trust.input import normalize_text
-                    from trust.input.separation import neutralize_instructions
-                    _clean, _f = normalize_text(str(_s))
-                    _clean, _n = neutralize_instructions(_clean)
-                    _it_neutralized += _n
-                    _it_flags.update(_f)
-                except Exception:  # noqa: BLE001
-                    _clean = str(_s)
-                _alt_lines.append(f"  - {_clean}")
+            for _i in range(len(_alt_summaries)):
+                _alt_lines.append(f"  - {_wf(f'alt_{_i}')}")
             _alt_lines.append("=== END ALT DATA ===")
             event_context += "\n" + "\n".join(_alt_lines)
-            event_data["_input_trust"] = {"neutralized": _it_neutralized, "flags": sorted(_it_flags)}
-            if _it_neutralized or _it_flags:
-                logger.info("input-trust: alt-data neutralized=%d flags=%s",
-                            _it_neutralized, sorted(_it_flags))
 
         # ── STEP 4: Run agents with per-agent and total-simulation timeouts ────
         logger.info("Running %d adversarial agents in parallel ...", len(self.agents))
@@ -1845,27 +1851,32 @@ class Simulation:
                 except Exception as _snap_err:  # noqa: BLE001
                     logger.debug("reputation snapshot skipped: %s", _snap_err)
 
-                # input-trust provenance for the gateway (I1-I4). sanitize the
-                # untrusted description, fold in alt-data flags, assess corroboration.
+                # input-trust provenance for the gateway (I1-I4). wrapped_status is
+                # FULL only when the news block (market_context) was also sanitized —
+                # otherwise PARTIAL, which the gateway caps. never overclaims.
                 try:
                     from trust.constitution import THRESHOLDS as _TH
-                    from trust.input import assess_corroboration, sanitize_external_text
+                    from trust.contracts import WRAP_FULL, WRAP_NONE, WRAP_PARTIAL
+                    from trust.input import assess_corroboration
                     _it = event_data.get("_input_trust") or {}
-                    _desc = sanitize_external_text(
-                        str(event_data.get("notes") or event_data.get("location") or "")
-                    )
-                    _flags = sorted(set(_it.get("flags", [])) | set(_desc.normalization_flags))
+                    _covered = int(_it.get("fields_covered", 0))
+                    _news_ok = bool(market_ctx.get("_news_sanitized"))
                     _corr = assess_corroboration(
                         _attr_payload.get("sources", []),
                         min_reputation=_TH.min_source_reputation,
                         low_rep_cluster_min=_TH.low_rep_cluster_min,
                     )
+                    if _covered == 0:
+                        _ws = WRAP_NONE
+                    elif _news_ok:
+                        _ws = WRAP_FULL
+                    else:
+                        _ws = WRAP_PARTIAL
                     event_data["_input_provenance"] = {
                         "sanitized": True,
-                        "wrapped": True,
-                        "evasion_flags": _flags,
-                        "instructions_neutralized": int(_it.get("neutralized", 0))
-                        + _desc.instructions_neutralized,
+                        "wrapped_status": _ws,
+                        "evasion_flags": _it.get("flags", []),
+                        "instructions_neutralized": int(_it.get("neutralized", 0)),
                         "model_generated_cited": False,
                         "independent_origins": _corr.independent_origins,
                         "single_source": _corr.single_source,

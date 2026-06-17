@@ -71,6 +71,7 @@ def _input_provenance(text_blocks: list[str], sources: list[dict]) -> dict:
     fails closed, so every certified path must produce one.
     """
     from trust.constitution import THRESHOLDS
+    from trust.contracts import WRAP_FULL, WRAP_NONE
     from trust.input import assess_corroboration, sanitize_external_text
 
     flags: set = set()
@@ -86,7 +87,8 @@ def _input_provenance(text_blocks: list[str], sources: list[dict]) -> dict:
     )
     return {
         "sanitized": True,
-        "wrapped": bool(blocks),
+        # reasoning wraps its single trigger block — full coverage for that path.
+        "wrapped_status": WRAP_FULL if blocks else WRAP_NONE,
         "evasion_flags": sorted(flags),
         "instructions_neutralized": neutralized,
         "model_generated_cited": False,

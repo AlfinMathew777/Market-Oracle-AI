@@ -1562,10 +1562,24 @@ async def fetch_market_context(ticker: str, event_keywords: Optional[List[str]] 
     # Context engineering (reduction): cap each headline so a single pathologically long
     # item can't inflate every agent prompt at once. truncate_text tolerates None/empty.
     from services.context_budget import truncate_text
-    news_block = "\n".join(
-        f"[{n.get('signal_strength', 'MEDIUM')}] {truncate_text(n.get('title', ''))} ({n.get('hours_old', '?')}h ago)"
-        for n in all_news
-    ) if all_news else "No recent news within 24h threshold."
+    # input-trust (I1+I3): sanitize each untrusted headline + wrap the news block as
+    # data so no raw news text reaches agents. fail-open to raw → status stays PARTIAL.
+    _news_sanitized = False
+    try:
+        from trust.input import normalize_text
+        from trust.input.separation import neutralize_instructions, wrap_as_data
+        _news_lines = []
+        for n in all_news:
+            _t, _ = normalize_text(truncate_text(n.get("title", "")))
+            _t, _ = neutralize_instructions(_t)
+            _news_lines.append(f"[{n.get('signal_strength', 'MEDIUM')}] {_t} ({n.get('hours_old', '?')}h ago)")
+        news_block = wrap_as_data("\n".join(_news_lines)) if _news_lines else "No recent news within 24h threshold."
+        _news_sanitized = True
+    except Exception:  # noqa: BLE001
+        news_block = "\n".join(
+            f"[{n.get('signal_strength', 'MEDIUM')}] {truncate_text(n.get('title', ''))} ({n.get('hours_old', '?')}h ago)"
+            for n in all_news
+        ) if all_news else "No recent news within 24h threshold."
 
     weather_alert  = weather.get("alert", "")
     sanctions_block = sanctions.get("block", "")
@@ -1630,6 +1644,7 @@ Brent Crude: ${brent['price']}/bbl | Change: {_chg(brent['change_pct'])}{_stale(
         "news_items":          news,
         "lessons":             lessons,
         "context_block":       context_block,
+        "_news_sanitized":     _news_sanitized,  # I3 coverage signal for input-trust
         "fetched_at":          fetch_ts,
         "data_freshness":      fetch_ts,
         # Bug Fix 5: quality fields propagated to API response

@@ -148,9 +148,13 @@ def _to_input_provenance(value) -> InputProvenance | None:
     if value is None or isinstance(value, InputProvenance):
         return value
     if isinstance(value, dict):
+        from trust.contracts import WRAP_FULL, WRAP_NONE
+        ws = value.get("wrapped_status")
+        if ws is None:  # back-compat with the old wrapped bool.
+            ws = WRAP_FULL if value.get("wrapped") else WRAP_NONE
         return InputProvenance(
             sanitized=bool(value.get("sanitized", False)),
-            wrapped=bool(value.get("wrapped", False)),
+            wrapped_status=str(ws),
             evasion_flags=tuple(value.get("evasion_flags", []) or []),
             instructions_neutralized=int(value.get("instructions_neutralized", 0) or 0),
             model_generated_cited=bool(value.get("model_generated_cited", False)),

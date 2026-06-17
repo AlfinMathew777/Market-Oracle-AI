@@ -42,6 +42,13 @@ LAYER_VALIDATION = "validation"
 LAYER_RISK = "risk"
 LAYER_AUDIT = "audit"
 
+# I3 wrap coverage — the cert states exactly how much untrusted text was wrapped,
+# so it can never overclaim. FULL = every untrusted field wrapped; PARTIAL = a raw
+# field may have reached agents (cap); NONE = nothing wrapped (block).
+WRAP_FULL = "full"
+WRAP_PARTIAL = "partial"
+WRAP_NONE = "none"
+
 
 @dataclass(frozen=True)
 class Finding:
@@ -96,7 +103,7 @@ class InputProvenance:
     """
 
     sanitized: bool = False                 # I1 — normalization ran before any scan.
-    wrapped: bool = False                   # I3 — untrusted text wrapped as data.
+    wrapped_status: str = WRAP_NONE         # I3 — full/partial/none coverage (never overclaims).
     evasion_flags: tuple[str, ...] = field(default_factory=tuple)  # I1 WARN flags.
     instructions_neutralized: int = 0       # I3 telemetry.
     model_generated_cited: bool = False     # I2 veto — own output cited as authority.
