@@ -55,15 +55,24 @@ async def isolated_db(tmp_path, monkeypatch) -> AsyncIterator[str]:
 
     - Patches `database.DB_PATH` to a temp file so production data is untouched.
     - Resets `_initialized` so `init_db()` runs the full DDL in the temp DB.
+    - Also patches `backtesting.backtest_engine.DB_PATH` (bound at import time
+      via `from database import DB_PATH`, so patching `database.DB_PATH` alone
+      leaves the engine pointing at a stale path) and creates the backtest
+      schema, which `init_db()` does not cover.
     - Yields the db path string for tests that need to verify DB state directly.
     """
     import database
+    from backtesting import backtest_engine
 
     db_path = str(tmp_path / "test.db")
     monkeypatch.setattr(database, "DB_PATH", db_path)
     monkeypatch.setattr(database, "_initialized", False)
+    monkeypatch.setattr(backtest_engine, "DB_PATH", db_path)
+    # once-per-process guard must reset so the DDL runs in this test's temp DB
+    monkeypatch.setattr(backtest_engine, "_tables_ready", False)
 
     await database.init_db()
+    await backtest_engine.init_backtest_tables()
     yield db_path
 
 

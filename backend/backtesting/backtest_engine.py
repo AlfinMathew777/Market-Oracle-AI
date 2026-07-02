@@ -66,12 +66,21 @@ CREATE INDEX IF NOT EXISTS idx_btp_date   ON backtest_predictions(prediction_dat
 """
 
 
+# DDL writes can contend with a running backtest's progress writes on SQLite,
+# so polled endpoints must not re-run the script on every request.
+_tables_ready = False
+
+
 async def init_backtest_tables() -> None:
-    """Create backtest tables if they don't exist. Safe to call multiple times."""
+    """Create backtest tables if they don't exist. Runs the DDL once per process."""
+    global _tables_ready
+    if _tables_ready:
+        return
     await init_db()
     async with aiosqlite.connect(DB_PATH) as db:
         await db.executescript(_BACKTEST_DDL)
         await db.commit()
+    _tables_ready = True
     logger.debug("Backtest tables ready")
 
 

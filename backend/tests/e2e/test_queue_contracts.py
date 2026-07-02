@@ -28,6 +28,33 @@ def _skip_if_no_redis(exc: Exception) -> None:
     raise exc
 
 
+class _FakeRedisClient:
+    """Minimal in-memory async stand-in for the Redis commands SimulationQueue uses.
+
+    Lets result-contract tests exercise the real fail()/complete()/get_result()
+    serialization and key-prefix logic without a live Redis server.
+    """
+
+    def __init__(self) -> None:
+        self._store: dict = {}
+
+    async def set(self, key: str, value: str, ex: int = None) -> None:
+        self._store[key] = value
+
+    async def get(self, key: str):
+        return self._store.get(key)
+
+    async def delete(self, key: str) -> None:
+        self._store.pop(key, None)
+
+
+def _queue_with_fake_redis() -> SimulationQueue:
+    """SimulationQueue wired to an in-memory fake client (connect() sees it as open)."""
+    q = SimulationQueue()
+    q._client = _FakeRedisClient()
+    return q
+
+
 @pytest.mark.e2e
 class TestQueueStatsContract:
     """get_stats() must always return a consistent shape."""
@@ -121,14 +148,10 @@ class TestQueueResultContract:
         """After fail(), get_result() returns status=failed with error field."""
 
         async def _run():
-            q = SimulationQueue()
+            q = _queue_with_fake_redis()
             sim_id = "sim_contract_fail_test_001"
-            try:
-                await q.fail(sim_id, "integration test error")
-                result = await q.get_result(sim_id)
-                return result
-            except Exception as exc:
-                _skip_if_no_redis(exc)
+            await q.fail(sim_id, "integration test error")
+            return await q.get_result(sim_id)
 
         result = asyncio.get_event_loop().run_until_complete(_run())
         assert result is not None
@@ -139,7 +162,7 @@ class TestQueueResultContract:
         """After complete(), get_result() returns status=completed with result field."""
 
         async def _run():
-            q = SimulationQueue()
+            q = _queue_with_fake_redis()
             sim_id = "sim_contract_complete_test_001"
             payload = {
                 "status": "completed",
@@ -147,12 +170,8 @@ class TestQueueResultContract:
                 "prediction": {"direction": "UP", "confidence": 0.70},
                 "execution_time": 12.5,
             }
-            try:
-                await q.complete(sim_id, payload)
-                result = await q.get_result(sim_id)
-                return result
-            except Exception as exc:
-                _skip_if_no_redis(exc)
+            await q.complete(sim_id, payload)
+            return await q.get_result(sim_id)
 
         result = asyncio.get_event_loop().run_until_complete(_run())
         assert result is not None

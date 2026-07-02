@@ -169,6 +169,10 @@ async def backtest_status(
     """
     rate_limiter.check(http_request, endpoint_type="default", api_key=api_key)
 
+    # Lazy schema init — on a fresh deploy this endpoint can be polled before
+    # any run has ever been started; without it the query 500s instead of 404ing.
+    await init_backtest_tables()
+
     row = await get_run_status(run_id)
     if not row:
         raise HTTPException(status_code=404, detail=f"Backtest run not found: {run_id}")
@@ -215,6 +219,9 @@ async def backtest_results(
     the caller should keep polling /status until complete.
     """
     rate_limiter.check(http_request, endpoint_type="default", api_key=api_key)
+
+    # Lazy schema init — same fresh-deploy guard as /status (404 not 500).
+    await init_backtest_tables()
 
     row = await get_run_status(run_id)
     if not row:

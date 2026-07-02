@@ -136,9 +136,13 @@ class TestYFinanceFailure:
     @pytest.mark.asyncio
     async def test_fetch_price_at_time_returns_none_on_error(self):
         """Validation service must return None when yfinance fails."""
-        with patch("yfinance.Ticker", side_effect=Exception("rate limited")):
-            from services.prediction_resolver import fetch_price_at_time
-            result = await fetch_price_at_time("BHP.AX", "2026-01-01T12:00:00Z")
+        from datetime import datetime, timezone
+
+        # Non-rate-limit error message so the retry loop exits immediately
+        with patch("yfinance.Ticker", side_effect=Exception("API down")):
+            from validation.outcome_checker import fetch_price_at_time
+            target = datetime(2026, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+            result = await fetch_price_at_time("BHP.AX", target)
             assert result is None
 
 
@@ -200,13 +204,13 @@ class TestKillSwitchUnderLoad:
     @pytest.mark.asyncio
     async def test_kill_switch_blocks_concurrent_checks(self):
         """All concurrent signal checks must be blocked after kill switch fires."""
-        from routes.simulate import _kill_switch_active, activate_kill_switch, resume_signals
+        from system_state import activate_kill_switch, is_signals_enabled, resume_signals
 
         try:
-            activate_kill_switch("Chaos test — load spike detected", triggered_by="chaos_test")
+            activate_kill_switch("Chaos test — load spike detected")
 
             async def check_blocked():
-                return _kill_switch_active()
+                return not is_signals_enabled()
 
             results = await asyncio.gather(*[check_blocked() for _ in range(20)])
             assert all(r is True for r in results), "All checks should see kill switch as active"
@@ -216,17 +220,17 @@ class TestKillSwitchUnderLoad:
     @pytest.mark.asyncio
     async def test_kill_switch_state_survives_concurrent_reads(self):
         """State reads under concurrent access must be consistent."""
-        from routes.simulate import (
-            _kill_switch_active, activate_kill_switch, resume_signals,
-            get_system_state,
+        from system_state import (
+            activate_kill_switch, get_system_state, is_signals_enabled,
+            resume_signals,
         )
 
         try:
-            activate_kill_switch("Concurrent test", triggered_by="chaos")
+            activate_kill_switch("Concurrent test")
 
             async def read_state():
                 state = get_system_state()
-                return state["kill_switch_active"], _kill_switch_active()
+                return state["kill_switch_active"], not is_signals_enabled()
 
             results = await asyncio.gather(*[read_state() for _ in range(50)])
             for state_active, direct_active in results:
@@ -237,14 +241,14 @@ class TestKillSwitchUnderLoad:
 
     @pytest.mark.asyncio
     async def test_resume_unblocks_immediately(self):
-        """After resume_signals(), _kill_switch_active() must return False at once."""
-        from routes.simulate import _kill_switch_active, activate_kill_switch, resume_signals
+        """After resume_signals(), is_signals_enabled() must return True at once."""
+        from system_state import activate_kill_switch, is_signals_enabled, resume_signals
 
-        activate_kill_switch("Temp block", triggered_by="chaos")
-        assert _kill_switch_active() is True
+        activate_kill_switch("Temp block")
+        assert is_signals_enabled() is False
 
         resume_signals()
-        assert _kill_switch_active() is False
+        assert is_signals_enabled() is True
 
 
 # ────────────────────────────────────────────────────────────────────────────
@@ -257,22 +261,26 @@ class TestLLMTimeout:
     @pytest.mark.asyncio
     async def test_llm_router_call_primary_timeout(self):
         """LLMRouter must raise/return within timeout, not hang indefinitely."""
+        import llm_router as llm_router_module
         from llm_router import LLMRouter
 
-        router = LLMRouter()
+        # Fake keys so the constructor builds an active provider chain even
+        # when no real API keys exist in the test environment.
+        with patch.object(llm_router_module, "_GROQ_API_KEY", "test-key"), \
+             patch.object(llm_router_module, "_GEMINI_API_KEY", "test-key"), \
+             patch.object(llm_router_module, "_OPENROUTER_API_KEY", "test-key"):
+            router = LLMRouter()
 
-        async def slow_llm(*args, **kwargs):
-            await asyncio.sleep(999)
-            return "never"
-
-        with patch.object(router, "_call_with_timeout", side_effect=asyncio.TimeoutError):
-            try:
-                result = await asyncio.wait_for(
-                    router.call_primary("Test prompt"),
+        # Every provider call times out — the fallback chain must advance
+        # through all tiers and raise, never hang on a single provider.
+        with patch.object(
+            router, "_call_single", AsyncMock(side_effect=asyncio.TimeoutError)
+        ):
+            with pytest.raises(Exception, match="All LLM providers exhausted"):
+                await asyncio.wait_for(
+                    router.call_primary("System message", "Test prompt"),
                     timeout=5.0,
                 )
-            except (asyncio.TimeoutError, Exception):
-                pass  # Any exception is acceptable — just must not hang
 
 
 # ────────────────────────────────────────────────────────────────────────────

@@ -54,10 +54,9 @@ class TestKillSwitchGate:
         system_state.activate_kill_switch("test")
         system_state.resume_signals()
 
-        # Mock the background task so we don't actually call LLMs
-        monkeypatch.setattr(
-            "routes.simulate.QUEUE_ENABLED", False
-        )
+        # Force the in-process path (queue enablement lives in job_queue.simulation_queue,
+        # imported lazily by the route handler)
+        monkeypatch.setattr("job_queue.simulation_queue.QUEUE_ENABLED", False)
 
         async def _run():
             with patch("routes.simulate._run_simulation_background", new_callable=AsyncMock):
@@ -100,7 +99,7 @@ class TestPreFlightFilter:
         """A genuine market-moving event should NOT be filtered."""
         import asyncio
 
-        monkeypatch.setattr("routes.simulate.QUEUE_ENABLED", False)
+        monkeypatch.setattr("job_queue.simulation_queue.QUEUE_ENABLED", False)
 
         async def _run():
             with patch("routes.simulate._run_simulation_background", new_callable=AsyncMock):
@@ -182,7 +181,7 @@ class TestSimulationStatus:
         import asyncio
         from routes.simulate import active_simulations
 
-        monkeypatch.setattr("routes.simulate.QUEUE_ENABLED", False)
+        monkeypatch.setattr("job_queue.simulation_queue.QUEUE_ENABLED", False)
 
         async def _run():
             with patch("routes.simulate._run_simulation_background", new_callable=AsyncMock):
@@ -205,17 +204,17 @@ class TestSimulationStatus:
         """When queue is enabled and enqueue succeeds, status should be 'queued'."""
         import asyncio
 
-        monkeypatch.setattr("routes.simulate.QUEUE_ENABLED", True)
+        monkeypatch.setattr("job_queue.simulation_queue.QUEUE_ENABLED", True)
 
         mock_queue = AsyncMock()
         mock_queue.enqueue = AsyncMock(return_value="sim_test_queued_001")
 
         async def _run():
-            with patch("routes.simulate.sim_queue", mock_queue):
+            with patch("job_queue.simulation_queue.queue", mock_queue):
                 # map_event_to_ticker needs to resolve quickly
                 with patch(
-                    "event_ticker_mapping.map_event_to_ticker",
-                    return_value=("BHP.AX", 0.9, "test"),
+                    "routes.simulate.map_event_to_ticker",
+                    return_value="BHP.AX",
                 ):
                     response = await simulate_async_client.post("/api/simulate", json=_VALID_BODY)
                     return response
@@ -231,16 +230,22 @@ class TestSimulationStatus:
         """When queue enqueue fails, falls back to in-process and returns 'started'."""
         import asyncio
 
-        monkeypatch.setattr("routes.simulate.QUEUE_ENABLED", True)
+        monkeypatch.setattr("job_queue.simulation_queue.QUEUE_ENABLED", True)
 
         mock_queue = AsyncMock()
         mock_queue.enqueue = AsyncMock(side_effect=RuntimeError("Redis down"))
 
         async def _run():
-            with patch("routes.simulate.sim_queue", mock_queue):
-                with patch("routes.simulate._run_simulation_background", new_callable=AsyncMock):
-                    response = await simulate_async_client.post("/api/simulate", json=_VALID_BODY)
-                    return response
+            with patch("job_queue.simulation_queue.queue", mock_queue):
+                # Ticker must resolve so the route reaches enqueue() and hits the
+                # mocked Redis failure (rather than failing earlier on mapping).
+                with patch(
+                    "routes.simulate.map_event_to_ticker",
+                    return_value="BHP.AX",
+                ):
+                    with patch("routes.simulate._run_simulation_background", new_callable=AsyncMock):
+                        response = await simulate_async_client.post("/api/simulate", json=_VALID_BODY)
+                        return response
 
         response = asyncio.get_event_loop().run_until_complete(_run())
         assert response.status_code == 200

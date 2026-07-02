@@ -64,28 +64,39 @@ def test_mem_cache_expires():
 
 # ── ASXAnnouncements ──────────────────────────────────────────────────────────
 
-SAMPLE_HTML = """
-<html><body><table>
-  <tr>
-    <td>17/04/2026</td><td></td>
-    <td>BHP announces profit upgrade for FY2026</td>
-  </tr>
-  <tr>
-    <td>16/04/2026</td><td></td>
-    <td>BHP trading halt announced</td>
-  </tr>
-  <tr>
-    <td>15/04/2026</td><td></td>
-    <td>Appendix 4C quarterly report</td>
-  </tr>
-</table></body></html>
-"""
+def _ann_date(days_ago: int) -> str:
+    """Announcement date string (dd/mm/YYYY) relative to today.
+
+    Dates are generated dynamically so fixtures never go stale against the
+    cutoff filter in ASXAnnouncements._parse_html.
+    """
+    return (datetime.now() - timedelta(days=days_ago)).strftime("%d/%m/%Y")
+
+
+def _sample_html() -> str:
+    """Three announcements dated today, 2 and 3 days ago."""
+    return f"""
+    <html><body><table>
+      <tr>
+        <td>{_ann_date(0)}</td><td></td>
+        <td>BHP announces profit upgrade for FY2026</td>
+      </tr>
+      <tr>
+        <td>{_ann_date(2)}</td><td></td>
+        <td>BHP trading halt announced</td>
+      </tr>
+      <tr>
+        <td>{_ann_date(3)}</td><td></td>
+        <td>Appendix 4C quarterly report</td>
+      </tr>
+    </table></body></html>
+    """
 
 @pytest.mark.asyncio
 async def test_asx_announcements_parses_html():
     source = ASXAnnouncements()
     cutoff = datetime.now() - timedelta(days=30)
-    points = source._parse_html(SAMPLE_HTML, "BHP.AX", cutoff)
+    points = source._parse_html(_sample_html(), "BHP.AX", cutoff)
 
     assert len(points) == 3
     categories = {p.category for p in points}
@@ -98,7 +109,7 @@ async def test_asx_announcements_parses_html():
 async def test_asx_announcements_profit_upgrade_signal_positive():
     source = ASXAnnouncements()
     cutoff = datetime.now() - timedelta(days=30)
-    points = source._parse_html(SAMPLE_HTML, "BHP.AX", cutoff)
+    points = source._parse_html(_sample_html(), "BHP.AX", cutoff)
     upgrade = next(p for p in points if p.category == "profit_upgrade")
     assert upgrade.signal_strength > 0
 
@@ -107,7 +118,7 @@ async def test_asx_announcements_profit_upgrade_signal_positive():
 async def test_asx_announcements_trading_halt_signal_negative():
     source = ASXAnnouncements()
     cutoff = datetime.now() - timedelta(days=30)
-    points = source._parse_html(SAMPLE_HTML, "BHP.AX", cutoff)
+    points = source._parse_html(_sample_html(), "BHP.AX", cutoff)
     halt = next(p for p in points if p.category == "trading_halt")
     assert halt.signal_strength < 0
 
@@ -129,17 +140,17 @@ async def test_asx_announcements_cutoff_filters_old():
     source = ASXAnnouncements()
     # Only today's cutoff — older announcements in HTML should be excluded
     cutoff = datetime.now() - timedelta(days=1)
-    # All three HTML rows are 17, 16, 15 Apr — one is within 1 day, two outside
-    points = source._parse_html(SAMPLE_HTML, "BHP.AX", cutoff)
-    assert len(points) == 1  # only 17/04/2026 passes
+    # HTML rows are dated today, 2 and 3 days ago — only today's row passes
+    points = source._parse_html(_sample_html(), "BHP.AX", cutoff)
+    assert len(points) == 1  # only today's announcement passes
 
 
 @pytest.mark.asyncio
 async def test_asx_announcements_price_sensitive_flag_boosts_confidence():
-    html = """
+    html = f"""
     <html><body><table>
       <tr class="pricesensitive">
-        <td>17/04/2026</td><td></td><td>Dividend announcement</td>
+        <td>{_ann_date(0)}</td><td></td><td>Dividend announcement</td>
       </tr>
     </table></body></html>
     """

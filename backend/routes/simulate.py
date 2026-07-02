@@ -230,8 +230,9 @@ async def run_simulation(request: Request, body: SimulationRequest, background_t
             if body.affected_tickers and len(body.affected_tickers) > 0:
                 ticker = body.affected_tickers[0]
             else:
-                from event_ticker_mapping import map_event_to_ticker
-                ticker, _, _ = map_event_to_ticker(event_data)
+                # rule-based mapper returns Optional[str] — the worker re-resolves,
+                # so the job ticker is priority-routing metadata only
+                ticker = map_event_to_ticker(event_data) or "UNKNOWN"
 
             await sim_queue.enqueue(
                 simulation_id=simulation_id,
