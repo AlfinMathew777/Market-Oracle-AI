@@ -11,6 +11,10 @@ outcome_checker resolves on. Without that join the loop cannot close.
 
 What we record (only what moved the call, not 25 agents' chatter):
   - driving_archetypes : the 4-role counts on the side matching the final direction
+                         (kept for backward compat — old ledger entries carry only this)
+  - archetype_votes    : the 4-role counts on ALL sides (bullish/bearish/neutral) —
+                         dissent learns: the reputation loop scores every directional
+                         vote against reality, not just the conformist majority
   - chain_override     : true when the causal chain overrode the agent majority —
                          in that case the chain, not the archetypes, made the call
   - vote_moving_claims : the directional causal-chain slots + trigger
@@ -44,9 +48,12 @@ _CLAIM_SLOTS = ("cost_impact", "revenue_impact", "demand_impact", "sentiment_imp
 
 _DIRECTION_TO_SIDE = {"UP": "bullish", "DOWN": "bearish", "NEUTRAL": "neutral"}
 
+# every vote side, in payload order — archetype_votes records dissenters too.
+_ALL_SIDES = ("bullish", "bearish", "neutral")
+
 
 def _winning_archetypes(all_votes: list[dict], side: str) -> dict[str, int]:
-    """Count the 4 roles among votes on the side matching the final direction."""
+    """Count the 4 roles among votes on one side (winner-side for driving_archetypes)."""
     counts: dict[str, int] = {}
     for v in all_votes or []:
         if v.get("vote") != side:
@@ -55,6 +62,16 @@ def _winning_archetypes(all_votes: list[dict], side: str) -> dict[str, int]:
         if persona in _ARCHETYPES:
             counts[persona] = counts.get(persona, 0) + 1
     return counts
+
+
+def _archetype_votes_all_sides(all_votes: list[dict]) -> dict[str, dict[str, int]]:
+    """Per-side archetype counts for ALL sides — dissenters included.
+
+    `driving_archetypes` stays winner-only so old hash-chained ledger entries
+    remain interpretable; this field is what lets the reputation loop score
+    every vote against reality (dissent learns).
+    """
+    return {side: _winning_archetypes(all_votes, side) for side in _ALL_SIDES}
 
 
 def _source_id(item: dict) -> str | None:
@@ -124,6 +141,8 @@ def build_attribution(
         # true → the causal chain, not the archetypes, made the final call.
         "chain_override": bool(chain_override),
         "driving_archetypes": _winning_archetypes(all_votes, side),
+        # all sides' counts — the reputation loop scores dissenters too.
+        "archetype_votes": _archetype_votes_all_sides(all_votes),
         "vote_moving_claims": _vote_moving_claims(judge_result or {}, source_ids),
         "sources": roster,
     }

@@ -89,6 +89,37 @@ def test_neutral_direction_has_no_directional_drivers():
     assert attr["driving_archetypes"] == {"neutral_fund": 1}
 
 
+# ── archetype_votes (dissent learns) ─────────────────────────────────────────
+
+def test_archetype_votes_records_all_sides():
+    attr = _build(direction="UP")
+    assert attr["archetype_votes"] == {
+        "bullish": {"macro_bull": 2, "quant": 1},
+        "bearish": {"geo_bear": 1},
+        "neutral": {"neutral_fund": 1},
+    }
+
+
+def test_archetype_votes_independent_of_final_direction():
+    # dissenters are recorded regardless of which side won the final call.
+    assert _build(direction="UP")["archetype_votes"] == _build(direction="DOWN")["archetype_votes"]
+
+
+def test_archetype_votes_coexists_with_legacy_driving_archetypes():
+    # backward compat: the winner-only field is unchanged next to the new one.
+    attr = _build(direction="UP")
+    assert attr["driving_archetypes"] == {"macro_bull": 2, "quant": 1}
+    assert attr["archetype_votes"]["bullish"] == attr["driving_archetypes"]
+
+
+def test_archetype_votes_empty_sides_are_empty_dicts():
+    attr = build_attribution(
+        simulation_id="sim_empty", ticker="BHP.AX", direction="UP",
+        confidence=0.5, all_votes=[], judge_result={},
+    )
+    assert attr["archetype_votes"] == {"bullish": {}, "bearish": {}, "neutral": {}}
+
+
 # ── ledger join ─────────────────────────────────────────────────────────────
 
 @pytest.fixture
@@ -113,6 +144,11 @@ async def test_attribution_is_retrievable_by_simulation_id(ledger_path):
     assert got is not None
     assert got["simulation_id"] == "sim_join_001"
     assert got["driving_archetypes"] == {"macro_bull": 2, "quant": 1}
+    assert got["archetype_votes"] == {
+        "bullish": {"macro_bull": 2, "quant": 1},
+        "bearish": {"geo_bear": 1},
+        "neutral": {"neutral_fund": 1},
+    }
     assert {s["source_id"] for s in got["sources"]} == {
         "reuters", "afr.com", "reddit_sentiment", "asx_announcements",
     }

@@ -18,6 +18,11 @@ Design choices (all locked with the user):
     update (they fed the prediction regardless).
   - survivorship: only CORRECT/INCORRECT update; NEUTRAL/UNVALIDATABLE/SKIPPED
     never touch reputation.
+  - dissent learns (new-shape payloads carrying `archetype_votes`): every
+    archetype is scored against the ACTUAL move on its OWN side — a dissenter
+    that was right earns credit, one that was wrong takes the penalty. NEUTRAL
+    votes never update. Legacy winner-only payloads replay EXACTLY as before,
+    so old hash-chained ledger entries stay reproducible.
 """
 
 from __future__ import annotations
@@ -74,6 +79,87 @@ def step_weight(change_pct: float) -> float:
     return BASE_ALPHA * factor
 
 
+def _clean_counts(side: object) -> dict[str, int]:
+    """Coerce a persisted side-count mapping to non-negative ints, dropping junk."""
+    if not isinstance(side, dict):
+        return {}
+    cleaned: dict[str, int] = {}
+    for name, count in side.items():
+        try:
+            cleaned[str(name)] = max(0, int(count))
+        except (TypeError, ValueError):
+            continue
+    return cleaned
+
+
+def archetype_steps(
+    archetype_votes: dict, actual_side: str, weight: float,
+) -> dict[str, tuple[float, float, str]]:
+    """Per-archetype (target, step_weight, outcome_label) from all-sides votes.
+
+    Dissent learns: each side's votes are scored against the ACTUAL direction —
+    votes on `actual_side` pull toward 1.0, opposite-side votes toward 0.0, and
+    NEUTRAL votes never contribute (matches survivorship semantics). The step is
+    weighted by the archetype's directional vote count relative to ALL directional
+    votes, so it stays inside the margin-damped BASE_ALPHA budget.
+
+    An archetype with votes on BOTH sides gets one blended step: target is its
+    correct-vote fraction, weight is its total directional share. To first order
+    this equals two independent per-side EMA steps while preserving the store's
+    one-sample-per-prediction supersede invariant.
+    """
+    # payloads are persisted attribution data — coerce defensively so a
+    # malformed count can never push one archetype past the step budget
+    bullish = _clean_counts(archetype_votes.get("bullish"))
+    bearish = _clean_counts(archetype_votes.get("bearish"))
+    total = sum(bullish.values()) + sum(bearish.values())
+    if total <= 0:
+        return {}
+    right_side, wrong_side = (bullish, bearish) if actual_side == "bullish" else (bearish, bullish)
+    steps: dict[str, tuple[float, float, str]] = {}
+    for name in sorted(set(bullish) | set(bearish)):
+        right = right_side.get(name, 0)
+        wrong = wrong_side.get(name, 0)
+        votes = right + wrong
+        if votes <= 0:
+            continue
+        label = "CORRECT" if wrong == 0 else ("INCORRECT" if right == 0 else "MIXED")
+        steps[name] = (right / votes, weight * votes / total, label)
+    return steps
+
+
+async def _apply_archetype_updates(
+    store: ReputationStore, *, prediction_id: str, attribution: dict, target: float,
+    weight: float, outcome: str, change_pct: float, regime: str, stage: str,
+    updated_at: str,
+) -> int:
+    """Update archetype cells; returns how many archetypes were stepped.
+
+    New-shape payloads (with `archetype_votes`) score every side against the
+    actual move; legacy winner-only payloads replay the original rule EXACTLY
+    (full-weight step toward the final-direction target) so old hash-chained
+    ledger entries remain reproducible.
+    """
+    votes = attribution.get("archetype_votes")
+    if isinstance(votes, dict):
+        actual_side = "bullish" if change_pct > 0 else "bearish"
+        plan = [
+            (name, tgt, w, label)
+            for name, (tgt, w, label) in archetype_steps(votes, actual_side, weight).items()
+        ]
+    else:  # legacy shape — behavior unchanged.
+        plan = [(a, target, weight, outcome) for a in (attribution.get("driving_archetypes") or {})]
+
+    for name, tgt, w, label in plan:
+        for cell_regime in (regime, ""):  # B cell + A-backstop pooled record
+            await store.apply_step(
+                prediction_id=prediction_id, identity=name, kind=ARCHETYPE,
+                target=tgt, weight=w, outcome=label, stage=stage,
+                regime=cell_regime, updated_at=updated_at,
+            )
+    return len(plan)
+
+
 async def apply_outcome(
     store: ReputationStore,
     *,
@@ -114,14 +200,11 @@ async def apply_outcome(
 
     # chain override → the chain made the call, not the archetypes; skip them.
     if not attribution.get("chain_override"):
-        for archetype in (attribution.get("driving_archetypes") or {}):
-            for cell_regime in (regime, ""):  # B cell + A-backstop pooled record
-                await store.apply_step(
-                    prediction_id=prediction_id, identity=archetype, kind=ARCHETYPE,
-                    target=target, weight=weight, outcome=outcome, stage=stage,
-                    regime=cell_regime, updated_at=updated_at,
-                )
-            archetypes_done += 1
+        archetypes_done = await _apply_archetype_updates(
+            store, prediction_id=prediction_id, attribution=attribution,
+            target=target, weight=weight, outcome=outcome, change_pct=change_pct,
+            regime=regime, stage=stage, updated_at=updated_at,
+        )
 
     return {
         "updated": True,
@@ -194,6 +277,6 @@ async def update_from_resolution(
 # protective bounds re-exported so callers can assert on them without reaching in.
 __all__ = [
     "BASE_ALPHA", "REPUTATION_FLOOR", "REPUTATION_CEILING",
-    "collapse_regime", "step_weight", "apply_outcome", "resolve_and_update",
-    "update_from_resolution",
+    "archetype_steps", "collapse_regime", "step_weight", "apply_outcome",
+    "resolve_and_update", "update_from_resolution",
 ]

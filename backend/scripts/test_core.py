@@ -58,6 +58,13 @@ logger = logging.getLogger(__name__)
 # Set NUM_AGENTS=45 in env to restore full demo count.
 NUM_AGENTS = int(os.getenv("NUM_AGENTS", "25"))
 
+# ── Believability-weighted confidence (opt-in, default OFF) ────────────────────
+# When ON, each agent's vote is weighted by its archetype's pooled reputation
+# score before the confidence calculation ONLY. Raw integer vote counts remain
+# the source of truth for every other pipeline step (direction, guards,
+# reconciler, Monte Carlo, attribution, persistence).
+USE_BELIEVABILITY_WEIGHTS = os.getenv("USE_BELIEVABILITY_WEIGHTS", "false").lower() in {"true", "1", "yes"}
+
 # ── Simulation timeout limits ──────────────────────────────────────────────────
 # 180s budget for agents.  Worst-case total pipeline:
 #   180s (agents) + 60s (Phase 7) + 60s (report generation) = 300s
@@ -98,6 +105,103 @@ def calculate_confidence(bullish: int, bearish: int, neutral: int) -> float:
     conviction = (majority - minority) / directional          # 0→1: how polarised are directional votes
     participation_factor = math.sqrt(directional / total)     # soft penalty for high neutral ratio
     return round(min(conviction * participation_factor, 1.0), 3)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# UPGRADE 1b — Believability-weighted vote tally (flag-gated, post-vote only)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+_BELIEVABILITY_ARCHETYPES: Tuple[str, ...] = ("macro_bull", "geo_bear", "quant", "neutral_fund")
+# Fallback for a persona missing from the score map — matches
+# trust.reputation.REPUTATION_PRIOR so unknown behaves like unseasoned.
+_BELIEVABILITY_PRIOR = 0.3
+
+
+def apply_believability_weights(
+    all_votes: List[Dict[str, Any]],
+    archetype_scores: Dict[str, float],
+) -> Tuple[float, float, float]:
+    """
+    Weight each agent vote by its persona's believability score, then normalise
+    the three weighted side-sums back to the raw response total.
+
+    Normalisation: weighted_side × (n_responded / Σ all weights). This keeps
+    w_bull + w_bear + w_neut == n_bull + n_bear + n_neut, so
+    calculate_confidence's participation factor sqrt(directional / total)
+    retains its original semantics — weighting shifts conviction between
+    sides, never the apparent participation rate. Uniform scores normalise
+    away exactly (result equals the raw counts as floats).
+
+    Pure function — no I/O, never mutates its inputs.
+    """
+    side_weights = {"bullish": 0.0, "bearish": 0.0, "neutral": 0.0}
+    raw_counts = {"bullish": 0, "bearish": 0, "neutral": 0}
+    weight_total = 0.0
+    for vote in all_votes:
+        side = vote.get("vote")
+        if side not in side_weights:
+            continue  # malformed vote — excluded from the raw tally as well
+        weight = float(archetype_scores.get(vote.get("persona", ""), _BELIEVABILITY_PRIOR))
+        raw_counts[side] += 1
+        side_weights[side] += weight
+        weight_total += weight
+    n_responded = sum(raw_counts.values())
+    if n_responded == 0 or weight_total <= 0.0:
+        # Degenerate input — behave exactly like the unweighted path.
+        return (float(raw_counts["bullish"]), float(raw_counts["bearish"]), float(raw_counts["neutral"]))
+    scale = n_responded / weight_total
+    return (
+        side_weights["bullish"] * scale,
+        side_weights["bearish"] * scale,
+        side_weights["neutral"] * scale,
+    )
+
+
+async def fetch_archetype_believability() -> Dict[str, float]:
+    """
+    Fetch pooled believability per archetype from the trust reputation store.
+
+    Pooled (regime="") deliberately: get_persona_distribution already applies
+    the trend/regime bias to the persona mix, so regime-conditioned weighting
+    here would double-count that bias.
+
+    Raises on any store failure — the caller fails OPEN to raw counts.
+    """
+    from trust import get_reputation_store  # local import — trust stack optional at import time
+
+    store = await get_reputation_store()
+    return {
+        archetype: await store.effective_archetype(archetype, "")
+        for archetype in _BELIEVABILITY_ARCHETYPES
+    }
+
+
+async def compute_believability_tally(
+    all_votes: List[Dict[str, Any]],
+    n_bull: int,
+    n_bear: int,
+    n_neut: int,
+) -> Tuple[Tuple[float, float, float], Optional[Dict[str, float]], Optional[str]]:
+    """
+    Thin async wrapper around apply_believability_weights.
+
+    Returns ((w_bull, w_bear, w_neut), archetype_scores, fallback_note):
+      - flag OFF           → raw counts as floats, None, None (no store call at all)
+      - flag ON, healthy   → weighted counts, {persona: weight}, None
+      - flag ON, store err → raw counts as floats, None, audit note (FAIL OPEN —
+        a reputation outage must never block predictions)
+
+    Goodhart guard: strictly post-vote — scores never reach agent prompts.
+    """
+    raw = (float(n_bull), float(n_bear), float(n_neut))
+    if not USE_BELIEVABILITY_WEIGHTS:
+        return (raw, None, None)
+    try:
+        scores = await fetch_archetype_believability()
+        return (apply_believability_weights(all_votes, scores), scores, None)
+    except Exception as e:  # noqa: BLE001 — fail open on any reputation-store failure.
+        logger.warning("Believability weighting failed — falling back to raw counts: %s", e)
+        return (raw, None, f"believability_weights: reputation store unavailable ({e}) — raw counts used")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1422,6 +1526,20 @@ class Simulation:
 
         logger.info("Vote tally: bullish=%d bearish=%d neutral=%d", n_bull, n_bear, n_neut)
 
+        # ── STEP 5b: Believability weighting (flag-gated, default OFF) ────────
+        # Weighted floats feed calculate_confidence ONLY. Raw integer counts
+        # stay untouched for direction, guards, reconciler prompt, Monte Carlo,
+        # attribution and persistence (pipeline rule: DO NOT REORDER — margin
+        # thresholds like >=5 assume raw counts).
+        (w_bull, w_bear, w_neut), believability_scores, believability_fallback = (
+            await compute_believability_tally(all_votes, n_bull, n_bear, n_neut)
+        )
+        if believability_scores is not None:
+            logger.info(
+                "Believability-weighted tally: bullish=%.2f bearish=%.2f neutral=%.2f",
+                w_bull, w_bear, w_neut,
+            )
+
         # ── STEP 6: Calculate confidence programmatically ─────────────────────
         raw_confidence = calculate_confidence(n_bull, n_bear, n_neut)
         logger.info("Programmatic confidence: %.1f%% (method: weighted_variance_v2)", raw_confidence * 100)
@@ -1439,6 +1557,18 @@ class Simulation:
             "final_confidence":          None,
             "penalties_applied":         [],
         }
+
+        if believability_scores is not None:
+            weighted_confidence = calculate_confidence(w_bull, w_bear, w_neut)
+            confidence_audit["believability_weights"] = dict(believability_scores)
+            confidence_audit["penalties_applied"].append(
+                f"believability_weighting: active — vote confidence "
+                f"{raw_confidence * 100:.1f}% → {weighted_confidence * 100:.1f}% "
+                f"(delta {(weighted_confidence - raw_confidence) * 100:+.1f}pp)"
+            )
+            raw_confidence = weighted_confidence
+        elif believability_fallback is not None:
+            confidence_audit["penalties_applied"].append(believability_fallback)
 
         # ── STEP 7: Run Judge agent (sequential, after all others) ───────────
         news_items    = market_ctx.get("news_items", [])
@@ -2753,7 +2883,7 @@ async def main():
     print(f"Confidence: {prediction.confidence:.1%}")
     print(f"Judge:      {prediction.judge_verdict} ({prediction.judge_confidence_modifier:+d}%)")
     print(f"\nAgent consensus: UP={results['n_bull']} DOWN={results['n_bear']} NEUTRAL={results['n_neut']}")
-    print(f"\nCalc check (24B/0Bu/26N): {calculate_confidence(0, 24, 26):.3f} (expect ~0.230)")
+    print(f"\nCalc check (24B/0Bu/26N): {calculate_confidence(0, 24, 26):.3f} (expect ~0.693)")
 
     print(f"\nCausal Chain:")
     for step in prediction.causal_chain:

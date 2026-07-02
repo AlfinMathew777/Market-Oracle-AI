@@ -93,6 +93,24 @@ async def track_record(
     return await get_track_record()
 
 
+@router.get("/calibration")
+async def calibration(
+    http_request: Request,
+    api_key: Optional[str] = Depends(optional_api_key),
+):
+    """Probabilistic calibration of the swarm's resolved predictions.
+
+    Read-only. Reports 3-class Brier score, log loss, Brier Skill Score vs
+    uniform and climatology baselines, equal-count reliability bins, ECE, and
+    the Murphy decomposition — over the same resolved rows as /track-record,
+    overall and per horizon. NEUTRAL predictions are scored (probabilistic
+    scoring does not abstain).
+    """
+    rate_limiter.check(http_request, endpoint_type="default", api_key=api_key)
+    from trust.track_record import get_calibration
+    return {"status": "success", "data": await get_calibration()}
+
+
 @router.get("/health")
 async def health_check():
     return {"status": "ok", "service": "accuracy_tracker"}

@@ -18,7 +18,9 @@ Rigor, not flattery:
 from __future__ import annotations
 
 import math
+from datetime import datetime, timezone
 
+from trust.scoring import score_predictions
 from validation.constants import MIN_MOVE_PCT
 from validation.outcome_checker import classify_outcome
 
@@ -113,28 +115,42 @@ def compute_track_record(rows: list[dict]) -> dict:
             f"N={n} resolved outcomes — below {_SMALL_SAMPLE}; hit rate is NOT established, "
             "treat as provisional." if n < _SMALL_SAMPLE else None
         ),
+        # proper probabilistic scoring on the SAME rows — no survivorship:
+        # neutrals are scored too (a probabilistic forecast never abstains).
+        "scoring": score_predictions(rows),
     }
 
 
-async def get_track_record() -> dict:
-    """Read resolved swarm predictions and report 24h and 7-day records separately."""
+async def fetch_resolved_rows() -> tuple[list[dict], list[dict]]:
+    """Resolved prediction_log rows split by horizon: (rows_24h, rows_7d).
+
+    Shared by the track-record gate and the calibration report so both always
+    score exactly the same resolved set. Raises on DB failure — callers decide
+    how to degrade honestly.
+    """
     from database import get_db, init_db
 
     await init_db()
     rows_24h: list[dict] = []
     rows_7d: list[dict] = []
+    async with get_db() as db:
+        db.row_factory = lambda c, r: dict(zip([col[0] for col in c.description], r, strict=False))
+        async with db.execute(
+            """SELECT predicted_direction, confidence, actual_price_change_pct, actual_driver
+               FROM prediction_log
+               WHERE resolved_at IS NOT NULL
+                 AND actual_price_change_pct IS NOT NULL"""
+        ) as cur:
+            for row in await cur.fetchall():
+                driver = (row.get("actual_driver") or "").lower()
+                (rows_24h if "24h" in driver else rows_7d).append(row)
+    return rows_24h, rows_7d
+
+
+async def get_track_record() -> dict:
+    """Read resolved swarm predictions and report 24h and 7-day records separately."""
     try:
-        async with get_db() as db:
-            db.row_factory = lambda c, r: dict(zip([col[0] for col in c.description], r, strict=False))
-            async with db.execute(
-                """SELECT predicted_direction, confidence, actual_price_change_pct, actual_driver
-                   FROM prediction_log
-                   WHERE resolved_at IS NOT NULL
-                     AND actual_price_change_pct IS NOT NULL"""
-            ) as cur:
-                for row in await cur.fetchall():
-                    driver = (row.get("actual_driver") or "").lower()
-                    (rows_24h if "24h" in driver else rows_7d).append(row)
+        rows_24h, rows_7d = await fetch_resolved_rows()
     except Exception as e:  # noqa: BLE001 — empty/missing data → honest zero record.
         return {"error": str(e), "provisional_24h": compute_track_record([]),
                 "authoritative_7d": compute_track_record([])}
@@ -144,4 +160,33 @@ async def get_track_record() -> dict:
         "deadband_pct": MIN_MOVE_PCT,
         "provisional_24h": compute_track_record(rows_24h),
         "authoritative_7d": compute_track_record(rows_7d),
+    }
+
+
+async def get_calibration() -> dict:
+    """Probabilistic calibration report over the same resolved rows THE GATE uses.
+
+    3-class Brier, log loss, BSS vs uniform/climatology, equal-count reliability
+    bins, ECE, and the Murphy decomposition — overall plus per horizon.
+    """
+    generated_at = datetime.now(timezone.utc).isoformat()
+    try:
+        rows_24h, rows_7d = await fetch_resolved_rows()
+    except Exception as e:  # noqa: BLE001 — empty/missing data → honest zero record.
+        empty = score_predictions([])
+        return {**empty, "n": 0, "generated_at": generated_at,
+                "deadband_pct": MIN_MOVE_PCT, "error": str(e),
+                "horizons": {"provisional_24h": score_predictions([]),
+                             "authoritative_7d": score_predictions([])}}
+
+    all_rows = [*rows_24h, *rows_7d]
+    return {
+        **score_predictions(all_rows),
+        "n": len(all_rows),
+        "generated_at": generated_at,
+        "deadband_pct": MIN_MOVE_PCT,
+        "horizons": {
+            "provisional_24h": score_predictions(rows_24h),
+            "authoritative_7d": score_predictions(rows_7d),
+        },
     }
