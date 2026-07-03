@@ -443,3 +443,31 @@ Independence rule: verify scripts import NOTHING from backend/ — formulas
 and thresholds (deadband 0.5, Wilson z=1.96, confidence caps) are
 deliberately duplicated. If the backend drifts from the spec, the scripts
 diverge and that divergence is the alarm. stdlib + numpy only.
+
+### 5.2 Stage 2b andon findings (2026-07-03 — reported, not fixed; ruling required)
+
+The independence rule caught five defects in SURVIVING endpoints before any
+production run. Per amendment 2, endpoints are validated against scripts —
+each finding implies an endpoint correction that would change published
+numbers, so none was applied as a drive-by. Ruling requested at the 2b stop.
+
+| # | Finding | Severity | Implication |
+|---|---|---|---|
+| A1 | `trust/track_record.fetch_resolved_rows` does not filter `excluded_from_stats`; every other stats surface does. Resolved garbage rows count in the published track record AND the calibration suite. | HIGH | The Stage 7 gate metric and the H5 headline metric are contaminated by design. Fix before 2c. |
+| A2 | validation-summary publishes `SUM(prediction_correct)` as-is while track-record re-derives labels (the column is documented as distrusted). Seeded proof: a lying flag counts correct in one endpoint, incorrect in the other. | HIGH | Two surviving endpoints can publish contradictory hit rates from the same rows. |
+| A3 | validation-summary drops only the literal `'neutral'` token; legacy aliases (`flat`, `hold`, `sideways`) and junk tokens flow into hit rate and `by_direction`. | MEDIUM | Hit-rate denominator inflated by abstentions. |
+| A4 | accuracy-summary windows on naive local `datetime.now()`; validation-summary uses UTC; SQLite space-separated vs isoformat `T` string comparisons skew window edges by up to the UTC offset. | MEDIUM | Same-day metrics differ by server timezone. |
+| A5 | Docs pointed validation-summary at `database.get_detailed_accuracy_stats`; actual source is `outcome_checker.get_validation_summary`. | LOW | Doc drift only; scripts reconstruct the real source. |
+
+Proposed disposition (pending ruling): A1+A2 fixed in a dedicated
+`fix:` PR on the 2b branch BEFORE 2c (H5 must not anchor a contaminated
+metric), with paired before/after values logged for any prediction already
+resolved; A3+A4 fixed in the same PR if approved; A5 bundled with Tier 1
+doc-drift corrections in 2a.
+
+Duplicate-endpoint sweep status: `verify_duplicates.py` ready; the live
+sweep against staging runs during the 2a log window (exit 2 = DIVERGE =
+andon artifact in docs/postmortems/). The accuracy cluster is EXPECTED to
+diverge — three endpoints read three different tables (simulations,
+prediction_log, reasoning_predictions); the sweep will quantify it for the
+2a dedup decision.
