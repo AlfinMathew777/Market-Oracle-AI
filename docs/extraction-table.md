@@ -1,6 +1,20 @@
 # Extraction Table — Prediction Masters Directive, Phase B
 
-Status: DRAFT — Phase B complete, awaiting approval. No implementation code.
+Status: ACCEPTED WITH CORRECTIONS 2026-07-03 — see §6 amendment (evidence
+from the executed analysis lane, resolved-N statement, re-ranking, TSFM
+ruling, benchmark split). §§1–5 preserved as accepted; where §6 contradicts
+an earlier row, §6 governs.
+
+**Resolved N (stated per acceptance ruling):** live endpoint UNREACHABLE
+(`asx.marketoracle.ai` NXDOMAIN, 2026-07-03 — andon). Last git-tracked
+production snapshot (commit `e16532e`, rows through 2026-04-17):
+`prediction_log` **124 resolved** of 147 (107 with vote counts, **19
+independent resolution clusters**, 68 directional); `reasoning_predictions`
+**71 resolved** of 75. By resolution protocol: **v1** (pre-deadband-notes,
+23 rows, no vote counts) · **v2** (7-trading-day entry/exit protocol, 101
+rows) · **v3** (`reasoning_predictions` TP/SL protocol, 71 rows — scored on
+a different definition; never pool with v1/v2). Live N is unknown until a
+reachable host is confirmed; snapshot numbers are lower bounds.
 Input: `docs/masters-dossier.md` (Phase A, approved). Every row below passed
 the §3 protocol: explicit precondition check, no dependence on data/capital/
 speed MO lacks, preference for ledger-scored replayable code over prose, and
@@ -180,6 +194,87 @@ Ranks 5–7 (leaderboard, triple-barrier, correlation audit) are next in line
 and all Tier-1 cheap; #8 conformal is the highest-leverage Tier-2 item once
 per-class probabilities are persisted forward.
 
-**STOP — Phase B ends here. No implementation code. Phase C (Adaptation RFC:
-falsifiable claims, paired-logging plans, verify-script plans for the top 3)
-awaits approval.**
+---
+
+## 6. Acceptance amendment (2026-07-03) — evidence, corrections, re-ranking
+
+Phase B was ACCEPTED WITH CORRECTIONS. The ordered analysis lane executed
+same-day (`docs/analyses/2026-07-03-*.md`); its evidence amends the table:
+
+**6.1 Trials register — removed from ranking, ADOPTED.** Implemented per the
+hygiene ruling: hash-chained `docs/trials/register.jsonl` (12 backfilled
+entries citing introducing commits — incl. the position_sizer K=20 shrinkage
+constant and all Phase 0–B threshold choices — plus live corrections),
+appender `backend/scripts/append_trial.py`, verifier
+`scripts/verify/verify_trials_register.py`, tests green. Epoch note: pre-2026-07-03
+trials are undercounted; all multiplicity corrections over pre-epoch work use
+lower-bound N.
+
+**6.2 Spread–error (row 2) — DOWNGRADED on evidence.** Executed analysis
+returned a null (Spearman −0.03; terciles indistinguishable; and dispersion
+varies only 0.69–0.99 — the swarm is always split, so the diagnostic has
+little variation to work with). Precondition now judged PARTIALLY FAILED.
+The pipeline page loses its Phase C slot; spread-conditioned confidence
+logic is banned while the null stands; re-run at ≥50 independent clusters.
+
+**6.3 Rows 5 and 7 (leaderboard, correlation audit) — preconditions FLIP TO
+NOT MET.** The availability audit found `simulations.agent_votes` is an
+empty list in 147/147 rows; no persisted surface has per-agent identity.
+Per-archetype history is unrecoverable retroactively — every unfixed week
+loses comparison-N forever. This creates the new row 0:
+
+**6.4 NEW ROW 0 — Ledger schema completion (master: GraphCast lesson —
+"the verified dataset is the crown jewel").** Persist per prediction:
+per-agent votes `{agent_id, archetype, vote}`, the per-class probability
+vector, a wider MC quantile set, and a versioned feature vector. Rubric
+2/2/2/1/2 = **9** and it UNBLOCKS rows 5, 7, 8, 13, 15 plus H2/H7.
+Rank #1 pipeline adaptation. Kill criterion: shadow-persistence only —
+if written fields alter any existing output byte (replay regression), or
+per-agent payloads fail to reconcile with aggregate vote counts on >1% of
+rows, revert the writer.
+
+**6.5 Meta-labeling (row 13) — gate corrected via primary source (register
+seq 13).** Peduzzi et al. 1996: 10–20 events per variable ⇒ 3–5 features
+need 30–100 events of the RARER outcome class (~60–200 resolved), not
+"150–300 resolved." Snapshot has ~31 rarer-class events but only 19
+independent clusters — clusters, not raw N, are the binding constraint. The
+"revisit rank if N≥150" clause is NOT triggered; rank unchanged, gate now
+correctly derived: ≥30–100 rarer-class events AND ≥50 clusters.
+
+**6.6 Kelly row — evidence attached.** Retroactive recompute
+(`2026-07-03-kelly-vs-flat.md`): growth indistinguishable from flat (+0.33%
+vs +0.41% over 68 positions); max drawdown 1.42% vs 4.09%. Risk case holds;
+growth claims remain banned. Correction from Thorp 2006 §7.3: fractional
+Kelly at fraction c keeps growth c(2−c) (half-Kelly ⇒ 75%) and scales the
+STANDARD DEVIATION by c — "half the variance" in §2.1 of the dossier should
+read "half the standard deviation (quarter of the variance)."
+
+**6.7 Benchmark-opponents split (acceptance ruling).** Two lanes:
+(a) **ANALYSIS — retroactive scoring**: freeze and pre-register baseline
+definitions in the trials register FIRST, then score them as-of each
+historical prediction date (no look-ahead: climatology uses only
+prior-resolved rows; persistence uses only prior closes) across the existing
+resolved ledger. Because baselines are reconstructable as-of-date, NO
+comparison-N is lost while Stage 2c holds the pipeline queue.
+(b) **PIPELINE — standing agents**, flag-gated (`ENABLE_BASELINE_AGENTS`,
+`ENABLE_CLIMATOLOGY_AGENT`), emitting rows at prediction time once approved.
+
+**6.8 TSFM ruling (row 12) — recorded verbatim.** Isolated OPTIONAL service
+only; never a core-pipeline import. Pin model name, version, weights hash,
+and seed; persist outputs to the ledger at prediction time. Verify scripts
+attest provenance (hashes) and recompute the quantile→class mapping from the
+persisted quantiles. REPLAY READS RECORDED OUTPUTS, NEVER RE-RUNS THE MODEL.
+Conditional-accept stance in §4 upgraded to accept-under-this-ruling;
+implementation priority unchanged (below the top 3).
+
+**6.9 Re-ranked Phase C top-3 (PIPELINE lane):**
+1. **Row 0 — ledger schema completion** (9/10; unblocks five rows + H2;
+   unrecoverable-loss argument makes delay the most expensive option)
+2. **Rows 1+3 — benchmark-opponents standing agents** (9/10 twins; the
+   strongest-opponent answer stands: climatology-prior first — snapshot
+   preview raises the stakes: swarm Brier ≈ 0.65 barely beats uniform 0.667)
+3. **Row 8 — conformal sets + ACI** (7/10; probabilities reconstructable
+   from stored direction+confidence today, cleaner after row 0)
+
+**STOP — Phase B (as amended) ends here. No implementation code. Phase C RFC:
+`docs/rfc-masters-adaptations.md`.**
