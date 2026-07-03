@@ -1,0 +1,6 @@
+trials-register anchor
+register: docs/trials/register.jsonl
+entries: 15
+head_entry_hash: 18a4e674ec9ee40a91e53f0d3bc5dec323478b69cea81a053dae1544de442eb9
+covers: entire hash chain including all pre-registration entries (8, 10, 11, 13, 14, 15)
+anchored_at_utc: 2026-07-03T22:15Z

@@ -23,6 +23,27 @@ metric page must cite its trial count from this register.
 5. Verify with:
    `python backend/scripts/verify/verify_trials_register.py`
 
+## External anchoring (OpenTimestamps)
+
+Register heads are anchored to Bitcoin via OpenTimestamps: a head-attestation
+file in `anchors/` records the chain head hash (which commits to every entry
+under it), and its `.ots` proof is created by
+`python backend/scripts/anchor_ots.py anchors/<head-file>.txt`. Fresh proofs
+carry pending calendar attestations; upgrade to a Bitcoin-confirmed proof
+later with `ots upgrade` (hours). Verification of proofs is Stage 2c scope
+(rfc-worldclass §5 amendment 1). Anchor after appending pre-registration
+entries — the point is that thresholds provably predate the data.
+
+**Dependency justification (constraint 6):** `opentimestamps-client` (and its
+`opentimestamps` library) — required because RFC-3161/OTS server-side proof
+is amendment 1's explicit mechanism and cannot be reimplemented credibly
+in-house (the trust comes from the public calendar/Bitcoin infrastructure).
+Dev-only dependency: used by `anchor_ots.py` at anchoring time, never
+imported by backend runtime code. Known limitation: the stock `ots` CLI is
+broken on Windows (python-bitcoinlib OpenSSL 1.x ctypes load); the committed
+script drives the library's calendar path directly, which does not touch the
+broken code.
+
 ## Epoch note (honesty boundary)
 
 The register opened 2026-07-03 with 12 backfilled entries reconstructed from
