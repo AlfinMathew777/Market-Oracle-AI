@@ -393,3 +393,53 @@ accumulated, verified, externally anchored history. Verdict today: PARTIAL.
 approval: Stage 2a deletion PR (respecting the access-log window), or — since
 the log window imposes a 14–30 day wait — Stage 2b verify scripts may proceed
 in parallel on a separate branch, as they touch no deleted surface.*
+
+---
+
+## 5. Phase 1 approval record (2026-07-03)
+
+APPROVED WITH AMENDMENTS. Ranking and staging accepted: 2b now (parallel),
+2a after the log window, 2c = H5. Five amendments:
+
+1. **Anchoring:** server- or blockchain-timestamped proofs only —
+   OpenTimestamps or RFC-3161 — never git commit dates (client-supplied,
+   forgeable). Proof files committed to the repo; anchor-verification script
+   in `scripts/verify/`; any new dependency needs its constraint-6 paragraph.
+2. **Verify-script direction of authority:** scripts recompute metrics from
+   raw ledger/DB rows and are endpoint-agnostic. Endpoints are validated
+   against scripts, never vice versa. During the 2a log window, run the
+   scripts against ALL duplicate endpoints; any divergence between duplicates
+   is an andon finding and becomes input to the 2a dedup decision (which
+   duplicate was wrong, not just which is unused).
+3. **First anchored pre-registrations (2c):** (a) BSS-vs-climatology
+   thresholds at N=50 and N=150, publish-either-way; (b) the paired
+   believability-weights analysis plan, anchored BEFORE
+   `USE_BELIEVABILITY_WEIGHTS` ever flips on.
+4. **Fork-test language:** post-H5 verdict is "PASS on fabricability,
+   PENDING on magnitude" — anchoring proves the history is real, not that
+   the edge is large. Magnitude comes only from N and BSS.
+5. **H1 addendum:** the self-play league doubles as the labeling engine that
+   resolves the gateway Tetlock violation (§3.3) — red-team rounds generate
+   ground-truth-labeled attack/clean traffic, making gateway vetoes scorable
+   for the first time. Logged as H1 scope, strengthening its Phase 3+ case.
+   The 25-persona hard-assert (§3.1) is a KNOWN LIMIT, recorded here;
+   no drive-by fix.
+
+### 5.1 Stage 2b scope note (metric families and honest exclusions)
+
+In scope (recomputable from raw persisted rows): track-record (hit rate,
+Wilson CI, baseline, horizons), calibration suite (Brier, log loss, BSS,
+ECE, Murphy, bins), accuracy summary, validation summary (band accuracy),
+backtest (Sharpe, drawdown, hit rate from stored backtest_predictions).
+
+Excluded with justification: quant VaR/CVaR/Monte Carlo — computed on the
+fly from live market data, never persisted; not reconstructible "from raw
+ledger entries" by definition. The constraint-5 obligation for quant is
+property-testing (already covered in tests/), not ledger reconstruction.
+The anchor-verification script is 2c scope (nothing to verify until the
+first proof exists).
+
+Independence rule: verify scripts import NOTHING from backend/ — formulas
+and thresholds (deadband 0.5, Wilson z=1.96, confidence caps) are
+deliberately duplicated. If the backend drifts from the spec, the scripts
+diverge and that divergence is the alarm. stdlib + numpy only.
