@@ -471,3 +471,36 @@ andon artifact in docs/postmortems/). The accuracy cluster is EXPECTED to
 diverge — three endpoints read three different tables (simulations,
 prediction_log, reasoning_predictions); the sweep will quantify it for the
 2a dedup decision.
+
+### 5.3 Phase C partial rulings record (2026-07-03)
+
+Owner rulings received; recorded verbatim in effect:
+
+1. **DNS outage** — postmortem stub opened
+   (`docs/postmortems/2026-07-03-dns-outage.md`); root cause pending owner
+   dashboard check. **The Stage 2a access-log window clock starts only after
+   restoration plus 48h of stable traffic.** Stage 2a is frozen until then.
+2. **Accuracy divergence ruled** — the sweep was executed 2026-07-03 against
+   a locally-served copy of snapshot `e16532e` (9.5% / 53.5% / 31.0%;
+   `docs/analyses/2026-07-03-duplicate-endpoint-divergence.md`). Canonical
+   accuracy endpoint = **`/api/accuracy/summary`** (the byte-match
+   survivor). `/api/predict/accuracy` and `/api/predictions/accuracy` are
+   deprecated in 2a; the semantic cause of each number is named in
+   `docs/postmortems/2026-07-03-accuracy-divergence.md` (pre-deletion
+   requirement satisfied). **A1–A5 are fixed FORWARD on the survivor and
+   track-record family only** — §5.2's proposed disposition is amended
+   accordingly (no fixes to endpoints already marked for deprecation).
+3. **Reputation provenance audit executed**
+   (`docs/analyses/2026-07-03-reputation-provenance-audit.md`): Feynman-test
+   FAILURE recorded for the reputation/believability family — attribution
+   evidence is persisted by design (hash-chained ledger, archetype_votes)
+   but no reconstruction script exists and no reachable DB can demonstrate a
+   rebuild. `USE_BELIEVABILITY_WEIGHTS` and all H2/H7 believability
+   experiments are FROZEN until schema v2 accumulates data and
+   `verify_reputation.py` has replayed real ledger evidence.
+4. **Trials-register anchoring** — register head OpenTimestamps-stamped
+   (proofs in `docs/trials/anchors/`), decoupled from the H5 page build per
+   ruling 7; amendment-1 anchoring machinery is thereby partially in service
+   ahead of 2c.
+5. Phase D remains gated on owner verdict + production restoration. No
+   Phase D code has been written.

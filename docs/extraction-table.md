@@ -8,9 +8,16 @@ an earlier row, §6 governs.
 **Resolved N (stated per acceptance ruling):** live endpoint UNREACHABLE
 (`asx.marketoracle.ai` NXDOMAIN, 2026-07-03 — andon). Last git-tracked
 production snapshot (commit `e16532e`, rows through 2026-04-17):
-`prediction_log` **124 resolved** of 147 (107 with vote counts, **19
+`prediction_log` **124 resolved** of 147 (107 carry AGGREGATE vote counts —
+the three integers `agent_bullish/agent_bearish/agent_neutral`; **19
 independent resolution clusters**, 68 directional); `reasoning_predictions`
-**71 resolved** of 75. By resolution protocol: **v1** (pre-deadband-notes,
+**71 resolved** of 75. Reconciliation (Phase C ruling 3): "107 with votes"
+and "agent_votes empty in 147/147" describe DIFFERENT fields — the
+per-agent vote LIST column `simulations.agent_votes` is an empty JSON array
+in all 147 rows (no per-agent identity persisted anywhere), while the
+aggregate per-class COUNTS in `prediction_log` exist on 107 resolved rows.
+Aggregates power the spread–error analysis; the empty per-agent lists are
+what blocks the archetype/agreement analyses and motivate schema v2. By resolution protocol: **v1** (pre-deadband-notes,
 23 rows, no vote counts) · **v2** (7-trading-day entry/exit protocol, 101
 rows) · **v3** (`reasoning_predictions` TP/SL protocol, 71 rows — scored on
 a different definition; never pool with v1/v2). Live N is unknown until a
