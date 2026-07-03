@@ -87,8 +87,11 @@ is the opposite of secrecy.
 (binary: f\* = (bp − q)/b; continuous: f ≈ μ/σ²). Stake proportional to
 MEASURED edge; zero edge → zero stake. (2) Fractional Kelly for estimation
 error: edges are estimates, and overestimating means unknowingly betting past
-full Kelly where growth turns negative; half-Kelly gives ~75% of growth at
-~50% of variance. Survival precedes edge. (3) Verify empirically at small
+full Kelly where growth turns negative; fractional Kelly at fraction c keeps
+c(2−c) of the growth rate and scales the standard deviation by c — half-Kelly
+gives ~75% of growth at half the std-dev, a quarter of the variance (Thorp
+2006 §7.3; corrected 2026-07-03 after primary-source verification).
+Survival precedes edge. (3) Verify empirically at small
 stakes before scaling — low-minimum tables first, paper first. (4) An
 unmeasured edge is not neutrality; it is a measured edge of zero.
 
