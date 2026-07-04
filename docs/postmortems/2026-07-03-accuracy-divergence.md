@@ -35,9 +35,15 @@ column andon A2 documents as distrusted (though a recheck on this snapshot
 found zero disagreements between the flag and a sign+deadband re-derivation).
 Provenance nuance: on the pristine snapshot this endpoint computes
 **54.8% (34/62)**; the sweep captured 38/71 because the locally-served
-backend's startup validation resolved 9 additional pending rows against live
-2026-07-03 prices during the run (`resolved_at` max = sweep time). Semantic
-cause unchanged; recorded so nobody chases a phantom 71-row population.
+backend's boot-time resolver mutated the scratch copy during the run.
+CORRECTED SCOPE (2026-07-04 A-series audit): the boot job touched **79
+rows** — 23 genuinely pending rows newly resolved (horizon-dated, labels
+valid per A6-pass) plus **56 already-resolved NEUTRAL rows silently
+re-resolved and overwritten** (A9: `WHERE prediction_correct IS NULL`
+re-matches resolved neutrals forever). All 79 are quarantined in the scratch
+artifact with reason code `A7_STARTUP_SIDE_EFFECT_RESOLUTION`; production
+was never touched; the pristine snapshot used by the analyses was never
+mutated. See rfc-worldclass §5.4 (A6–A9).
 
 **`/api/accuracy/summary` = 31.0% (22/71).**
 Source: `reasoning_predictions` via `services/accuracy_tracker`

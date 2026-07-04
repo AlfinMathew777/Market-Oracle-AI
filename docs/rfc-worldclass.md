@@ -504,3 +504,36 @@ Owner rulings received; recorded verbatim in effect:
    ahead of 2c.
 5. Phase D remains gated on owner verdict + production restoration. No
    Phase D code has been written.
+
+### 5.4 A6–A9 resolver audit (2026-07-04 rulings; reported, fixes queued in A-series)
+
+Audit question (ruling 1): horizon-dated or fetch-time prices for expired
+rows? Verdict differs per path:
+
+| # | Finding | Severity | Detail |
+|---|---|---|---|
+| A6 | `database.run_accuracy_checks` (simulations/24h family) resolves with **fetch-time prices**: `fast_info.last_price` vs `previous_close` — i.e., the one-day move of WHATEVER DAY the job runs, regardless of prediction date. An expired backlog row gets an outcome unrelated to its window. All 147 simulation outcomes (the 9.5% number) were produced by this rule. | **HIGH** | Fix in the A-series pattern. Until fixed, simulation outcomes are not protocol-valid evidence for anything. |
+| A6-pass | `outcome_checker.validate_prediction` and `services/prediction_resolver` both use **horizon-dated historical windows** (entry = first close ≥ prediction date, exit = first close ≥ prediction date + horizon). Late resolution yields correct labels. | — | The 2026-07-03 mid-sweep resolutions carry valid labels. |
+| A7 | **Resolution as an unconditional startup side effect**: `server.py` `_boot_cleanup()` runs `auto_resolve_pending_predictions(limit=200)` at every boot in EVERY environment, plus `_hourly_tasks` in-process. This is what mutated the sweep's scratch DB. | **HIGH (process)** | Standing rule (ruling 1, recorded): resolution is an explicit, logged job — never a startup side effect; dev boot defaults no-resolve; all verify/sweep tooling runs read-only. Code fix queued in A-series. |
+| A8 | `prediction_resolver` labels say "over 7 trading days" but implements +7 CALENDAR days snapped to the next trading close; entry price is the PREDICTION-DAY close even for intraday predictions (hours of entry-price look-ahead). | LOW | This paragraph is now the precise definition of resolution protocol v2; fix the label text, not the math, unless re-registered. |
+| A9 | **Resolution is not write-once.** `prediction_resolver` selects `WHERE prediction_correct IS NULL`, but resolved-NEUTRAL rows keep `prediction_correct=NULL` by design — so all 56 neutral rows re-qualify and get `actual_*`, `resolved_at`, `resolution_notes` OVERWRITTEN on every boot and hourly tick. The 2026-07-03 sweep boot touched 79 rows: 23 genuinely pending + 56 re-resolved neutrals. Deterministic horizon-dated math makes the rewrite usually value-identical, but the ledger surface churns and any manual correction would be silently clobbered. | **HIGH (ledger integrity)** | Fix: select on `actual_direction IS NULL` (the true unresolved marker) + write-once guard on resolution fields. A-series. |
+
+Quarantine executed (ruling 2): all 79 rows touched by the dev-boot
+resolver are marked `excluded_from_stats=1` with reason code
+`A7_STARTUP_SIDE_EFFECT_RESOLUTION` — in the session's scratch artifact
+only. **Production was never touched** (it is unreachable); there is
+nothing to quarantine in any ledger of record. The pristine snapshot used
+by the analysis lane was never mutated, so no published analysis is
+contaminated.
+
+Cron/hostname blast radius (ruling 3): resolution does NOT ride public
+DNS — it runs in-process (`_hourly_tasks`, `_boot_cleanup`) inside the
+backend service. The only Railway cron (`railway.toml`, morning
+predictions) calls `$BACKEND_URL`, documented as the `*.railway.app`
+internal hostname, not the custom domain — set in the dashboard, so
+unverifiable from the repo. Consequence: **if the Railway service is
+healthy, the DNS outage did NOT stop resolution or (probably) morning
+predictions — it silenced the public API/frontend and blinded external
+observation.** Whether the service IS healthy, and whether resolutions
+have continued since April, only the owner's dashboard can answer — that
+answer is also the sealed-verdict flip condition for Phase D ordering.
