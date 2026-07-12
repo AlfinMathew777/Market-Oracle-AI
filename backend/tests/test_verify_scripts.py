@@ -35,33 +35,42 @@ _PREDICTED_AT = (_NOW - timedelta(days=3)).isoformat()
 _DRIVER_24H = "Auto-validated via 24h price action"
 _DRIVER_7D = "7-day authoritative resolution"
 
+# enumerated exclusion codes — literals on purpose (scripts import no backend)
+_CODE_ZERO = "GARBAGE_CONFIDENCE_ZERO"
+_CODE_SUBFLOOR = "GARBAGE_CONFIDENCE_SUBFLOOR"
+
 # (id, direction, confidence, change_pct, driver, prediction_correct,
-#  resolved, excluded) — prediction_correct is deliberately wrong on r02.
+#  resolved, excluded, exclusion_reason) — prediction_correct is deliberately
+#  wrong on r02.
 _PREDICTION_LOG_ROWS = [
     # 24h horizon
-    ("r01", "bullish", 0.72, 2.00, _DRIVER_24H, 1, True, 0),    # CORRECT
-    ("r02", "bullish", 0.65, -1.50, _DRIVER_24H, 1, True, 0),   # INCORRECT (flag lies)
-    ("r03", "bearish", 0.80, -3.00, _DRIVER_24H, 1, True, 0),   # CORRECT
-    ("r04", "bearish", 0.58, 1.20, _DRIVER_24H, 0, True, 0),    # INCORRECT
-    ("r05", "bullish", 0.60, 0.30, _DRIVER_24H, None, True, 0),  # in deadband
-    ("r06", "bullish", 0.70, 0.50, _DRIVER_24H, None, True, 0),  # boundary: neutral
-    ("r07", "bullish", 0.62, -0.51, _DRIVER_24H, 0, True, 0),   # just clears band
-    ("r08", "neutral", 0.40, 1.00, _DRIVER_24H, None, True, 0),  # neutral prediction
-    ("r09", "bullish", 0.72, 1.10, _DRIVER_24H, 1, True, 0),    # CORRECT, dup conf
+    ("r01", "bullish", 0.72, 2.00, _DRIVER_24H, 1, True, 0, None),    # CORRECT
+    ("r02", "bullish", 0.65, -1.50, _DRIVER_24H, 1, True, 0, None),   # INCORRECT (flag lies)
+    ("r03", "bearish", 0.80, -3.00, _DRIVER_24H, 1, True, 0, None),   # CORRECT
+    ("r04", "bearish", 0.58, 1.20, _DRIVER_24H, 0, True, 0, None),    # INCORRECT
+    ("r05", "bullish", 0.60, 0.30, _DRIVER_24H, None, True, 0, None),  # in deadband
+    ("r06", "bullish", 0.70, 0.50, _DRIVER_24H, None, True, 0, None),  # boundary: neutral
+    ("r07", "bullish", 0.62, -0.51, _DRIVER_24H, 0, True, 0, None),   # just clears band
+    ("r08", "neutral", 0.40, 1.00, _DRIVER_24H, None, True, 0, None),  # neutral prediction
+    ("r09", "bullish", 0.72, 1.10, _DRIVER_24H, 1, True, 0, None),    # CORRECT, dup conf
     # 7-day horizon
-    ("r10", "up", 0.77, 1.80, _DRIVER_7D, 1, True, 0),          # legacy bullish token
-    ("r11", "down", 0.66, 2.50, _DRIVER_7D, 0, True, 0),        # legacy bearish, wrong
-    ("r12", "bearish", 0.55, -0.50, _DRIVER_7D, None, True, 0),  # boundary: neutral
-    ("r13", "sideways_drift", 0.50, 1.00, _DRIVER_7D, 0, True, 0),  # unvalidatable
-    ("r14", "flat", 0.35, -0.20, _DRIVER_7D, 0, True, 0),       # legacy neutral token
-    ("r15", "bullish", 0.90, 4.00, _DRIVER_7D, 1, True, 0),     # CORRECT, top bucket
-    ("r16", "bearish", 0.45, -2.00, _DRIVER_7D, 1, True, 0),    # CORRECT, low bucket
-    ("r17", "bullish", 0.68, -2.20, _DRIVER_7D, 0, True, 0),    # INCORRECT
+    ("r10", "up", 0.77, 1.80, _DRIVER_7D, 1, True, 0, None),          # legacy bullish token
+    ("r11", "down", 0.66, 2.50, _DRIVER_7D, 0, True, 0, None),        # legacy bearish, wrong
+    ("r12", "bearish", 0.55, -0.50, _DRIVER_7D, None, True, 0, None),  # boundary: neutral
+    ("r13", "sideways_drift", 0.50, 1.00, _DRIVER_7D, 0, True, 0, None),  # unvalidatable
+    ("r14", "flat", 0.35, -0.20, _DRIVER_7D, 0, True, 0, None),       # legacy neutral token
+    ("r15", "bullish", 0.90, 4.00, _DRIVER_7D, 1, True, 0, None),     # CORRECT, top bucket
+    ("r16", "bearish", 0.45, -2.00, _DRIVER_7D, 1, True, 0, None),    # CORRECT, low bucket
+    ("r17", "bullish", 0.68, -2.20, _DRIVER_7D, 0, True, 0, None),    # INCORRECT
     # rows no metric family may count
-    ("r18", "bullish", 0.75, None, None, None, False, 1),       # excluded, pending
-    ("r19", "bearish", 0.80, None, None, None, False, 1),       # excluded, pending
-    ("r20", "bullish", 0.70, None, None, None, False, 0),       # unresolved
-    ("r21", "bullish", 0.70, None, None, None, True, 0),        # resolved, no change pct
+    ("r18", "bullish", 0.75, None, None, None, False, 1, _CODE_SUBFLOOR),  # excluded, pending
+    ("r19", "bearish", 0.80, None, None, None, False, 1, _CODE_SUBFLOOR),  # excluded, pending
+    ("r20", "bullish", 0.70, None, None, None, False, 0, None),       # unresolved
+    ("r21", "bullish", 0.70, None, None, None, True, 0, None),        # resolved, no change pct
+    # resolved garbage — one per enumerated code; A1: filtered everywhere,
+    # surfaced only in excluded stats and the contaminated variant
+    ("r22", "bullish", 0.00, 2.00, _DRIVER_24H, 1, True, 1, _CODE_ZERO),
+    ("r23", "bearish", 0.03, -2.00, _DRIVER_7D, 1, True, 1, _CODE_SUBFLOOR),
 ]
 
 # (id, status, return_pct, confidence_score 0-100)
@@ -77,17 +86,18 @@ _REASONING_ROWS = [
 
 async def _seed(db_path: str) -> None:
     async with aiosqlite.connect(db_path) as db:
-        for pid, direction, conf, change, driver, correct, resolved, excluded in _PREDICTION_LOG_ROWS:
+        for (pid, direction, conf, change, driver, correct, resolved,
+             excluded, reason) in _PREDICTION_LOG_ROWS:
             await db.execute(
                 """INSERT INTO prediction_log
                    (id, ticker, predicted_direction, confidence, predicted_at,
                     bhp_price_at_prediction, actual_price_change_pct,
                     prediction_correct, actual_driver, resolved_at,
-                    excluded_from_stats, created_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    excluded_from_stats, exclusion_reason, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (pid, "BHP.AX", direction, conf, _PREDICTED_AT, 45.20, change,
                  correct, driver, _RESOLVED_AT if resolved else None,
-                 excluded, _PREDICTED_AT),
+                 excluded, reason, _PREDICTED_AT),
             )
         ts = (_NOW - timedelta(days=5)).isoformat()
         for rid, status, ret, conf_score in _REASONING_ROWS:
@@ -133,10 +143,14 @@ class TestVerifyScriptsMatchEndpoints:
 
         payload = await get_track_record()
         assert "error" not in payload
-        # pin the seed: 6 directional resolved on 24h, 5 on 7d
+        # pin the seed: 6 directional resolved on 24h, 5 on 7d — the resolved
+        # garbage rows r22/r23 must NOT count (A1)
         assert payload["provisional_24h"]["n_resolved_directional"] == 6
         assert payload["authoritative_7d"]["n_resolved_directional"] == 5
         assert payload["provisional_24h"]["n_excluded_neutral"] == 3
+        assert payload["excluded"] == {
+            "count": 2, "by_reason": {_CODE_ZERO: 1, _CODE_SUBFLOOR: 1},
+        }
 
         json_path = _capture(tmp_path, "track_record.json", payload)
         result = _run_script("verify_track_record.py", seeded_db, json_path)
@@ -147,8 +161,9 @@ class TestVerifyScriptsMatchEndpoints:
 
         data = await get_calibration()
         assert "error" not in data
-        assert data["n"] == 17          # every resolved row, both horizons
+        assert data["n"] == 17          # every resolved row, both horizons — garbage filtered
         assert data["n_scored"] == 16   # unvalidatable token skipped
+        assert data["excluded"]["count"] == 2
 
         json_path = _capture(tmp_path, "calibration.json",
                              {"status": "success", "data": data})
@@ -182,6 +197,45 @@ class TestVerifyScriptsMatchEndpoints:
         result = _run_script("verify_validation_summary.py", seeded_db, json_path,
                              extra=("--days", "30"))
         assert result.returncode == 0, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+
+
+class TestExclusionFiltering:
+    """A1 — resolved garbage rows are filtered, stated, and visible as a
+    contaminated before/after pair."""
+
+    async def test_track_record_contaminated_variant_differs_by_seeded_garbage(self, seeded_db):
+        result = _run_script("verify_track_record.py", seeded_db)
+        assert result.returncode == 0, result.stderr
+        recon = json.loads(result.stdout)
+        # canonical: garbage filtered
+        assert recon["provisional_24h"]["n_resolved_directional"] == 6
+        assert recon["authoritative_7d"]["n_resolved_directional"] == 5
+        assert recon["excluded"] == {
+            "count": 2, "by_reason": {_CODE_ZERO: 1, _CODE_SUBFLOOR: 1},
+        }
+        # contaminated variant: exactly the seeded garbage rows leak back in
+        cont = recon["contaminated_variant"]
+        assert cont["provisional_24h"]["n_resolved_directional"] == 7   # + r22
+        assert cont["authoritative_7d"]["n_resolved_directional"] == 6  # + r23
+        assert cont["provisional_24h"]["n_correct"] == recon["provisional_24h"]["n_correct"] + 1
+
+    async def test_calibration_contaminated_variant_scores_garbage_rows(self, seeded_db):
+        result = _run_script("verify_calibration.py", seeded_db)
+        assert result.returncode == 0, result.stderr
+        recon = json.loads(result.stdout)
+        assert recon["n"] == 17
+        assert recon["excluded"]["count"] == 2
+        assert recon["contaminated_variant"]["n"] == 19
+        assert recon["contaminated_variant"]["n_scored"] == recon["n_scored"] + 2
+
+    async def test_compare_mode_prints_contaminated_pair(self, seeded_db, tmp_path):
+        from trust.track_record import get_track_record
+
+        payload = await get_track_record()
+        json_path = _capture(tmp_path, "track_record_a1.json", payload)
+        result = _run_script("verify_track_record.py", seeded_db, json_path)
+        assert result.returncode == 0, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+        assert "contaminated_variant" in result.stdout
 
 
 class TestVerifyScriptContract:

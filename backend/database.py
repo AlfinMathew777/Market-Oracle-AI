@@ -303,18 +303,68 @@ _MIN_STAT_CONFIDENCE = 0.05   # 5%
 
 def _is_garbage_prediction(direction: str, confidence: float) -> Optional[str]:
     """
-    Return an exclusion reason string if this prediction is garbage, else None.
+    Return an enumerated exclusion code if this prediction is garbage, else None.
 
     Garbage means the system had no real signal:
       - Confidence exactly 0 (minimum-confidence guard forced neutral)
-      - Confidence < 5% AND direction is neutral (no view at all)
       - Confidence < 5% regardless of direction (below noise floor)
     """
+    from validation.exclusions import GARBAGE_CONFIDENCE_SUBFLOOR, GARBAGE_CONFIDENCE_ZERO
+
     if confidence <= 0.0:
-        return "Zero confidence — no signal (minimum confidence guard triggered)"
+        return GARBAGE_CONFIDENCE_ZERO
     if confidence < _MIN_STAT_CONFIDENCE:
-        return f"Confidence {confidence*100:.1f}% below minimum {_MIN_STAT_CONFIDENCE*100:.0f}% threshold"
+        return GARBAGE_CONFIDENCE_SUBFLOOR
     return None
+
+
+async def mark_excluded(prediction_id: str, code: str) -> bool:
+    """Append-only exclusion writer — the ONLY sanctioned single-row path.
+
+    Sets excluded_from_stats=1 with an enumerated reason code. There is no
+    un-exclude path: a falsy or non-enumerated code is refused (ValueError),
+    and a row already excluded keeps its original code. Every call is logged
+    at INFO with id + code for auditability.
+
+    Returns True if the row was newly excluded, False otherwise.
+    """
+    from validation.exclusions import EXCLUSION_CODES
+
+    logger.info("mark_excluded called: id=%s code=%s", prediction_id, code)
+    if code not in EXCLUSION_CODES:
+        # refuses clears and free text alike
+        logger.info(
+            "mark_excluded REFUSED for %s: %r is not an enumerated exclusion code",
+            prediction_id, code,
+        )
+        raise ValueError(
+            f"invalid exclusion code {code!r} — exclusions are append-only and "
+            f"must use one of {sorted(EXCLUSION_CODES)}"
+        )
+
+    await init_db()
+    async with get_db() as db:
+        async with db.execute(
+            "SELECT excluded_from_stats, exclusion_reason FROM prediction_log WHERE id = ?",
+            (prediction_id,),
+        ) as cur:
+            row = await cur.fetchone()
+        if row is None:
+            logger.info("mark_excluded: no such prediction %s", prediction_id)
+            return False
+        if row[0] == 1:
+            logger.info(
+                "mark_excluded: %s already excluded (reason=%s) — append-only, unchanged",
+                prediction_id, row[1],
+            )
+            return False
+        await db.execute(
+            "UPDATE prediction_log SET excluded_from_stats = 1, exclusion_reason = ? WHERE id = ?",
+            (code, prediction_id),
+        )
+        await db.commit()
+    logger.info("mark_excluded: %s excluded with code=%s", prediction_id, code)
+    return True
 
 
 async def mark_existing_garbage_predictions() -> int:
@@ -323,6 +373,10 @@ async def mark_existing_garbage_predictions() -> int:
     Safe to call on every startup (only updates rows not already marked).
     Returns count of newly marked rows.
     """
+    from validation.exclusions import (
+        EXCLUSION_CODES, GARBAGE_CONFIDENCE_SUBFLOOR, GARBAGE_CONFIDENCE_ZERO,
+    )
+
     try:
         await init_db()
         async with get_db() as db:
@@ -330,12 +384,25 @@ async def mark_existing_garbage_predictions() -> int:
                 """UPDATE prediction_log
                    SET excluded_from_stats = 1,
                        exclusion_reason = CASE
-                           WHEN confidence <= 0.0 THEN 'Zero confidence — no signal (minimum confidence guard triggered)'
-                           ELSE 'Confidence below 5% minimum threshold'
+                           WHEN confidence <= 0.0 THEN ?
+                           ELSE ?
                        END
                    WHERE confidence < ?
                      AND (excluded_from_stats IS NULL OR excluded_from_stats = 0)""",
-                (_MIN_STAT_CONFIDENCE,),
+                (GARBAGE_CONFIDENCE_ZERO, GARBAGE_CONFIDENCE_SUBFLOOR, _MIN_STAT_CONFIDENCE),
+            )
+            # normalize legacy free-text reasons to codes — never clears exclusion
+            placeholders = ",".join("?" * len(EXCLUSION_CODES))
+            await db.execute(
+                f"""UPDATE prediction_log
+                    SET exclusion_reason = CASE
+                        WHEN exclusion_reason LIKE 'Zero confidence%' THEN ?
+                        ELSE ?
+                    END
+                    WHERE excluded_from_stats = 1
+                      AND exclusion_reason IS NOT NULL
+                      AND exclusion_reason NOT IN ({placeholders})""",
+                (GARBAGE_CONFIDENCE_ZERO, GARBAGE_CONFIDENCE_SUBFLOOR, *sorted(EXCLUSION_CODES)),
             )
             await db.commit()
             n = result.rowcount
@@ -644,6 +711,19 @@ async def save_prediction_log(
             )
 
         async with get_db() as db:
+            # append-only guard: INSERT OR REPLACE may never clear an exclusion
+            if not excluded:
+                async with db.execute(
+                    "SELECT excluded_from_stats, exclusion_reason FROM prediction_log WHERE id = ?",
+                    (simulation_id,),
+                ) as cur:
+                    prior = await cur.fetchone()
+                if prior and prior[0] == 1:
+                    excluded, exclusion_reason = 1, prior[1]
+                    logger.info(
+                        "prediction_log [%s] exclusion preserved on replace: %s",
+                        simulation_id, exclusion_reason,
+                    )
             await db.execute(
                 """INSERT OR REPLACE INTO prediction_log
                    (id, ticker, predicted_direction, confidence, predicted_at,

@@ -30,6 +30,8 @@ CLASSES = ("up", "down", "neutral")
 BULLISH_TOKENS = frozenset({"bullish", "up", "buy", "long", "positive"})
 BEARISH_TOKENS = frozenset({"bearish", "down", "sell", "short", "negative"})
 NEUTRAL_TOKENS = frozenset({"neutral", "hold", "sideways", "flat", "unclear"})
+# duplicated from validation/exclusions.py — enumerated exclusion reason codes
+EXCLUSION_CODES = ("GARBAGE_CONFIDENCE_ZERO", "GARBAGE_CONFIDENCE_SUBFLOOR")
 
 
 # ── direction / outcome semantics ────────────────────────────────────────────
@@ -224,15 +226,32 @@ _RESOLVED_SQL = (
 )
 
 
-def resolved_prediction_rows(db_path: str) -> list[dict]:
+def resolved_prediction_rows(db_path: str, include_excluded: bool = False) -> list[dict]:
     """resolved prediction_log rows. excluded_from_stats rows never count —
-    the spec, even where an endpoint forgets the filter."""
+    the spec. include_excluded=True is the contaminated (pre-A1) variant,
+    kept computable so before/after pairs stay visible on any db."""
+    if include_excluded:
+        return query(db_path, _RESOLVED_SQL.format(extra=""))
     try:
         return query(db_path, _RESOLVED_SQL.format(
             extra=" AND (excluded_from_stats IS NULL OR excluded_from_stats = 0)"))
     except sqlite3.OperationalError:
         # pre-migration db without the column
         return query(db_path, _RESOLVED_SQL.format(extra=""))
+
+
+def exclusion_stats(db_path: str) -> dict:
+    """resolved rows dropped by the exclusion filter: {count, by_reason}."""
+    try:
+        rows = query(db_path, (
+            "SELECT exclusion_reason, COUNT(*) AS n FROM prediction_log "
+            "WHERE resolved_at IS NOT NULL AND actual_price_change_pct IS NOT NULL "
+            "AND excluded_from_stats = 1 GROUP BY exclusion_reason"))
+    except sqlite3.OperationalError:
+        # pre-migration db without the column
+        rows = []
+    by_reason = {(r["exclusion_reason"] or "UNSPECIFIED"): r["n"] for r in rows}
+    return {"count": sum(by_reason.values()), "by_reason": by_reason}
 
 
 def split_horizons(rows: list[dict]) -> tuple[list[dict], list[dict]]:

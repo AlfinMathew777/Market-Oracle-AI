@@ -4,15 +4,20 @@
 labels re-derived from actual_price_change_pct through the +/-0.5% deadband
 (strict inequality) — the stored prediction_correct column is never trusted.
 horizon split: '24h' in actual_driver -> provisional, else 7-day.
+excluded_from_stats rows never count (A1); the canonical comparison is
+without them, and a with-exclusions contaminated_variant is printed so the
+before/after pair stays visible on any db.
 duplicated thresholds: deadband 0.5, wilson z=1.96, small-sample floor 30,
 fixed confidence buckets, best-constant-direction baseline.
 """
 
 from __future__ import annotations
 
+import json
+
 from _lib import (
-    MIN_MOVE_PCT, actual_class, classify_outcome, finish, make_parser,
-    resolved_prediction_rows, score_rows, split_horizons, wilson_95,
+    MIN_MOVE_PCT, actual_class, classify_outcome, exclusion_stats, finish,
+    make_parser, resolved_prediction_rows, score_rows, split_horizons, wilson_95,
 )
 
 SMALL_SAMPLE = 30
@@ -72,12 +77,23 @@ def track_record(rows: list[dict]) -> dict:
 def main() -> None:
     args = make_parser(__file__, "reconstruct the published track record").parse_args()
     rows_24h, rows_7d = split_horizons(resolved_prediction_rows(args.db))
+    # contaminated variant keeps excluded rows in — pre-A1 semantics, printed
+    # (never compared) so the before/after pair is visible on any db
+    cont_24h, cont_7d = split_horizons(resolved_prediction_rows(args.db, include_excluded=True))
     recon = {
         "deadband_pct": MIN_MOVE_PCT,
         "provisional_24h": track_record(rows_24h),
         "authoritative_7d": track_record(rows_7d),
+        "excluded": exclusion_stats(args.db),
+        "contaminated_variant": {
+            "provisional_24h": track_record(cont_24h),
+            "authoritative_7d": track_record(cont_7d),
+        },
     }
-    finish(recon, args)
+    if args.endpoint or args.json_path:
+        print("contaminated_variant (with exclusions, pre-A1): "
+              + json.dumps(recon["contaminated_variant"], ensure_ascii=True))
+    finish(recon, args, skip=("contaminated_variant",))
 
 
 if __name__ == "__main__":

@@ -121,8 +121,12 @@ def compute_track_record(rows: list[dict]) -> dict:
     }
 
 
-async def fetch_resolved_rows() -> tuple[list[dict], list[dict]]:
-    """Resolved prediction_log rows split by horizon: (rows_24h, rows_7d).
+async def fetch_resolved_rows() -> tuple[list[dict], list[dict], dict]:
+    """Resolved prediction_log rows split by horizon: (rows_24h, rows_7d, excluded).
+
+    Rows with excluded_from_stats=1 never count (andon finding A1 — every
+    other stats surface filters them); they are reported instead in the
+    excluded dict: {"count": n, "by_reason": {code: n}}.
 
     Shared by the track-record gate and the calibration report so both always
     score exactly the same resolved set. Raises on DB failure — callers decide
@@ -133,33 +137,49 @@ async def fetch_resolved_rows() -> tuple[list[dict], list[dict]]:
     await init_db()
     rows_24h: list[dict] = []
     rows_7d: list[dict] = []
+    by_reason: dict[str, int] = {}
     async with get_db() as db:
         db.row_factory = lambda c, r: dict(zip([col[0] for col in c.description], r, strict=False))
         async with db.execute(
             """SELECT predicted_direction, confidence, actual_price_change_pct, actual_driver
                FROM prediction_log
                WHERE resolved_at IS NOT NULL
-                 AND actual_price_change_pct IS NOT NULL"""
+                 AND actual_price_change_pct IS NOT NULL
+                 AND (excluded_from_stats IS NULL OR excluded_from_stats = 0)"""
         ) as cur:
             for row in await cur.fetchall():
                 driver = (row.get("actual_driver") or "").lower()
                 (rows_24h if "24h" in driver else rows_7d).append(row)
-    return rows_24h, rows_7d
+        # resolved rows the filter dropped, stated openly on published surfaces
+        async with db.execute(
+            """SELECT exclusion_reason, COUNT(*) AS n
+               FROM prediction_log
+               WHERE resolved_at IS NOT NULL
+                 AND actual_price_change_pct IS NOT NULL
+                 AND excluded_from_stats = 1
+               GROUP BY exclusion_reason"""
+        ) as cur:
+            for row in await cur.fetchall():
+                by_reason[row.get("exclusion_reason") or "UNSPECIFIED"] = row["n"]
+    excluded = {"count": sum(by_reason.values()), "by_reason": by_reason}
+    return rows_24h, rows_7d, excluded
 
 
 async def get_track_record() -> dict:
     """Read resolved swarm predictions and report 24h and 7-day records separately."""
     try:
-        rows_24h, rows_7d = await fetch_resolved_rows()
+        rows_24h, rows_7d, excluded = await fetch_resolved_rows()
     except Exception as e:  # noqa: BLE001 — empty/missing data → honest zero record.
         return {"error": str(e), "provisional_24h": compute_track_record([]),
-                "authoritative_7d": compute_track_record([])}
+                "authoritative_7d": compute_track_record([]),
+                "excluded": {"count": 0, "by_reason": {}}}
 
     return {
         "measures": "swarm predictions (prediction_log), NOT the backtest TA rule",
         "deadband_pct": MIN_MOVE_PCT,
         "provisional_24h": compute_track_record(rows_24h),
         "authoritative_7d": compute_track_record(rows_7d),
+        "excluded": excluded,
     }
 
 
@@ -171,11 +191,12 @@ async def get_calibration() -> dict:
     """
     generated_at = datetime.now(timezone.utc).isoformat()
     try:
-        rows_24h, rows_7d = await fetch_resolved_rows()
+        rows_24h, rows_7d, excluded = await fetch_resolved_rows()
     except Exception as e:  # noqa: BLE001 — empty/missing data → honest zero record.
         empty = score_predictions([])
         return {**empty, "n": 0, "generated_at": generated_at,
                 "deadband_pct": MIN_MOVE_PCT, "error": str(e),
+                "excluded": {"count": 0, "by_reason": {}},
                 "horizons": {"provisional_24h": score_predictions([]),
                              "authoritative_7d": score_predictions([])}}
 
@@ -185,6 +206,7 @@ async def get_calibration() -> dict:
         "n": len(all_rows),
         "generated_at": generated_at,
         "deadband_pct": MIN_MOVE_PCT,
+        "excluded": excluded,
         "horizons": {
             "provisional_24h": score_predictions(rows_24h),
             "authoritative_7d": score_predictions(rows_7d),
