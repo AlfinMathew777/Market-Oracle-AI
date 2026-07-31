@@ -169,7 +169,11 @@ async def fetch_historical_data(ticker: str, start: str, end: str) -> pd.DataFra
         if idx.tz is not None:
             idx = idx.tz_convert("UTC").tz_localize(None)
         df.index = idx.normalize()
-        return df[["Open", "High", "Low", "Close", "Volume"]].copy()
+        df = df[["Open", "High", "Low", "Close", "Volume"]].copy()
+        # Loader-boundary guard: drop structurally impossible bars before they
+        # can corrupt signals, outcomes, or metrics downstream.
+        from backtesting.data_guards import validate_ohlc
+        return validate_ohlc(df, strategy="drop", label=ticker)
 
     loop = asyncio.get_event_loop()
     return await loop.run_in_executor(None, _fetch)
@@ -596,9 +600,21 @@ async def run_backtest(
                     continue
                 entry_price = float(day_row["Open"].iloc[0])
 
-                # Exit = close of the next available trading day
+                # Exit = close of the next available trading day.
+                # Gap guard: if that bar is more than MAX_EXIT_GAP_DAYS away
+                # (halt / data gap), the move is NOT a next-day outcome —
+                # skip rather than let a multi-week move pollute the hit rate.
                 future = df[df.index > day_ts]
                 if future.empty:
+                    step += 1
+                    continue
+                from backtesting.data_guards import exit_gap_ok
+                exit_ts = future.index[0]
+                if not exit_gap_ok(day_ts, exit_ts):
+                    logger.info(
+                        "Gap guard: %s %s → next bar %s exceeds exit gap — skipped",
+                        ticker, day_ts.date(), exit_ts.date(),
+                    )
                     step += 1
                     continue
                 exit_price = float(future["Close"].iloc[0])

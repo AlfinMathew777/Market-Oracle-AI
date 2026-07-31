@@ -148,8 +148,11 @@ async def fetch_price_at_time(ticker: str, target_time: datetime) -> Optional[fl
                 )
                 return None
 
-            price = float(rows["Close"].iloc[0])
-            return price
+            # Fetch-boundary sanity: a non-positive/non-finite close is a
+            # corrupt bar — better to leave the prediction pending than
+            # resolve it against garbage.
+            from backtesting.data_guards import sane_close_price
+            return sane_close_price(float(rows["Close"].iloc[0]), label=ticker)
 
         except Exception as exc:
             msg = str(exc).lower()

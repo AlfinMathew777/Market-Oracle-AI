@@ -711,6 +711,52 @@ async def get_full_prediction_log(
         return []
 
 
+async def get_resolved_direction_pairs(
+    ticker: str | None = None,
+    days: int = 365,
+    limit: int = 5000,
+) -> list[dict[str, Any]]:
+    """Return (predicted_direction, actual_direction) for resolved directional
+    predictions — the input to the accuracy permutation test.
+
+    Only rows where both directions resolved to bullish/bearish count;
+    NEUTRAL abstains from the track record by system policy.
+    """
+    try:
+        await init_db()
+        from datetime import UTC, timedelta
+        since = (datetime.now(UTC) - timedelta(days=days)).isoformat()
+
+        conditions = [
+            "predicted_at >= ?",
+            "actual_direction IS NOT NULL",
+            "LOWER(predicted_direction) IN ('bullish', 'bearish')",
+            "LOWER(actual_direction) IN ('bullish', 'bearish')",
+        ]
+        params: list = [since]
+        if ticker:
+            conditions.append("ticker = ?")
+            params.append(ticker)
+
+        where = " AND ".join(conditions)
+        params.append(limit)
+
+        async with get_db() as db:
+            db.row_factory = lambda c, r: dict(
+                zip([col[0] for col in c.description], r, strict=False)
+            )
+            # conditions is a fixed whitelist above; values are bound parameters.
+            sql = (
+                f"SELECT predicted_direction, actual_direction FROM prediction_log "  # noqa: S608
+                f"WHERE {where} ORDER BY predicted_at DESC LIMIT ?"
+            )
+            async with db.execute(sql, params) as cur:
+                return await cur.fetchall()
+    except Exception as e:
+        logger.error("get_resolved_direction_pairs failed: %s", e)
+        return []
+
+
 async def get_detailed_accuracy_stats(
     ticker: Optional[str] = None,
     days: int = 365,

@@ -76,6 +76,32 @@ async def get_failure_analysis(
     return {"success": True, "analysis": analysis}
 
 
+@router.get("/significance")
+async def accuracy_significance(
+    http_request: Request,
+    ticker: str | None = Query(None, description="Filter by ASX ticker, e.g. BHP.AX"),
+    days: int = Query(365, ge=30, le=730, description="Lookback window in days"),
+    n_permutations: int = Query(10_000, ge=1000, le=100_000, description="Permutation count"),
+    api_key: str | None = Depends(optional_api_key),
+):
+    """
+    Permutation-test the track record: is the observed accuracy
+    statistically distinguishable from an uninformed predictor?
+
+    Shuffles predicted labels against actual labels (preserving both
+    marginals) to build the null distribution, then reports the p-value.
+    Stronger than a coin-flip baseline — a bullish-leaning predictor in a
+    trending market scores above 50% for free; the permutation null prices
+    that in.
+    """
+    rate_limiter.check(http_request, endpoint_type="default", api_key=api_key)
+    from quant.significance import run_accuracy_significance
+    result = await run_accuracy_significance(
+        ticker=ticker, days=days, n_permutations=n_permutations
+    )
+    return {"success": "error" not in result, "significance": result}
+
+
 @router.get("/health")
 async def health_check():
     return {"status": "ok", "service": "accuracy_tracker"}

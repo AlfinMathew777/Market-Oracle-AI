@@ -72,6 +72,14 @@ Chokepoint click (Globe) → handleChokepointSimulate()
 | Adaptive topology — contested pre-sim signals (RSI-vs-trend, alt-data-vs-trend) shift bench agents symmetrically onto BOTH directional sides; head-count always preserved | `backend/services/adaptive_topology.py` | (score 0 = no-op) |
 | Semantic memory — resolved predictions indexed as Zep episodes (graph `prediction_memory_v1`); cross-ticker similarity recall injected into Reasoning Synthesizer memory prompt | `backend/services/semantic_memory.py` | no `ZEP_API_KEY` = no-op |
 
+## Track-Record Integrity (Vibe-Trading-inspired)
+| Feature | Module | Notes |
+|---------|--------|-------|
+| OHLC sanity guard — structurally impossible bars (high<low, non-positive, bad bracketing) dropped at the loader boundary | `backend/backtesting/data_guards.py` → wired into `fetch_historical_data` | strategy: drop/warn/raise |
+| Exit-gap guard — backtest outcomes skipped when the next bar is >5 calendar days away (halts/data gaps must not count as next-day outcomes) | `data_guards.exit_gap_ok` in backtest loop | `MAX_EXIT_GAP_DAYS = 5` |
+| Close-price sanity — outcome validation leaves a prediction pending rather than resolving against a non-positive/non-finite price | `data_guards.sane_close_price` in `outcome_checker.fetch_price_at_time` | |
+| Accuracy permutation test — label-shuffle null (preserves both marginals) answers "is our hit rate luck?"; p-value + null distribution | `backend/quant/significance.py` + `GET /api/accuracy/significance` | min 10 resolved directional predictions; seeded/reproducible |
+
 ## Confidence System
 - Hard cap: **85%** max. Never 100%.
 - primary order: max 75% | secondary: max 55% | tertiary: max 35%
