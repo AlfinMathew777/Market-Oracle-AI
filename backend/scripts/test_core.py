@@ -1859,6 +1859,47 @@ class Simulation:
             except Exception as _ptv_err:
                 logger.warning("Price target validation failed: %s", _ptv_err)
 
+        # ── Regime drift haircut ──────────────────────────────────────────────
+        # Distribution-shift sensitivity: when the recent prediction
+        # environment has drifted from the baseline the calibration and
+        # reputations were learned in, confidence takes a bounded haircut.
+        # Fail-soft: a drift-check failure means multiplier 1.0, never a crash.
+        drift_report: dict = {"level": "NONE", "multiplier": 1.0}
+        try:
+            from monitoring.drift_detector import check_drift
+            drift_report = await check_drift(ticker=ticker)
+            _drift_mult = float(drift_report.get("multiplier", 1.0))
+            if _drift_mult < 1.0:
+                _pre_drift = final_confidence
+                final_confidence = round(final_confidence * _drift_mult, 5)
+                confidence_audit["penalties_applied"].append(
+                    f"REGIME_DRIFT_{drift_report.get('level')}: ×{_drift_mult} "
+                    f"({_pre_drift * 100:.1f}% → {final_confidence * 100:.1f}%)"
+                )
+                logger.info(
+                    "[DRIFT] %s haircut applied: level=%s ×%.2f",
+                    ticker, drift_report.get("level"), _drift_mult,
+                )
+        except Exception as _drift_err:  # noqa: BLE001 — drift never breaks a sim
+            logger.warning("Drift haircut skipped: %s", _drift_err)
+
+        # ── Cognitive diversity report ────────────────────────────────────────
+        # Measures whether the model families behind the votes genuinely
+        # disagree (healthy ensemble) or converge (monoculture wearing hats).
+        diversity: dict = {"monoculture_risk": "UNMEASURED"}
+        try:
+            from monitoring.diversity_monitor import diversity_report, maybe_alert_monoculture
+            diversity = diversity_report(all_votes)
+            await maybe_alert_monoculture(diversity, ticker)
+            if diversity.get("diversity_score") is not None:
+                logger.info(
+                    "[DIVERSITY] %s: score=%s risk=%s families=%d",
+                    ticker, diversity.get("diversity_score"),
+                    diversity.get("monoculture_risk"), diversity.get("n_families", 0),
+                )
+        except Exception as _div_err:  # noqa: BLE001 — monitoring never breaks a sim
+            logger.warning("Diversity report skipped: %s", _div_err)
+
         confidence_audit["after_mc_penalty"] = round(final_confidence * 100, 1)
         confidence_audit["final_confidence"]  = round(final_confidence * 100, 1)
 
@@ -2087,6 +2128,9 @@ class Simulation:
             "signal_filter_summary":   signal_filter_summary,
             # Confidence audit trail
             "confidence_audit":   confidence_audit,
+            # CFA governance instrumentation
+            "regime_drift":        drift_report,
+            "cognitive_diversity": diversity,
             # Price target validation
             "price_target_validation": price_target_validation,
             # Quality assessment
