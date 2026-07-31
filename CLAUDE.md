@@ -80,6 +80,13 @@ Chokepoint click (Globe) → handleChokepointSimulate()
 | Close-price sanity — outcome validation leaves a prediction pending rather than resolving against a non-positive/non-finite price | `data_guards.sane_close_price` in `outcome_checker.fetch_price_at_time` | |
 | Accuracy permutation test — label-shuffle null (preserves both marginals) answers "is our hit rate luck?"; p-value + null distribution | `backend/quant/significance.py` + `GET /api/accuracy/significance` | min 10 resolved directional predictions; seeded/reproducible |
 
+## Governance Instrumentation (CFA AI Transition Framework)
+| Feature | Module | Notes |
+|---------|--------|-------|
+| Regime drift detector — small-sample-debiased PSI over confidence + direction distributions (recent 14d vs 120d baseline) + accuracy-collapse escalation; SEVERE fires REGIME_DRIFT alert; MODERATE/SEVERE apply ×0.9/×0.75 confidence haircut in the pipeline | `backend/monitoring/drift_detector.py` | fail-soft: any error = no haircut; thresholds PSI 0.10/0.25 |
+| Cognitive diversity monitor — measures whether model FAMILIES (groq tiers = llama) genuinely disagree; free personas only (forced bull/bear roles excluded); HIGH convergence fires COGNITIVE_MONOCULTURE alert; report in every simulation payload (`cognitive_diversity`) | `backend/monitoring/diversity_monitor.py` | UNMEASURED without ≥2 families of provider data |
+| Prediction provenance — one auditable document per prediction: decision + confidence audit, votes by provider, reputation weighting, attribution, outcome, fresh hash-chain verification | `backend/services/provenance.py` + `GET /api/predictions/{simulation_id}/provenance` | sections fail independently; missing = reported absent, never fabricated |
+
 ## Confidence System
 - Hard cap: **85%** max. Never 100%.
 - primary order: max 75% | secondary: max 55% | tertiary: max 35%

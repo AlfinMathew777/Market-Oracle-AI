@@ -32,6 +32,8 @@ HIGH_SIGNAL_VOLUME      = "HIGH_SIGNAL_VOLUME"
 LOW_CONFIDENCE_CLUSTER  = "LOW_CONFIDENCE_CLUSTER"
 MONTE_CARLO_INSTABILITY = "MONTE_CARLO_INSTABILITY"
 ML_ANOMALY              = "ML_ANOMALY"
+REGIME_DRIFT            = "REGIME_DRIFT"
+COGNITIVE_MONOCULTURE   = "COGNITIVE_MONOCULTURE"
 
 # Cooldown minutes per alert type — a new alert won't fire if an identical
 # unacknowledged one already exists within this window.
@@ -42,6 +44,8 @@ _COOLDOWNS: dict[str, int] = {
     LOW_CONFIDENCE_CLUSTER:  120,
     MONTE_CARLO_INSTABILITY: 60,
     ML_ANOMALY:              120,   # re-check every 2h to avoid alert fatigue
+    REGIME_DRIFT:            240,   # regimes shift over days, not minutes
+    COGNITIVE_MONOCULTURE:   120,
 }
 
 
@@ -380,6 +384,28 @@ async def check_monte_carlo_instability() -> Optional[dict]:
 
 # ── Orchestrator ───────────────────────────────────────────────────────────────
 
+async def check_regime_drift() -> dict | None:
+    """
+    REGIME_DRIFT — fires when the recent prediction-context distribution has
+    drifted SEVERELY from the historical baseline (PSI > 0.25 or a large
+    accuracy collapse). Calibration and reputations learned in the old regime
+    are less trustworthy until the windows re-align.
+    """
+    try:
+        from monitoring.drift_detector import check_drift
+        result = await check_drift(ticker=None)
+        if result.get("level") != "SEVERE":
+            return None
+        message = (
+            f"Severe regime drift detected: psi_conf={result.get('psi_confidence')}, "
+            f"psi_dir={result.get('psi_direction')}, acc_delta={result.get('accuracy_delta')}"
+        )
+        return await _fire_alert(REGIME_DRIFT, "critical", message, result)
+    except Exception as e:
+        logger.warning("check_regime_drift failed (non-fatal): %s", e)
+        return None
+
+
 async def check_all_alerts() -> list[dict]:
     """
     Run all alert checks concurrently. Returns a list of newly created alerts.
@@ -392,6 +418,7 @@ async def check_all_alerts() -> list[dict]:
         check_low_confidence_cluster(),
         check_monte_carlo_instability(),
         check_ml_anomaly_alert(),
+        check_regime_drift(),
         return_exceptions=True,
     )
 

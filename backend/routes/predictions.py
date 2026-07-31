@@ -12,6 +12,25 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/predictions", tags=["predictions"])
 
 
+@router.get("/{simulation_id}/provenance")
+async def get_prediction_provenance(simulation_id: str):
+    """
+    Full auditable provenance document for one prediction: decision +
+    confidence audit, swarm composition (votes, providers, weighting,
+    diversity), evidence attribution, resolved outcome, and a fresh
+    hash-chain integrity verification of the trust ledger.
+
+    The traceability artifact for diligence and regulatory review —
+    every model-assisted conclusion explained, challenged, attributed.
+    """
+    from services.provenance import build_provenance
+    doc = await build_provenance(simulation_id)
+    if doc is None:
+        return {"status": "error", "data": None,
+                "message": f"No prediction found for simulation_id {simulation_id}"}
+    return {"status": "success", "data": doc}
+
+
 @router.get("/history")
 async def get_prediction_history(
     ticker: Optional[str] = Query(default=None),

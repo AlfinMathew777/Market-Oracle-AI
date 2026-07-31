@@ -711,6 +711,21 @@ async def get_full_prediction_log(
         return []
 
 
+async def get_prediction_by_simulation_id(simulation_id: str) -> dict[str, Any] | None:
+    """Return one prediction_log row by its id (== simulation_id), or None."""
+    try:
+        await init_db()
+        async with get_db() as db:
+            db.row_factory = lambda c, r: dict(zip([col[0] for col in c.description], r, strict=False))
+            async with db.execute(
+                "SELECT * FROM prediction_log WHERE id = ?", (simulation_id,)
+            ) as cur:
+                return await cur.fetchone()
+    except Exception as e:
+        logger.error("get_prediction_by_simulation_id failed: %s", e)
+        return None
+
+
 async def get_resolved_direction_pairs(
     ticker: str | None = None,
     days: int = 365,
