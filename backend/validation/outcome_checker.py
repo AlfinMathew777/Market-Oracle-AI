@@ -359,6 +359,27 @@ async def validate_prediction(prediction: dict) -> str:
             stage=STAGE_PROVISIONAL,
         )
 
+        # semantic memory indexing — the resolved outcome becomes a retrievable
+        # cross-ticker experience for future predictions. Strictly best-effort.
+        try:
+            from services.semantic_memory import index_resolved_prediction
+            await index_resolved_prediction(
+                ticker=ticker,
+                direction=direction,
+                confidence=confidence,
+                outcome=outcome,
+                change_pct=change_pct,
+                event_summary=str(
+                    prediction.get("trigger_event")
+                    or prediction.get("reasoning")
+                    or ""
+                )[:300],
+                trend_label=str(prediction.get("trend_label") or ""),
+                lesson=lesson,
+            )
+        except Exception as e:  # noqa: BLE001 — memory indexing never blocks validation
+            logger.warning("semantic memory indexing failed for %s: %s", pred_id, e)
+
     return outcome
 
 

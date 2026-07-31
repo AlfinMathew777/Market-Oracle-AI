@@ -935,6 +935,7 @@ class ReasoningSynthesizer:
                     event_domains=domains,
                     direction=initial_direction,
                     stated_confidence=50,
+                    event_summary=(news_headline or "")[:300],
                 )
                 if memory_context and memory_context.get("has_memory"):
                     memory_prompt = memory_context.get("memory_prompt", "")

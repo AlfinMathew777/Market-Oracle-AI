@@ -71,10 +71,12 @@ _MIN_VIABLE_AGENT_RESPONSES    = 10    # minimum responses to generate a predict
 # UPGRADE 1 — Programmatic confidence calculation
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def calculate_confidence(bullish: int, bearish: int, neutral: int) -> float:
+def calculate_confidence(bullish: float, bearish: float, neutral: float) -> float:
     """
     Calculate real confidence based on agent vote variance.
     Replaces LLM-generated confidence entirely.
+    Accepts floats so reputation-weighted tallies work; raw integer
+    head-counts remain valid inputs.
 
     Returns a 0.0–1.0 float (Pydantic model-compatible).
 
@@ -756,9 +758,9 @@ def filter_trigger_for_ticker(trigger: str, ticker: str) -> str:
 # ── Bug Fix 4: Smart direction determination ───────────────────────────────────
 
 def determine_direction(
-    bullish: int,
-    bearish: int,
-    neutral: int,
+    bullish: float,
+    bearish: float,
+    neutral: float,
     volume_vs_avg: Optional[float],
     trigger_event: str,
     confidence: float,
@@ -766,6 +768,8 @@ def determine_direction(
     """
     Determines final direction with commodity-stock bias correction.
     Pure neutral is only returned when conditions genuinely support it.
+    Accepts reputation-weighted float tallies (mean weight 1.0, so the
+    margin thresholds keep their head-count meaning) or raw integer counts.
     Returns 'bullish' | 'bearish' | 'neutral'.
     """
     total        = bullish + bearish + neutral
@@ -1068,19 +1072,32 @@ class AdversarialAgent:
             f"Now give your vote and one-sentence reason as instructed."
         )
 
+        provider: str | None = None
         try:
-            # Tiered routing: quant/neutral_fund use fast 8b model (3x faster, separate quota).
-            # macro_bull/geo_bear require deeper reasoning → use 70b.
-            _call = (
-                llm_router.call_fast
-                if self.persona in ("quant", "neutral_fund")
-                else llm_router.call_boost
-            )
-            response = await _call(
-                system_message=self.system_prompt,
-                user_prompt=user_prompt,
-                session_id=f"agent_{self.agent_id}_{self.persona}",
-            )
+            if hasattr(llm_router, "call_agent_vote"):
+                # Ensemble-diverse routing: primary provider rotates by agent_id
+                # within a persona-appropriate model pool, so votes come from
+                # different model families (reduces correlated hallucination).
+                response, provider = await llm_router.call_agent_vote(
+                    system_message=self.system_prompt,
+                    user_prompt=user_prompt,
+                    persona=self.persona,
+                    cohort=self.agent_id,
+                    session_id=f"agent_{self.agent_id}_{self.persona}",
+                )
+            else:
+                # Legacy tiered routing (kept for mocked/stub routers in tests):
+                # quant/neutral_fund → fast 8b; macro_bull/geo_bear → 70b.
+                _call = (
+                    llm_router.call_fast
+                    if self.persona in ("quant", "neutral_fund")
+                    else llm_router.call_boost
+                )
+                response = await _call(
+                    system_message=self.system_prompt,
+                    user_prompt=user_prompt,
+                    session_id=f"agent_{self.agent_id}_{self.persona}",
+                )
             vote, reason = _parse_vote(response, self.persona)
         except asyncio.TimeoutError:
             agent_label = f"{self.persona} (Agent {self.agent_id})"
@@ -1104,7 +1121,13 @@ class AdversarialAgent:
                 vote = "neutral"
             reason = f"Error — defaulting to {vote}"
 
-        return {"agent_id": self.agent_id, "persona": self.persona, "vote": vote, "reason": reason}
+        return {
+            "agent_id": self.agent_id,
+            "persona": self.persona,
+            "vote": vote,
+            "reason": reason,
+            "provider": provider,
+        }
 
 
 def _parse_vote(response: str, persona: str) -> Tuple[str, str]:
@@ -1181,12 +1204,23 @@ class Simulation:
                 agent_id += 1
         logger.info("Initialized %d adversarial agents", len(self.agents))
 
-    def _reinit_agents_for_trend(self, trend_label: str) -> str:
+    def _reinit_agents_for_trend(self, trend_label: str, contest_score: float = 0.0) -> str:
         """
-        Rebuild the agent pool using a trend-weighted persona distribution.
+        Rebuild the agent pool using a trend-weighted persona distribution,
+        then apply the adaptive-topology contest adjustment: a contested
+        pre-simulation picture shifts bench agents onto BOTH directional
+        sides for a sharper adversarial debate (total head-count preserved).
         Returns the description string for logging + API response.
         """
         dist = get_persona_distribution(trend_label)
+        if contest_score > 0:
+            try:
+                from services.adaptive_topology import apply_contest_adjustment
+                dist, _contest_note = apply_contest_adjustment(dist, contest_score)
+                if _contest_note:
+                    logger.info("[TOPOLOGY] %s", _contest_note)
+            except Exception as _topo_err:  # noqa: BLE001 — topology never breaks a sim
+                logger.warning("Adaptive topology skipped: %s", _topo_err)
         self._persona_config = [
             ("macro_bull",   dist["macro_bull"],   _macro_bull_prompt),
             ("geo_bear",     dist["geo_bear"],      _geo_bear_prompt),
@@ -1252,9 +1286,21 @@ class Simulation:
         lessons_str = "\n".join(f"- {l}" for l in lessons) if lessons else "No past lessons available."
         context_block = market_ctx["context_block"]
 
-        # ── STEP 1b: Rebalance personas based on trend ────────────────────────
+        # ── STEP 1b: Rebalance personas based on trend + contest score ────────
         trend_label = market_ctx.get("trend_label", "NEUTRAL") or "NEUTRAL"
-        persona_distribution_desc = self._reinit_agents_for_trend(trend_label)
+        try:
+            from services.adaptive_topology import compute_contest_score
+            _contest_score, _contest_reasons = compute_contest_score(
+                trend_label=trend_label,
+                rsi=market_ctx.get("ticker_rsi"),
+                alt_composite_signal=(event_data.get("alt_data") or {}).get("composite_signal"),
+            )
+            if _contest_reasons:
+                logger.info("[TOPOLOGY] contest score %.2f: %s", _contest_score, "; ".join(_contest_reasons))
+        except Exception as _cs_err:  # noqa: BLE001 — contest scoring never breaks a sim
+            logger.warning("Contest scoring skipped: %s", _cs_err)
+            _contest_score = 0.0
+        persona_distribution_desc = self._reinit_agents_for_trend(trend_label, _contest_score)
 
         # ── STEP 1c: Game Theory signals ──────────────────────────────────────
         from services.game_theory.institutional_model import classify_institutional_behaviour
@@ -1399,13 +1445,36 @@ class Simulation:
 
         logger.info("Vote tally: bullish=%d bearish=%d neutral=%d", n_bull, n_bear, n_neut)
 
+        # ── STEP 5b: Reputation-weighted tally ────────────────────────────────
+        # Archetype reputation (outcome-fed loop) scales vote influence.
+        # Raw integer counts stay authoritative for MC resampling, attribution
+        # and judge context — only confidence + direction read the weighted view.
+        # Cold start / store failure → weighted == raw (fail-soft no-op).
+        from trust.vote_weighting import compute_weighted_tally
+        _wt = await compute_weighted_tally(all_votes, trend_label)
+        if _wt.applied:
+            eff_bull, eff_bear, eff_neut = _wt.w_bull, _wt.w_bear, _wt.w_neut
+            logger.info(
+                "Reputation-weighted tally: bull=%.2f bear=%.2f neut=%.2f (raw %d/%d/%d) weights=%s",
+                eff_bull, eff_bear, eff_neut, n_bull, n_bear, n_neut, _wt.weights,
+            )
+        else:
+            eff_bull, eff_bear, eff_neut = float(n_bull), float(n_bear), float(n_neut)
+            logger.info("Reputation weighting not applied (%s)", _wt.note)
+
         # ── STEP 6: Calculate confidence programmatically ─────────────────────
-        raw_confidence = calculate_confidence(n_bull, n_bear, n_neut)
+        raw_confidence = calculate_confidence(eff_bull, eff_bear, eff_neut)
         logger.info("Programmatic confidence: %.1f%% (method: weighted_variance_v2)", raw_confidence * 100)
 
         # Confidence audit trail — tracks each penalty/bonus applied
         confidence_audit: dict = {
             "raw_vote_confidence":       round(raw_confidence * 100, 1),
+            "reputation_weighting": {
+                "applied": _wt.applied,
+                "weights": _wt.weights,
+                "tiers":   _wt.tiers,
+                "note":    _wt.note,
+            },
             "after_judge_modifier":      None,
             "after_data_quality":        None,
             "after_chain_audit":         None,
@@ -1597,7 +1666,7 @@ class Simulation:
 
         # ── Bug Fix 4: Smart direction determination (after judge, with trigger) ─
         volume_vs_avg = market_ctx.get("ticker_volume_vs_avg")
-        raw_dir   = determine_direction(n_bull, n_bear, n_neut, volume_vs_avg, trigger_event, final_confidence)
+        raw_dir   = determine_direction(eff_bull, eff_bear, eff_neut, volume_vs_avg, trigger_event, final_confidence)
         direction = {"bullish": "UP", "bearish": "DOWN", "neutral": "NEUTRAL"}[raw_dir]
         logger.info("Direction (smart): %s (volume=%.2fx trigger=%s...)",
                     direction, volume_vs_avg or 0, trigger_event[:40])

@@ -32,9 +32,16 @@ MEMORY_PROMPT_TEMPLATE = """
 
 **Confidence calibration note:**
 {calibration_note}
-
+{semantic_block}
 Use this context to calibrate your prediction. If similar predictions have failed,
 explain why this case might be different.
+"""
+
+SEMANTIC_BLOCK_TEMPLATE = """
+**Semantically similar past situations (cross-ticker, outcome known):**
+{semantic_lines}
+Weigh these as analogies, not exact precedents — the tickers and events differ,
+but the causal setup resembled this one.
 """
 
 
@@ -55,9 +62,15 @@ class PredictionMemory:
         event_domains: list[str],
         direction: str,
         stated_confidence: int,
+        event_summary: str = "",
     ) -> dict[str, Any]:
         """
         Build complete memory context for the Reasoning Synthesizer.
+
+        Combines two retrieval paths:
+          1. Exact-match SQL history (same ticker + direction) — calibration.
+          2. Semantic similarity search over ALL resolved predictions
+             (cross-ticker) — analogical experience.
 
         Returns a dict with structured data AND a `memory_prompt` string
         ready for prompt injection.
@@ -65,6 +78,17 @@ class PredictionMemory:
         similar = await get_reasoning_predictions_for_memory(
             ticker=stock_ticker, direction=direction, days=180, limit=10
         )
+
+        # Cross-ticker semantic recall — fail-soft, empty without ZEP_API_KEY.
+        semantic_matches: list[str] = []
+        try:
+            from services.semantic_memory import search_similar_situations
+            query = " ".join(
+                filter(None, [stock_ticker, direction, " ".join(event_domains or []), event_summary])
+            )
+            semantic_matches = await search_similar_situations(query, limit=5)
+        except Exception as e:
+            logger.warning("Semantic memory search skipped: %s", e)
 
         # When Reasoning Synthesizer has no history, fall back to the main
         # prediction_log table so the memory context reflects actual track record.
@@ -95,10 +119,12 @@ class PredictionMemory:
             similar=similar_to_use,
             causal_stats=causal_stats,
             calibration=calibration,
+            semantic_matches=semantic_matches,
         )
 
         return {
-            "has_memory": bool(similar_to_use),
+            "has_memory": bool(similar_to_use) or bool(semantic_matches),
+            "semantic_matches": semantic_matches,
             "similar_predictions": [
                 {
                     "outcome": p["outcome_status"],
@@ -226,9 +252,15 @@ class PredictionMemory:
         similar: list[dict[str, Any]],
         causal_stats: dict[str, Any],
         calibration: dict[str, Any],
+        semantic_matches: list[str] | None = None,
     ) -> str:
         """Render the memory context as a prompt string for LLM injection."""
-        if not similar and causal_stats.get("effectiveness") == "UNKNOWN":
+        semantic_matches = semantic_matches or []
+        if (
+            not similar
+            and not semantic_matches
+            and causal_stats.get("effectiveness") == "UNKNOWN"
+        ):
             return ""
 
         # Similar predictions summary
@@ -259,6 +291,13 @@ class PredictionMemory:
         else:
             calibration_note = "Confidence appears well-calibrated based on history."
 
+        # Cross-ticker semantic analogies — only rendered when matches exist.
+        if semantic_matches:
+            semantic_lines = "\n".join(f"- {m}" for m in semantic_matches[:5])
+            semantic_block = SEMANTIC_BLOCK_TEMPLATE.format(semantic_lines=semantic_lines)
+        else:
+            semantic_block = ""
+
         return MEMORY_PROMPT_TEMPLATE.format(
             ticker=ticker,
             direction=direction,
@@ -268,4 +307,5 @@ class PredictionMemory:
             effectiveness=causal_stats.get("effectiveness", "UNKNOWN"),
             sample_size=causal_stats.get("sample_size", 0),
             calibration_note=calibration_note,
+            semantic_block=semantic_block,
         ).strip()
