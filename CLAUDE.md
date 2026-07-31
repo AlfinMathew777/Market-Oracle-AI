@@ -57,12 +57,20 @@ Chokepoint click (Globe) → handleChokepointSimulate()
 | `frontend/src/components/PredictionCard.js` | Event simulation results modal |
 
 ## Simulation Pipeline (DO NOT REORDER)
-1. Vote tally (n_bull, n_bear, n_neut)
+1. Vote tally (n_bull, n_bear, n_neut) → reputation-weighted tally (eff_bull/bear/neut)
 2. Confidence calculation
 3. **Causal chain audit** — may override direction
 4. Blind judge + reconciler — may override direction
 5. Market session modifier
 6. **Minimum confidence guard** — LAST step
+
+## Swarm Intelligence Upgrades (ruflo-inspired)
+| Feature | Module | Kill switch |
+|---------|--------|-------------|
+| Reputation-weighted voting — archetype reputation scales vote influence (mean-normalised, clamp 0.5–2.0; cold-start = no-op; raw counts stay authoritative for MC/attribution) | `backend/trust/vote_weighting.py` | `REPUTATION_WEIGHTED_VOTING=0` |
+| Ensemble diversity — each agent's PRIMARY provider rotates across model families by agent_id (deep personas: 70b/gemini; fast: 8b/70b/gemini; openrouter = fallback only). Vote dicts carry `provider` | `llm_router.call_agent_vote()` | `ENSEMBLE_DIVERSITY=0` |
+| Adaptive topology — contested pre-sim signals (RSI-vs-trend, alt-data-vs-trend) shift bench agents symmetrically onto BOTH directional sides; head-count always preserved | `backend/services/adaptive_topology.py` | (score 0 = no-op) |
+| Semantic memory — resolved predictions indexed as Zep episodes (graph `prediction_memory_v1`); cross-ticker similarity recall injected into Reasoning Synthesizer memory prompt | `backend/services/semantic_memory.py` | no `ZEP_API_KEY` = no-op |
 
 ## Confidence System
 - Hard cap: **85%** max. Never 100%.
@@ -94,6 +102,9 @@ ACLED_API_KEY=
 ACLED_EMAIL=
 REDIS_URL=
 FRONTEND_URL=https://asx.marketoracle.ai
+ZEP_API_KEY=                     # enables semantic prediction memory (optional)
+ENSEMBLE_DIVERSITY=1             # 0 = disable multi-model agent rotation
+REPUTATION_WEIGHTED_VOTING=1     # 0 = disable reputation-weighted tally
 
 # Frontend (Vercel)
 REACT_APP_BACKEND_URL=https://your-railway-app.railway.app

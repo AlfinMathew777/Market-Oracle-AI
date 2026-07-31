@@ -42,6 +42,16 @@ _OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 # Configurable agent count (default 30 for quota efficiency; 50 for full demo)
 NUM_AGENTS = int(os.getenv("NUM_AGENTS", "30"))
 
+# ── Ensemble diversity (ruflo-inspired) ──────────────────────────────────────
+# Rotate each agent's PRIMARY provider across genuinely different model
+# families so swarm votes don't share one model's blind spots (correlated
+# hallucination). openrouter is excluded from rotation pools — its 50 req/day
+# free quota is fallback coverage, not ensemble capacity.
+# Kill switch: ENSEMBLE_DIVERSITY=0 restores single-primary routing.
+_ENSEMBLE_ENV = "ENSEMBLE_DIVERSITY"
+_DEEP_POOL = ("groq-70b", "gemini")             # personas needing deep reasoning
+_FAST_POOL = ("groq-8b", "groq-70b", "gemini")  # pattern-matching personas
+
 
 class LLMRouter:
     """Routes simulation calls through a 4-tier free-tier provider chain."""
@@ -126,6 +136,49 @@ class LLMRouter:
         async with self._semaphore:
             return await self._call_with_fallback(fast_ordered, system_message, user_prompt)
 
+    def ensemble_enabled(self) -> bool:
+        """Ensemble diversity is on unless explicitly disabled via env."""
+        return os.getenv(_ENSEMBLE_ENV, "1") == "1"
+
+    def _ensemble_order(self, cohort: int, pool_names: tuple) -> list:
+        """Provider order for one agent: rotate the pool by cohort, then append
+        the remaining active providers as the usual fallback tail."""
+        pool = [p for p in self._active if p["name"] in pool_names]
+        if not pool:
+            return list(self._active)
+        rot = cohort % len(pool)
+        ordered = pool[rot:] + pool[:rot]
+        tail = [p for p in self._active if p not in ordered]
+        return ordered + tail
+
+    async def call_agent_vote(
+        self,
+        system_message: str,
+        user_prompt: str,
+        persona: str = "",
+        cohort: int = 0,
+        session_id: str = "agent",
+    ) -> tuple:
+        """Ensemble-diverse agent vote call — returns (text, provider_name).
+
+        Deep-reasoning personas (macro_bull, geo_bear) rotate across the strong
+        models; fast personas rotate across all three families. Falls back
+        through the full provider chain like every other call, so a rate-limited
+        primary never loses a vote.
+        """
+        deep = persona in ("macro_bull", "geo_bear")
+        if self.ensemble_enabled():
+            ordered = self._ensemble_order(cohort, _DEEP_POOL if deep else _FAST_POOL)
+        elif deep:
+            ordered = list(self._active)  # legacy boost order: groq-70b first
+        else:
+            ordered = sorted(               # legacy fast order: groq-8b first
+                self._active,
+                key=lambda p: (0 if p["name"] == "groq-8b" else 1 if p["name"] == "groq-70b" else 2),
+            )
+        async with self._semaphore:
+            return await self._call_with_fallback_ex(ordered, system_message, user_prompt)
+
     async def call_batch(self, model_type: str, prompts: List[Dict[str, str]]) -> List[str]:
         """Run many prompts concurrently — used for 50-agent simulation."""
         tasks = [
@@ -146,6 +199,12 @@ class LLMRouter:
 
     async def _call_with_fallback(self, providers: list, system_message: str, user_prompt: str) -> str:
         """Try each provider in order; advance on 429 / timeout / missing key / open circuit."""
+        text, _provider = await self._call_with_fallback_ex(providers, system_message, user_prompt)
+        return text
+
+    async def _call_with_fallback_ex(self, providers: list, system_message: str, user_prompt: str) -> tuple:
+        """Fallback chain that also reports WHICH provider answered — (text, name).
+        Needed by ensemble callers so each vote records its model family."""
         last_error = None
         for provider in providers:
             if not provider["key"]:
@@ -162,7 +221,7 @@ class LLMRouter:
                 await self._track_call(provider["name"])
                 if breaker:
                     await breaker.record_success()
-                return result
+                return result, provider["name"]
             except asyncio.TimeoutError as e:
                 logger.warning("Provider %s timed out — trying next tier", provider["name"])
                 if breaker:
