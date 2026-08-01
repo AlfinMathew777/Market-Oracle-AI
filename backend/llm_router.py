@@ -102,8 +102,12 @@ class LLMRouter:
         else:
             self._breakers = {}
 
-        # Groq allows 30 RPM — run up to 20 concurrent to halve agent phase time
-        self._semaphore = asyncio.Semaphore(int(os.getenv("LLM_CONCURRENCY", "20")))
+        # Groq allows 30 RPM. Concurrency 20 exhausted the window during the
+        # agent phase and STARVED the judge/reconciler calls that follow —
+        # every prediction graded F with "causal chain empty (judge timeout)".
+        # 8 concurrent keeps the agent phase fast while leaving rate headroom
+        # for the judge. Override with LLM_CONCURRENCY when quota allows.
+        self._semaphore = asyncio.Semaphore(int(os.getenv("LLM_CONCURRENCY", "8")))
 
         logger.info(
             "LLM Router initialized — active providers: %s (circuit breakers: %s)",

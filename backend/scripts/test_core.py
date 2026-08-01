@@ -1856,6 +1856,15 @@ class Simulation:
                         price_target_validation["adjusted_target"],
                         price_target_validation.get("warning", ""),
                     )
+                    # Re-cap the WHOLE distribution, not just the headline
+                    # target — otherwise the CI bounds/expected-return still
+                    # show the uncapped move and contradict the capped price
+                    # on the prediction card.
+                    from services.price_target_validator import cap_price_range
+                    cap_price_range(
+                        mc_price, _curr,
+                        float(price_target_validation.get("max_realistic_move_pct", 0.0)),
+                    )
             except Exception as _ptv_err:
                 logger.warning("Price target validation failed: %s", _ptv_err)
 

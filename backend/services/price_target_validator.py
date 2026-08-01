@@ -171,3 +171,28 @@ def validate_price_target(
         "days":                   days,
         "warning":                warning,
     }
+
+
+def cap_price_range(mc_price, current_price: float, max_realistic_pct: float) -> None:
+    """Cap the ENTIRE MC price distribution to the ATR-realistic band.
+
+    Capping only the headline target leaves CI bounds and expected return
+    showing the uncapped move — a prediction card then displays a capped
+    price of X with a confidence interval entirely above X. Mutates the
+    MonteCarloPriceRange in place; no-op for a non-positive cap.
+    """
+    if max_realistic_pct <= 0 or current_price <= 0:
+        return
+    hi = round(current_price * (1 + max_realistic_pct / 100), 2)
+    lo = round(current_price * (1 - max_realistic_pct / 100), 2)
+    mc_price.expected_price_7d = min(max(mc_price.expected_price_7d, lo), hi)
+    mc_price.range_90pct_high = min(mc_price.range_90pct_high, hi)
+    mc_price.range_68pct_high = min(mc_price.range_68pct_high, hi)
+    mc_price.range_90pct_low = max(mc_price.range_90pct_low, lo)
+    mc_price.range_68pct_low = max(mc_price.range_68pct_low, lo)
+    mc_price.expected_change_pct = round(
+        (mc_price.expected_price_7d - current_price) / current_price * 100, 2
+    )
+    mc_price.expected_return = min(
+        max(mc_price.expected_return, -max_realistic_pct), max_realistic_pct
+    )

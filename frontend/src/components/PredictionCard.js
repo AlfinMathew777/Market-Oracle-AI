@@ -876,7 +876,11 @@ function PredictionCard({ prediction, tradeExecution, accuracyStats, livePrice, 
                 <p className="pred-trade-wait-reason">
                   {recommendation === 'WAIT'
                     ? 'Signal strength is below the actionable threshold. Wait for clearer directional conviction before entering a position.'
-                    : 'Market direction is neutral. No entry, stop-loss, or take-profit parameters have been generated for this signal.'}
+                    : prediction.direction === 'UP'
+                      ? 'Signal blocked by quality gates — the bullish view did not meet the trading threshold. No entry, stop-loss, or take-profit parameters generated.'
+                      : prediction.direction === 'DOWN'
+                        ? 'Signal blocked by quality gates — the bearish view did not meet the trading threshold. No entry, stop-loss, or take-profit parameters generated.'
+                        : 'Market direction is neutral. No entry, stop-loss, or take-profit parameters have been generated for this signal.'}
                 </p>
               </div>
             </div>

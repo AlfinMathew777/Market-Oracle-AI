@@ -19,6 +19,12 @@ from typing import Optional
 # 2,500 price sims: 95% CI width ~±1.96% vs ±0.98% for 10,000 — acceptable for 7-day swing trading.
 # 500 confidence sims: sufficient for stability classification (stable/unstable).
 _MC_PRICE_SIMS      = int(os.getenv("MC_SIMULATIONS", "2500"))
+
+# Realism bounds for the price simulation (see run_price_range_monte_carlo):
+# equities never have ~zero forward vol, and a vote-derived drift must tilt
+# the distribution, not overwhelm it into fake certainty.
+_MIN_DAILY_VOL       = 0.006  # ≈9.5% annualized — conservative equity floor
+_MAX_DRIFT_VOL_RATIO = 0.6    # |daily drift| ≤ 60% of daily vol
 _MC_CONFIDENCE_SIMS = int(os.getenv("MC_CONFIDENCE_SIMS", "500"))
 
 logger = logging.getLogger(__name__)
@@ -237,10 +243,22 @@ def run_price_range_monte_carlo(
             vol = fallback_daily_vol(ticker)
             logger.info("[MC PRICE] %s using fallback vol=%.5f", ticker, vol)
 
+        # Realism floor: a listed equity never has ~zero forward volatility.
+        # Without this, a low calibrated vol + strong drift produces paths with
+        # NO downside (the CBA "100% probability of profit / positive VaR" bug).
+        vol = max(vol, _MIN_DAILY_VOL)
+
         # Directional bias: direction_probability > 0.5 = bearish = negative drift.
         # Coefficient chosen so prob_down_5pct > 50% at direction_prob ≈ 0.69.
         bearish_strength = (direction_probability - 0.5) * 2
         daily_bias = -bearish_strength * 0.020  # at dp=0.69: ~-0.76%/day → -5.2% in 7d
+
+        # Drift cap: |drift| may never exceed 60% of daily vol. An agent-vote
+        # ratio is a weak directional prior — it must tilt the distribution,
+        # not overwhelm it. Uncapped, a lopsided vote makes every simulated
+        # path finish positive, which is certainty no market ever offers.
+        max_bias = _MAX_DRIFT_VOL_RATIO * vol
+        daily_bias = max(-max_bias, min(max_bias, daily_bias))
 
         # Simulate price paths — shape: (n_simulations, days)
         daily_returns = rng.normal(daily_bias, vol, size=(n_simulations, days))
@@ -259,7 +277,11 @@ def run_price_range_monte_carlo(
         cvar_99 = round(cvar_opt.calculate_cvar(frac_returns, 0.99), 2)
 
         expected_return = round(float(np.mean(frac_returns)) * 100, 2)
-        prob_profit = round(float(np.mean(frac_returns > 0)) * 100, 1)
+        # Never display certainty — same philosophy as the 85% confidence cap.
+        # A simulated 0%/100% is a model artifact, not a market truth.
+        prob_profit = round(
+            min(99.0, max(1.0, float(np.mean(frac_returns > 0)) * 100)), 1
+        )
 
         risk_adjusted_score = round(
             expected_return / abs(cvar_95) if abs(cvar_95) > 0.01 else 0.0, 3
@@ -309,8 +331,18 @@ def run_price_range_monte_carlo(
             risk_adjusted_score=risk_adjusted_score,
             tail_risk_ratio=tail_risk_ratio,
             risk_level=risk_level,
-            var_interpretation=f"95% confident loss won't exceed {abs(var_95):.1f}%",
-            cvar_interpretation=f"In worst 5% of scenarios, avg loss is {abs(cvar_95):.1f}%",
+            # A positive VaR/CVaR means even the worst-tail scenarios are gains
+            # — the wording must not call a gain a "loss".
+            var_interpretation=(
+                f"95% confident loss won't exceed {abs(var_95):.1f}%"
+                if var_95 < 0
+                else f"95% of scenarios end at or above +{var_95:.1f}%"
+            ),
+            cvar_interpretation=(
+                f"In worst 5% of scenarios, avg loss is {abs(cvar_95):.1f}%"
+                if cvar_95 < 0
+                else f"Worst 5% of scenarios still average +{cvar_95:.1f}%"
+            ),
         )
 
     except Exception as e:
