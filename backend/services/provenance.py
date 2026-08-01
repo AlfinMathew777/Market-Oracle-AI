@@ -39,14 +39,17 @@ def _swarm_section(full_json: dict | None, prediction: dict | None) -> dict[str,
     if full_json.get("cognitive_diversity"):
         section["cognitive_diversity"] = full_json["cognitive_diversity"]
 
-    # Per-provider vote breakdown (ensemble diversity evidence).
-    providers: dict[str, dict[str, int]] = {}
-    for vote in full_json.get("all_votes") or []:
-        provider = vote.get("provider") or "unrecorded"
-        tally = providers.setdefault(provider, {"bullish": 0, "bearish": 0, "neutral": 0})
-        direction = str(vote.get("vote") or "").lower()
-        if direction in tally:
-            tally[direction] += 1
+    # Per-provider vote breakdown (ensemble diversity evidence): prefer the
+    # compact persisted tally; fall back to recomputing from raw votes when
+    # an older record carries all_votes instead.
+    providers: dict[str, dict[str, int]] = full_json.get("votes_by_provider") or {}
+    if not providers:
+        for vote in full_json.get("all_votes") or []:
+            provider = vote.get("provider") or "unrecorded"
+            tally = providers.setdefault(provider, {"bullish": 0, "bearish": 0, "neutral": 0})
+            direction = str(vote.get("vote") or "").lower()
+            if direction in tally:
+                tally[direction] += 1
     if providers:
         section["votes_by_provider"] = providers
     return section

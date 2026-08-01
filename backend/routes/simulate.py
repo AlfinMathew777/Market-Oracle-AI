@@ -740,6 +740,11 @@ async def _persist_simulation(simulation_id, ticker, prediction, event_data, exe
     """Save simulation result to SQLite (simulations + prediction_log)."""
     try:
         from database import save_simulation
+        # The card carries the engine's internal run id; the DB is keyed by the
+        # route's simulation_id (the one status polling + provenance use).
+        # Align them so the id shown in the UI always resolves in provenance.
+        if isinstance(prediction, dict):
+            prediction["simulation_id"] = simulation_id
         await save_simulation(simulation_id, ticker, prediction, event_data, execution_time)
         logger.info("Saved simulation %s to DB", simulation_id)
     except Exception as e:

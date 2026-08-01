@@ -2498,6 +2498,10 @@ class Simulation:
             "price_target_validation": simulation_results.get("price_target_validation"),
             # Quality assessment
             "quality_assessment":     simulation_results.get("quality_assessment"),
+            # CFA governance instrumentation — persisted so provenance can serve it
+            "regime_drift":        simulation_results.get("regime_drift"),
+            "cognitive_diversity": simulation_results.get("cognitive_diversity"),
+            "votes_by_provider":   _tally_votes_by_provider(simulation_results.get("all_votes") or []),
         }
 
         prediction = PredictionCard(**prediction_dict)
@@ -2549,6 +2553,18 @@ class Simulation:
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
+
+def _tally_votes_by_provider(all_votes: list) -> dict:
+    """Compact per-provider vote tallies for provenance (ensemble evidence)."""
+    providers: dict = {}
+    for vote in all_votes:
+        provider = vote.get("provider") or "unrecorded"
+        tally = providers.setdefault(provider, {"bullish": 0, "bearish": 0, "neutral": 0})
+        direction = str(vote.get("vote") or "").lower()
+        if direction in tally:
+            tally[direction] += 1
+    return providers
+
 
 def _fallback_judge_result(
     n_bull: int,

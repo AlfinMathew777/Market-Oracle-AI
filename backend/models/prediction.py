@@ -212,6 +212,11 @@ class PredictionCard(BaseModel):
     # Aggregated signal quality report — grade, issues, actionability
     quality_assessment: Optional[dict] = None  # grade (A/B/C/D), issues[], is_actionable, summary
 
+    # CFA governance instrumentation (persisted for provenance)
+    regime_drift:        Optional[dict] = None  # drift level/PSI/multiplier from drift_detector
+    cognitive_diversity: Optional[dict] = None  # model-family convergence report
+    votes_by_provider:   Optional[dict] = None  # compact per-provider vote tallies
+
     model_config = {
         "json_schema_extra": {
             "example": {
